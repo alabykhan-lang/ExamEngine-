@@ -10,6 +10,7 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --ink:#0A0F1E; --ink2:#1E2A3A; --ink3:#334155; --mute:#6B7A99;
@@ -860,6 +861,61 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
   .noprint { display: none !important; }
 }
 
+/* ══════════════════════════════════════
+   AUTH / LOGIN SCREEN
+══════════════════════════════════════ */
+#screen-auth{
+  display:none;position:fixed;inset:0;
+  background:linear-gradient(135deg,#0A0F1E 0%,#1B2A4A 100%);
+  z-index:10000;align-items:center;justify-content:center;
+  flex-direction:column;padding:24px;
+}
+#screen-auth.visible{display:flex;}
+.auth-card{
+  background:#fff;border-radius:20px;padding:36px 32px;
+  width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.4);
+}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.auth-logo-mark{width:40px;height:40px;border-radius:11px;background:var(--blue);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:900;box-shadow:var(--sh-blue);}
+.auth-logo-name{font-size:18px;font-weight:800;color:var(--blue);letter-spacing:-.5px;}
+.auth-title{font-size:22px;font-weight:800;color:var(--ink);margin-bottom:6px;letter-spacing:-.5px;}
+.auth-sub{font-size:13px;color:var(--mute);margin-bottom:28px;line-height:1.6;}
+.auth-field{margin-bottom:16px;}
+.auth-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1px;color:var(--mute);margin-bottom:6px;}
+.auth-field input{width:100%;background:var(--surf2);border:1.5px solid var(--bdr);
+  color:var(--ink);padding:12px 14px;border-radius:var(--rs);font-family:var(--sans);
+  font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.auth-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(27,84,240,.1);background:#fff;}
+.auth-btn{width:100%;background:var(--blue);color:#fff;border:none;padding:13px;
+  border-radius:var(--rs);font-family:var(--sans);font-weight:700;font-size:14px;
+  cursor:pointer;transition:all .2s;box-shadow:var(--sh-blue);margin-top:8px;}
+.auth-btn:hover{background:var(--blue-dk);transform:translateY(-1px);}
+.auth-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.auth-err{background:var(--red-lt);border:1.5px solid var(--red-bdr);border-radius:var(--rs);
+  padding:10px 14px;font-size:12.5px;color:var(--red);margin-bottom:16px;display:none;}
+.auth-err.show{display:block;}
+.auth-spinner{display:none;text-align:center;padding:8px;font-size:12px;color:var(--mute);}
+.auth-spinner.show{display:block;}
+
+/* User menu chip */
+.user-chip{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;
+  padding:5px 11px;border-radius:20px;border:1.5px solid var(--bdr);background:var(--surf2);
+  cursor:pointer;transition:all .2s;max-width:130px;overflow:hidden;}
+.user-chip:hover{border-color:var(--blue);background:var(--blue-lt);}
+.user-chip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* User management in admin settings */
+.user-row{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border:1.5px solid var(--bdr);border-radius:var(--rs);margin-bottom:8px;background:var(--surf);}
+.user-row-email{flex:1;font-size:12.5px;color:var(--ink3);}
+.user-row-role{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.5px;}
+.user-row-role.admin{background:var(--admin-lt);color:var(--admin);border:1px solid var(--admin-bdr);}
+.user-row-role.teacher{background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-md);}
+
 /* ── DIGITAL LAB PRINT ROOT — Screen display before window.print() ── */
 #print-root {
   display: none;
@@ -894,6 +950,56 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 
 </style>
 <body>
+
+<!-- ══ AUTH SCREEN ════════════════════════ -->
+<div id="screen-auth" class="visible">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-mark">E</div>
+      <div class="auth-logo-name">ExamEngine Pro</div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--rs);padding:4px;gap:4px;margin-bottom:24px;">
+      <button id="tabLogin" onclick="authTab('login')" style="flex:1;padding:9px;border-radius:7px;border:none;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff;transition:all .2s;">Sign In</button>
+      <button id="tabRegister" onclick="authTab('register')" style="flex:1;padding:9px;border-radius:7px;border:none;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--mute);transition:all .2s;">Register</button>
+    </div>
+
+    <div class="auth-err" id="authErr"></div>
+
+    <!-- Sign In -->
+    <div id="authLoginPanel">
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="authEmail" placeholder="you@school.edu.ng" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="authPass" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="auth-btn" id="authBtn" onclick="doLogin()">Sign In →</button>
+    </div>
+
+    <!-- Register -->
+    <div id="authRegisterPanel" style="display:none;">
+      <div class="auth-field">
+        <label>Full Name</label>
+        <input type="text" id="regName" placeholder="e.g. Amina Yusuf" autocomplete="name"/>
+      </div>
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="regEmail" placeholder="you@school.edu.ng" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="regPass" placeholder="Min 6 characters" autocomplete="new-password"/>
+      </div>
+      <button class="auth-btn" id="regBtn" onclick="doRegister()">Create Account →</button>
+    </div>
+
+    <div class="auth-spinner" id="authSpinner">Please wait…</div>
+  </div>
+</div>
 
 <!-- ══ SIDEBAR ══════════════════════════ -->
 <div id="sb-overlay" onclick="closeSidebar()"></div>
@@ -949,6 +1055,10 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
         <span id="apiLbl">No API Key</span>
       </div>
       <div id="queueChip" style="display:none;font-size:10.5px;font-weight:700;padding:5px 10px;border-radius:20px;background:var(--amber-lt);border:1.5px solid var(--amber-bdr);color:var(--amber);font-family:var(--mono);">⏳ <span id="queueLbl">queuing…</span></div>
+      <div class="user-chip" onclick="doLogout()" title="Click to sign out">
+        <span>👤</span>
+        <span class="user-chip-name" id="userChipName">…</span>
+      </div>
     </div>
   </div>
 </header>
@@ -998,11 +1108,172 @@ var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var OR_REFERER = 'https://examengine.pro';
 var OR_TITLE   = 'ExamEngine Pro v12.5';
 
-/* ── ROLE STATE ───────────────────── */
-var ROLE = 'teacher'; // 'teacher' | 'admin'
+/* ══════════════════════════════════════
+   SUPABASE INIT
+══════════════════════════════════════ */
+var _supabase = supabase.createClient(
+  'https://qbjtiximcchhnxhttogq.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U'
+);
 
-window.switchRole = function(role){
-  ROLE = role;
+/* ── AUTH STATE ───────────────────── */
+var CURRENT_USER = null;   // { id, email, name, role }
+var _authMode = 'login';
+
+/* ── TAB SWITCHER ─────────────────── */
+window.authTab = function(mode){
+  _authMode = mode;
+  clearAuthErr();
+  var lp=$('authLoginPanel'), rp=$('authRegisterPanel');
+  var tl=$('tabLogin'), tr=$('tabRegister');
+  if(mode==='login'){
+    if(lp) lp.style.display='block';
+    if(rp) rp.style.display='none';
+    if(tl){ tl.style.background='var(--blue)'; tl.style.color='#fff'; tl.style.fontWeight='700'; }
+    if(tr){ tr.style.background='transparent'; tr.style.color='var(--mute)'; tr.style.fontWeight='600'; }
+  } else {
+    if(lp) lp.style.display='none';
+    if(rp) rp.style.display='block';
+    if(tr){ tr.style.background='var(--blue)'; tr.style.color='#fff'; tr.style.fontWeight='700'; }
+    if(tl){ tl.style.background='transparent'; tl.style.color='var(--mute)'; tl.style.fontWeight='600'; }
+  }
+};
+
+/* ── SIGN IN ──────────────────────── */
+window.doLogin = async function(){
+  var email = ($('authEmail')||{}).value||'';
+  var pass  = ($('authPass')||{}).value||'';
+  email = email.trim().toLowerCase();
+  if(!email||!pass){ showAuthErr('Please enter your email and password.'); return; }
+  setAuthLoading(true);
+  var res = await _supabase.auth.signInWithPassword({ email: email, password: pass });
+  if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
+  await _loadUserAndBoot(res.data.user);
+};
+
+/* ── REGISTER ─────────────────────── */
+window.doRegister = async function(){
+  var name  = ($('regName')||{}).value||'';
+  var email = ($('regEmail')||{}).value||'';
+  var pass  = ($('regPass')||{}).value||'';
+  name  = name.trim();
+  email = email.trim().toLowerCase();
+  pass  = pass.trim();
+  if(!name)       { showAuthErr('Please enter your full name.'); return; }
+  if(!email)      { showAuthErr('Please enter your email address.'); return; }
+  if(pass.length < 6){ showAuthErr('Password must be at least 6 characters.'); return; }
+  setAuthLoading(true);
+  // Sign up with Supabase Auth
+  var res = await _supabase.auth.signUp({ email: email, password: pass });
+  if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
+  var uid = res.data.user && res.data.user.id;
+  if(!uid){ setAuthLoading(false); showAuthErr('Registration failed. Please try again.'); return; }
+  // Create profile row immediately — role is always 'teacher' on self-register
+  await _supabase.from('profiles').upsert({
+    id: uid, email: email, name: name, role: 'teacher'
+  });
+  // Auto sign in
+  var loginRes = await _supabase.auth.signInWithPassword({ email: email, password: pass });
+  if(loginRes.error){ setAuthLoading(false); showAuthErr('Account created! Please sign in.'); authTab('login'); return; }
+  await _loadUserAndBoot(loginRes.data.user);
+};
+
+window.doLogout = async function(){
+  if(!confirm('Sign out?')) return;
+  await _supabase.auth.signOut();
+  CURRENT_USER = null;
+  showAuthScreen();
+};
+
+function showAuthErr(msg){
+  var el=$('authErr'); if(!el) return;
+  el.textContent=msg; el.classList.add('show');
+}
+function clearAuthErr(){ var el=$('authErr'); if(el) el.classList.remove('show'); }
+function setAuthLoading(on){
+  var btn=$('authBtn'), rb=$('regBtn'), sp=$('authSpinner');
+  if(btn){ btn.disabled=on; btn.textContent=on?'Signing in…':'Sign In →'; }
+  if(rb){  rb.disabled=on;  rb.textContent=on?'Creating account…':'Create Account →'; }
+  if(sp){ sp.classList.toggle('show',on); }
+}
+
+/* ── Load profile from DB ─────────── */
+async function _loadUserAndBoot(authUser){
+  try{
+    var res = await _supabase.from('profiles').select('*').eq('id', authUser.id).single();
+    var profile = res.data;
+    if(!profile){
+      // First-time sign in — create profile
+      var name = (authUser.email||'').split('@')[0];
+      var insertRes = await _supabase.from('profiles').insert({
+        id: authUser.id,
+        email: authUser.email,
+        name: name,
+        role: 'teacher'
+      }).select().single();
+      profile = insertRes.data || { id: authUser.id, email: authUser.email, name: name, role: 'teacher' };
+    }
+    CURRENT_USER = { id: profile.id, email: profile.email, name: profile.name||profile.email, role: profile.role||'teacher' };
+    hideAuthScreen();
+    bootApp();
+  } catch(e){
+    setAuthLoading(false);
+    showAuthErr('Could not load your profile. Please try again.');
+  }
+}
+
+/* ── Load user settings from Supabase ── */
+async function _loadUserSettings(){
+  if(!CURRENT_USER){ return; }
+  var res = await _supabase.from('user_settings').select('*').eq('user_id', CURRENT_USER.id);
+  var m = {};
+  (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
+  S.tradeSubject  = m.trade    || DEFAULT_TRADE;
+  S.cfg.school    = m.school   || '';
+  S.cfg.term      = m.defterm  || '1st Term';
+  API_KEY         = m.api_key  || '';
+  // Pre-load admin settings cache for everyone (needed for school name etc.)
+  await _fetchAdminSettings();
+  // Override ADMIN.selectedTerm if admin
+  if(CURRENT_USER.role==='admin'){
+    ADMIN.selectedTerm = m.defterm || '1st Term';
+  }
+}
+  var s=$('screen-auth'); if(s) s.classList.add('visible');
+  clearAuthErr(); setAuthLoading(false);
+  // Clear password
+  var p=$('authPass'); if(p) p.value='';
+}
+function hideAuthScreen(){
+  var s=$('screen-auth'); if(s) s.classList.remove('visible');
+}
+
+/* ── Boot the app after auth ────────── */
+function bootApp(){
+  // Update user chip
+  var chip=$('userChipName');
+  if(chip) chip.textContent = (CURRENT_USER.name||CURRENT_USER.email).split(' ')[0];
+
+  // Enter key on password field
+  var passEl=$('authPass');
+  if(passEl) passEl.onkeydown=function(e){ if(e.key==='Enter') doLogin(); };
+
+  // Init app state from Supabase user_settings
+  await _loadUserSettings();
+
+  // Force role based on DB profile — admins cannot be faked
+  ROLE = CURRENT_USER.role === 'admin' ? 'admin' : 'teacher';
+  _applyRoleUI(ROLE);
+  refreshApiStatus();
+  startDeadlineWatcher();
+  renderDash();
+  $('screen-dash').style.display='block';
+}
+
+/* ── ROLE STATE ───────────────────── */
+var ROLE = 'teacher'; // always set from DB, never from button click alone
+
+function _applyRoleUI(role){
   var nt=$('sbNavTeacher'), na=$('sbNavAdmin');
   var st=$('swTeacher'),    sa=$('swAdmin');
   var bm=$('sbBrandMark'),  bn=$('sbBrandName');
@@ -1015,7 +1286,6 @@ window.switchRole = function(role){
     if(bm){ bm.style.background='var(--admin)'; bm.style.boxShadow='var(--sh-admin)'; }
     if(bn){ bn.style.color='var(--admin)'; }
     if(rb){ rb.className='role-badge admin'; rb.textContent='Admin'; }
-    navTo('admin-dash');
   } else {
     if(nt) nt.style.display='block';
     if(na) na.style.display='none';
@@ -1024,8 +1294,18 @@ window.switchRole = function(role){
     if(bm){ bm.style.background='var(--blue)'; bm.style.boxShadow='var(--sh-blue)'; }
     if(bn){ bn.style.color='var(--blue)'; }
     if(rb){ rb.className='role-badge teacher'; rb.textContent='Teacher'; }
-    navTo('dash');
   }
+}
+
+window.switchRole = function(role){
+  // Only allow role switch if user actually has that role in DB
+  if(role==='admin' && CURRENT_USER && CURRENT_USER.role!=='admin'){
+    toast('⛔ Admin access only — contact your administrator','err',4000);
+    return;
+  }
+  ROLE = role;
+  _applyRoleUI(role);
+  navTo(role==='admin'?'admin-dash':'dash');
   closeSidebar();
 };
 
@@ -1116,7 +1396,7 @@ function stdTagCls(s) {
 /* ══════════════════════════════════════
    GLOBAL STATE
 ══════════════════════════════════════ */
-var API_KEY = localStorage.getItem('openrouter_api_key')||'';
+var API_KEY = '';
 
 var S = {
   screen: 'dash',   // dash | gate | app | load | arch | sett
@@ -1173,17 +1453,22 @@ function toast(msg,type,dur){
    SCHEME PERSISTENCE
    Key: ee_scheme__{cls}__{subj}__{term}
 ══════════════════════════════════════ */
+/* ── SCHEME PERSISTENCE — Supabase ── */
 function schemeKey(cls,subj,term){
-  return 'ee_scheme__'+(cls||'')+'__'+(subj||'')+'__'+(term||'');
+  return (cls||'')+'__'+(subj||'')+'__'+(term||'');
 }
-function loadCommittedScheme(cls,subj,term){
-  try{ var r=localStorage.getItem(schemeKey(cls,subj,term)); return r?JSON.parse(r):null; }catch(e){ return null; }
+async function loadCommittedScheme(cls,subj,term){
+  if(!CURRENT_USER) return null;
+  var res=await _supabase.from('schemes').select('weeks').eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term)).single();
+  return res.data?res.data.weeks:null;
 }
-function commitScheme(cls,subj,term,weeks){
-  try{ localStorage.setItem(schemeKey(cls,subj,term),JSON.stringify(weeks)); }catch(e){}
+async function commitScheme(cls,subj,term,weeks){
+  if(!CURRENT_USER) return;
+  await _supabase.from('schemes').upsert({user_id:CURRENT_USER.id,scheme_key:schemeKey(cls,subj,term),weeks:weeks},{onConflict:'user_id,scheme_key'});
 }
-function clearCommittedScheme(cls,subj,term){
-  localStorage.removeItem(schemeKey(cls,subj,term));
+async function clearCommittedScheme(cls,subj,term){
+  if(!CURRENT_USER) return;
+  await _supabase.from('schemes').delete().eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term));
 }
 
 /* ══════════════════════════════════════
@@ -1344,13 +1629,14 @@ function refreshApiStatus(){
 /* ══════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════ */
-function renderDash(){
+async function renderDash(){
   var el=$('screen-dash');
   el.style.display='block';
+  el.innerHTML='<div class="pg fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading…</div></div>';
 
-  var papers = JSON.parse(localStorage.getItem('ee_published')||'[]');
-  var drafts  = JSON.parse(localStorage.getItem('ee_drafts')||'[]');
-  var school  = localStorage.getItem('ee_school')||'Your School';
+  var papers = await getPublished();
+  var drafts  = [];
+  var school  = S.cfg.school||'Your School';
   var now     = new Date();
   var termKey = now.getMonth()<4?'1st Term':now.getMonth()<8?'2nd Term':'3rd Term';
   var thisTerm= papers.filter(function(p){ return p.term===termKey; }).length;
@@ -1458,13 +1744,14 @@ function renderLoad(){
     +'</div>';
 }
 
-window.doLoadByRef = function(){
+window.doLoadByRef = async function(){
   var ref = ($('loadRef')||{}).value||'';
   ref = ref.trim().toUpperCase();
   if(!ref){ toast('Enter a reference number','warn'); return; }
-  var papers = JSON.parse(localStorage.getItem('ee_published')||'[]');
-  var p = papers.find(function(x){ return x.ref===ref; });
   var el=$('loadResult');
+  el.innerHTML='<div style="padding:20px;text-align:center;color:var(--mute);">Searching…</div>';
+  var res = await _supabase.from('papers').select('*').eq('ref', ref).single();
+  var p = res.data ? Object.assign({}, res.data.data||{}, { ref: res.data.ref, _db_id: res.data.id }) : null;
   if(!p){
     el.innerHTML='<div class="banner b-warn">⚠ No paper found with reference <strong>'+esc(ref)+'</strong>. Check the reference and try again.</div>';
     return;
@@ -1486,10 +1773,11 @@ window.doLoadByRef = function(){
 /* ══════════════════════════════════════
    ARCHIVE SCREEN
 ══════════════════════════════════════ */
-function renderArch(){
+async function renderArch(){
   var el=$('screen-arch');
   el.style.display='block';
-  var papers=JSON.parse(localStorage.getItem('ee_published')||'[]');
+  el.innerHTML='<div class="pgw fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading archive…</div></div>';
+  var papers=await getPublished();
 
   el.innerHTML='<div class="pgw fade">'
     +'<div class="ptl">Archive</div>'
@@ -1520,11 +1808,11 @@ function renderArchList(papers){
   }).join('');
 }
 
-window.filterArch = function(){
-  var q=($('archSearch').value||'').toLowerCase();
-  var papers=JSON.parse(localStorage.getItem('ee_published')||'[]');
+window.filterArch = async function(){
+  var q=($('archSearch')||{value:''}).value.toLowerCase();
+  var papers=await getPublished();
   var filtered=papers.filter(function(p){
-    return (p.subj+p.cls+p.ref+p.term+p.school).toLowerCase().includes(q);
+    return ((p.subj||'')+(p.cls||'')+(p.ref||'')+(p.term||'')+(p.school||'')).toLowerCase().includes(q);
   });
   var el=$('archList'); if(el) el.innerHTML=renderArchList(filtered);
 };
@@ -1535,8 +1823,8 @@ window.filterArch = function(){
 function renderSett(){
   var el=$('screen-sett');
   el.style.display='block';
-  var school=localStorage.getItem('ee_school')||'';
-  var defTerm=localStorage.getItem('ee_defterm')||'1st Term';
+  var school=S.cfg.school||'';
+  var defTerm=S.cfg.term||'1st Term';
 
   el.innerHTML='<div class="pg fade">'
     +'<div class="ptl">Settings</div>'
@@ -1593,20 +1881,22 @@ function renderSett(){
 window.saveApiKey = function(){
   var v=($('settKeyInp')||{}).value||''; v=v.trim();
   API_KEY=v;
-  if(v) localStorage.setItem('openrouter_api_key',v);
-  else  localStorage.removeItem('openrouter_api_key');
+  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'api_key',value:v||''},{onConflict:'user_id,key'});
   refreshApiStatus(); toast('API key saved ✓','ok');
 };
 window.clearApiKey = function(){
-  API_KEY=''; localStorage.removeItem('openrouter_api_key');
+  API_KEY='';
+  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'api_key',value:''},{onConflict:'user_id,key'});
   refreshApiStatus(); toast('API key cleared','ok');
   renderSett();
 };
 window.saveSchool = function(){
   var s=($('settSchool')||{}).value||'';
   var t=($('settTerm')||{}).value||'1st Term';
-  localStorage.setItem('ee_school',s);
-  localStorage.setItem('ee_defterm',t);
+  if(CURRENT_USER){
+    _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'school',value:s},{onConflict:'user_id,key'});
+    _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'defterm',value:t},{onConflict:'user_id,key'});
+  }
   S.cfg.school=s; S.cfg.term=t;
   toast('School details saved ✓','ok');
 };
@@ -1617,12 +1907,16 @@ window.setTrade = function(id){
   });
 };
 window.saveTrade = function(){
-  localStorage.setItem('ee_trade',S.tradeSubject);
+  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'trade',value:S.tradeSubject},{onConflict:'user_id,key'});
   toast('Trade subject saved: '+getTradeById(S.tradeSubject).name+' ✓','ok');
 };
-window.clearAllData = function(){
-  if(!confirm('Delete ALL published papers from this device? This cannot be undone.')) return;
-  localStorage.removeItem('ee_published');
+window.clearAllData = async function(){
+  if(!confirm('Delete ALL papers from the database? This cannot be undone.')) return;
+  if(CURRENT_USER && CURRENT_USER.role==='admin'){
+    await _supabase.from('papers').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  } else {
+    await _supabase.from('papers').delete().eq('user_id', CURRENT_USER.id);
+  }
   toast('All papers cleared','ok');
 };
 function getTradeById(id){
@@ -1632,11 +1926,11 @@ function getTradeById(id){
 /* ══════════════════════════════════════
    PAPER DETAIL (view published)
 ══════════════════════════════════════ */
-window.viewPaperDetail = function(ref){
-  var papers=JSON.parse(localStorage.getItem('ee_published')||'[]');
-  var p=papers.find(function(x){ return x.ref===ref; });
+window.viewPaperDetail = async function(ref){
+  var res=await _supabase.from('papers').select('*').eq('ref',ref).single();
+  var p=res.data?(Object.assign({},res.data.data||{},{ref:res.data.ref})):null;
   if(!p){ toast('Paper not found','err'); return; }
-  toast('📋 '+p.ref+' · '+p.subj+' · '+p.cls,'ok',4000);
+  toast('📋 '+p.ref+' · '+(p.subj||'')+(p.cls?' · '+p.cls:''),'ok',4000);
 };
 
 /* ══════════════════════════════════════
@@ -2154,11 +2448,10 @@ function renderSchemePanel(){
     +'</div></div>';
 }
 window.removeTag=function(i){ S.cfg.topics.splice(i,1); var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud(); };
-window.acceptScheme=function(){
+window.acceptScheme=async function(){
   S.cfg.topics=S.schemeWeeks.map(function(w){ return w.topic; });
-  // Commit to localStorage so refresh re-uses this scheme
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
-  commitScheme(S.cfg.cls,actualSubj,S.cfg.term,S.schemeWeeks);
+  await commitScheme(S.cfg.cls,actualSubj,S.cfg.term,S.schemeWeeks);
   S.schemeCommitted=true;
   var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePanel();
   var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
@@ -2201,14 +2494,14 @@ function onClassTermChange(){
   checkS1Ready();
 }
 
-window.confirmChangeScheme=function(){
+window.confirmChangeScheme=async function(){
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
   var msg='⚠ WARNING: This will permanently replace your committed scheme for:\n\n'
     +S.cfg.cls+' — '+actualSubj+' — '+S.cfg.term+'\n\n'
     +'A new scheme will be fetched from AI. This action cannot be undone.\n\n'
     +'Are you sure you want to replace the committed scheme?';
   if(!confirm(msg)) return;
-  clearCommittedScheme(S.cfg.cls,actualSubj,S.cfg.term);
+  await clearCommittedScheme(S.cfg.cls,actualSubj,S.cfg.term);
   S.schemeCommitted=false; S.schemeWeeks=[]; S.schemeLoaded=false; S.cfg.topics=[];
   var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
   toast('Fetching new scheme from AI…','info',2000);
@@ -2217,14 +2510,14 @@ window.confirmChangeScheme=function(){
 
 window.doForceRefreshScheme=window.confirmChangeScheme; // legacy alias
 
-window.doLoadScheme=function(){
+window.doLoadScheme=async function(){
   if(!S.cfg.subj){ toast('Select a subject first','warn'); return; }
 
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
   var cls=S.cfg.cls; var term=S.cfg.term;
 
   // Check for committed scheme first — serve immediately, no API call
-  var committed=loadCommittedScheme(cls,actualSubj,term);
+  var committed=await loadCommittedScheme(cls,actualSubj,term);
   if(committed&&committed.length){
     S.schemeWeeks=committed; S.schemeLoaded=true; S.schemeCommitted=true;
     S.cfg.topics=committed.map(function(w){ return w.topic; });
@@ -3287,17 +3580,17 @@ function goReview(){
     else s2Manual();
   };
 
-  $('s3save').onclick=function(){
+  $('s3save').onclick=async function(){
+    var btn=$('s3save'); if(btn){btn.disabled=true;btn.textContent='Saving…';}
     var ref='EE-'+Date.now().toString(36).toUpperCase().slice(-6);
-    var stored=JSON.parse(localStorage.getItem('ee_published')||'[]');
     var allQs=[].concat(
       os.map(function(s){ return {k:'obj',t:s.q.t,o:s.q.o,a:s.q.a,marks:s.q.marks||1,topic:s.q.topic,layout:'standard'}; }),
       fs.map(function(s){ return {k:'fitb',t:s.q.t,answer:s.q.answer,marks:s.q.marks||2,topic:s.q.topic,layout:'standard'}; }),
       ts.map(function(s){ return {k:'theory',t:s.q.t,marks:s.q.marks||10,s:s.q.s,topic:s.q.topic,layout:'standard'}; })
     );
-    stored.unshift({
+    var paper={
       ref:ref, cls:c.cls, subj:dispSubj, term:c.term,
-      std:c.std, at:S.at, school:c.school||localStorage.getItem('ee_school')||'',
+      std:c.std, at:S.at, school:c.school||S.cfg.school||'',
       objCount:os.length, fitbCount:fs.length, thCount:ts.length,
       date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
       ts:Date.now(),
@@ -3305,19 +3598,24 @@ function goReview(){
       correctionNote:'',
       autoGen:false,
       questions:allQs
-    });
-    localStorage.setItem('ee_published',JSON.stringify(stored.slice(0,100)));
-    $('s3').innerHTML='<div class="pg"><div class="suw">'
-      +'<div class="sui">🎓</div>'
-      +'<div class="sut">Paper Saved</div>'
-      +'<div class="sum">Your '+S.at+' for <strong>'+esc(c.cls)+' — '+esc(dispSubj)+'</strong> has been saved to your Archive.</div>'
-      +'<div class="ref-pill">📋 Ref: '+ref+'</div><br/>'
-      +'<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">'
-      +'<button class="btn bg" onclick="navTo(\'arch\')">📚 View Archive</button>'
-      +'<button class="btn bq" id="newPaper">Create Another Paper</button>'
-      +'</div></div></div>';
-    $('newPaper').onclick=resetAll;
-    toast('✓ Saved — '+ref,'ok',4000);
+    };
+    try{
+      await saveSinglePaper(paper);
+      $('s3').innerHTML='<div class="pg"><div class="suw">'
+        +'<div class="sui">🎓</div>'
+        +'<div class="sut">Paper Saved</div>'
+        +'<div class="sum">Your '+S.at+' for <strong>'+esc(c.cls)+' — '+esc(dispSubj)+'</strong> has been saved to the Archive.</div>'
+        +'<div class="ref-pill">📋 Ref: '+ref+'</div><br/>'
+        +'<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">'
+        +'<button class="btn bg" onclick="navTo(\'arch\')">📚 View Archive</button>'
+        +'<button class="btn bq" id="newPaper">Create Another Paper</button>'
+        +'</div></div></div>';
+      $('newPaper').onclick=resetAll;
+      toast('✓ Saved — '+ref,'ok',4000);
+    } catch(e){
+      if(btn){btn.disabled=false;btn.textContent='💾 Save to Archive';}
+      toast('Save failed: '+(e.message||'unknown error'),'err');
+    }
   };
 }
 
@@ -3477,7 +3775,7 @@ function buildPrint(os,fs,ts,includeGuide){
 ══════════════════════════════════════ */
 function resetAll(){
   S.path=null; S.scr=0; S.at='Examination'; S.difficultyLevel='Balanced';
-  S.cfg={cls:'',term:localStorage.getItem('ee_defterm')||'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:localStorage.getItem('ee_school')||''};
+  S.cfg={cls:'',term:S.cfg.term||'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''};
   S.subjects=[]; S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false;
   S.slots=[]; S.ocrSlots=[]; S.ntxSlots=[]; S.generating=false; S.cam=null;
   S._imgQueue=[]; S._ntxQueue=[];
@@ -3496,12 +3794,12 @@ var ADMIN = {
   economyMode: false,
   sbFilter: 'all',
   _deadlineTimer: null,
-  designTemplate: localStorage.getItem('ee_admin_template')||'classic',
+  designTemplate: 'classic',
   viewMode: 'exam',
   testWindow: '1',
-  selectedTerm: localStorage.getItem('ee_defterm')||'1st Term',
+  selectedTerm: '1st Term',
   labConfig: (function(){
-    try{ var s=localStorage.getItem('ee_lab_config'); return s?JSON.parse(s):null; }catch(e){ return null; }
+    try{ return null; }catch(e){ return null; } // loaded async from Supabase
   }()) || {
     columns:1, orientation:'portrait',
     fontFamily:'Times New Roman', fontSize:'11pt',
@@ -3513,22 +3811,100 @@ var ADMIN = {
 };
 
 /* ── Admin Data Helpers ──────────────── */
-function getPublished(){ return JSON.parse(localStorage.getItem('ee_published')||'[]'); }
-function savePublished(arr){ localStorage.setItem('ee_published',JSON.stringify(arr.slice(0,200))); }
-function getAdminSettings(){
-  return {
-    deadline: localStorage.getItem('ee_admin_deadline')||'',
-    logo:     localStorage.getItem('ee_admin_logo')||'',
-    watermark:localStorage.getItem('ee_admin_watermark')||'ExamEngine',
-    school:   localStorage.getItem('ee_admin_school')||localStorage.getItem('ee_school')||'School Administration',
-    address:  localStorage.getItem('ee_admin_address')||'',
-    motto:    localStorage.getItem('ee_admin_motto')||''
+// Async — fetch from Supabase. Falls back to [] on error.
+async function getPublished(){
+  if(!CURRENT_USER) return [];
+  try{
+    var q = _supabase.from('papers').select('*').order('created_at',{ascending:false}).limit(500);
+    // Admins see all; teachers see only own
+    if(CURRENT_USER.role !== 'admin'){
+      q = _supabase.from('papers').select('*').eq('user_id', CURRENT_USER.id).order('created_at',{ascending:false}).limit(200);
+    }
+    var res = await q;
+    if(res.error){ console.error('getPublished error', res.error); return []; }
+    // Unwrap: Supabase stores paper metadata as columns + questions in data jsonb
+    return (res.data||[]).map(function(row){
+      var d = row.data || {};
+      return Object.assign({}, d, {
+        _db_id: row.id,
+        ref: row.ref || d.ref,
+        cls: row.class_name || d.cls,
+        subj: row.subject || d.subj,
+        term: row.term || d.term,
+        adminStatus: row.status || d.adminStatus || 'submitted',
+        user_id: row.user_id,
+        ts: new Date(row.created_at).getTime()
+      });
+    });
+  } catch(e){ console.error('getPublished exception', e); return []; }
+}
+
+async function savePublished(arr){
+  // arr is the full papers array — we upsert each changed paper
+  // In practice we only call this for single-paper status changes
+  // so we just re-upsert all papers that have a _db_id
+  for(var i=0;i<arr.length;i++){
+    var p=arr[i];
+    if(!p._db_id) continue;
+    await _supabase.from('papers').update({
+      status: p.adminStatus||'submitted',
+      data: p
+    }).eq('id', p._db_id);
+  }
+}
+
+async function saveSinglePaper(p){
+  // Upsert a single paper object to Supabase
+  if(!CURRENT_USER) return null;
+  var payload = {
+    ref: p.ref,
+    user_id: CURRENT_USER.id,
+    subject: p.subj||'',
+    class_name: p.cls||'',
+    term: p.term||'',
+    status: p.adminStatus||'submitted',
+    data: p
   };
+  if(p._db_id){
+    var res = await _supabase.from('papers').update(payload).eq('id', p._db_id).select().single();
+    return res.data;
+  } else {
+    var res2 = await _supabase.from('papers').insert(payload).select().single();
+    return res2.data;
+  }
+}
+
+function getAdminSettings(){
+  // Returns cached admin settings (loaded async on boot/admin nav)
+  return window._adminSettingsCache || {
+    deadline:'', logo:'', watermark:'ExamEngine',
+    school:'School Administration', address:'', motto:''
+  };
+}
+async function _fetchAdminSettings(){
+  var res=await _supabase.from('admin_settings').select('*');
+  var m={};
+  (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
+  window._adminSettingsCache={
+    deadline:m.deadline||'',
+    logo:m.logo||'',
+    watermark:m.watermark||'ExamEngine',
+    school:m.school||'School Administration',
+    address:m.address||'',
+    motto:m.motto||''
+  };
+  // Also load lab_config and lab_queue into ADMIN
+  if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
+  if(m.lab_queue){  try{ window._labQueue=JSON.parse(m.lab_queue);  }catch(e){} }
+  if(m.house_style){ try{ window._houseStyleCache=JSON.parse(m.house_style); }catch(e){} }
+  if(m.design_template){ ADMIN.designTemplate=m.design_template; }
+  if(m.selected_term){ ADMIN.selectedTerm=m.selected_term; }
+  return window._adminSettingsCache;
 }
 
 /* ── Status Board Data ───────────────── */
-function buildStatusMatrix(){
-  var papers=getPublished();
+async function buildStatusMatrix(){
+  var papers=await getPublished();
   var lookup={};
   papers.forEach(function(p){
     var k=(p.cls+'||'+p.term+'||'+p.subj+'||'+(p.at||'Examination')).toLowerCase();
@@ -3536,7 +3912,7 @@ function buildStatusMatrix(){
   });
 
   // Use admin-selected term (not auto-detected month)
-  var termKey=ADMIN.selectedTerm||(localStorage.getItem('ee_defterm')||'1st Term');
+  var termKey=ADMIN.selectedTerm||'1st Term';
   var rows=[];
   var seenKeys={};
   var classes=['SS 1','SS 2','SS 3','JSS 1','JSS 2','JSS 3','Primary 6','Primary 5','Primary 4','Primary 3','Primary 2','Primary 1'];
@@ -3591,10 +3967,12 @@ function buildStatusMatrix(){
 }
 
 /* ── ADMIN DASHBOARD — PRODUCTION QUEUE ─── */
-function renderAdminDash(){
+async function renderAdminDash(){
   var el=$('screen-admin-dash');
   el.style.display='block';
-  var papers=getPublished();
+  el.innerHTML='<div class="pgw fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading production queue…</div></div>';
+  await _fetchAdminSettings();
+  var papers=await getPublished();
   var adm=getAdminSettings();
   var termKey=ADMIN.selectedTerm;
 
@@ -3647,7 +4025,7 @@ function renderAdminDash(){
   }
 
   // Build class-grouped accordion
-  var allRows=buildStatusMatrix();
+  var allRows=await buildStatusMatrix();
   var classGroups={};
   allRows.forEach(function(r){
     if(!classGroups[r.cls]) classGroups[r.cls]=[];
@@ -3798,19 +4176,21 @@ window.setSbFilter=function(f){
 };
 
 /* ── Admin Approve / Reject ──────────── */
-window.adminApprove=function(ref){
-  var papers=getPublished();
-  var p=papers.find(function(x){ return x.ref===ref; });
-  if(!p){ toast('Paper not found','err'); return; }
-  p.adminStatus='approved'; p.correctionNote='';
-  savePublished(papers);
+window.adminApprove=async function(ref){
+  var res=await _supabase.from('papers').update({status:'approved',data:null}).eq('ref',ref);
+  // Also update the data blob's adminStatus field
+  var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
+  if(rowRes.data){
+    var d=Object.assign({},rowRes.data.data||{},{adminStatus:'approved',correctionNote:''});
+    await _supabase.from('papers').update({status:'approved',data:d}).eq('ref',ref);
+  }
   toast('✅ '+ref+' Approved','ok');
   renderAdminDash();
 };
 
-window.showRejectModal=function(ref){
-  var papers=getPublished();
-  var p=papers.find(function(x){ return x.ref===ref; });
+window.showRejectModal=async function(ref){
+  var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
+  var p=rowRes.data?(Object.assign({},rowRes.data.data||{},{ref:rowRes.data.ref})):null;
   if(!p){ toast('Paper not found','err'); return; }
 
   var overlay=document.createElement('div');
@@ -3828,15 +4208,14 @@ window.showRejectModal=function(ref){
   setTimeout(function(){ var inp=$('rejectNoteInput'); if(inp) inp.focus(); },100);
 };
 
-window.doReject=function(ref){
+window.doReject=async function(ref){
   var note=($('rejectNoteInput')||{}).value||'';
   note=note.trim();
   if(!note){ toast('Enter a correction note first','warn'); return; }
-  var papers=getPublished();
-  var p=papers.find(function(x){ return x.ref===ref; });
-  if(!p){ toast('Paper not found','err'); return; }
-  p.adminStatus='rejected'; p.correctionNote=note;
-  savePublished(papers);
+  var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
+  if(!rowRes.data){ toast('Paper not found','err'); return; }
+  var d=Object.assign({},rowRes.data.data||{},{adminStatus:'rejected',correctionNote:note});
+  await _supabase.from('papers').update({status:'rejected',data:d}).eq('ref',ref);
   var bg=$('rejectModalBg'); if(bg) bg.remove();
   toast('↩ Rejection + correction note sent to teacher','ok',4000);
   renderAdminDash();
@@ -3912,8 +4291,7 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
     ths.forEach(function(q){ allQs.push({k:'theory',t:q.q||'',marks:q.marks||10,s:q.showSteps,topic:'',layout:'standard'}); });
 
     var ref='EE-AG-'+Date.now().toString(36).toUpperCase();
-    var papers=getPublished();
-    papers.unshift({
+    var paper={
       ref:ref, cls:cls, subj:subj, term:term,
       std:'WAEC', at:typeLabel, school:getAdminSettings().school,
       objCount:objs.length, fitbCount:fitbs.length, thCount:ths.length,
@@ -3924,8 +4302,8 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
       autoGen:true,
       customInstr:customInstr||'',
       questions:allQs
-    });
-    savePublished(papers);
+    };
+    await saveSinglePaper(paper);
     if(area) area.innerHTML='<div class="banner b-ok">✅ Auto-generated &amp; approved: <strong>'+esc(ref)+'</strong> — '+esc(cls)+' '+esc(subj)+' ('+esc(typeLabel)+')</div>';
     toast('⚡ Paper auto-generated: '+ref,'ok',5000);
     setTimeout(function(){ renderAdminDash(); },2500);
@@ -3936,7 +4314,7 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
 };
 
 window.autoGenerateMissing=async function(){
-  var rows=buildStatusMatrix();
+  var rows=await buildStatusMatrix();
   var missing=rows.filter(function(r){ return r.examStatus==='pending'; }).slice(0,3);
   if(!missing.length){ toast('No pending papers to auto-generate','warn'); return; }
   for(var i=0;i<missing.length;i++){
@@ -3948,19 +4326,19 @@ window.autoGenerateMissing=async function(){
    ADMIN DIGITAL LAB — Manual Send System
 ══════════════════════════════════════ */
 // Lab Queue: papers admin manually sends to Digital Lab
-function getLabQueue(){ return JSON.parse(localStorage.getItem('ee_lab_queue')||'[]'); }
-function saveLabQueue(arr){ localStorage.setItem('ee_lab_queue',JSON.stringify(arr)); }
+function getLabQueue(){ return window._labQueue||[]; }
+function saveLabQueue(arr){
+  window._labQueue=arr;
+  _supabase.from('admin_settings').upsert({key:'lab_queue',value:JSON.stringify(arr)},{onConflict:'key'});
+}
 
 // Send to lab from Production Queue
 window.sendToLab=function(ref){
-  var papers=getPublished();
-  var p=papers.find(function(x){ return x.ref===ref; });
-  if(!p){ toast('Paper not found','err'); return; }
   var q=getLabQueue();
   if(q.find(function(x){ return x===ref; })){ toast('Already in Digital Lab','warn'); return; }
   q.push(ref);
   saveLabQueue(q);
-  toast('📤 Sent to Digital Lab: '+p.subj+' — '+p.cls,'ok');
+  toast('📤 Sent to Digital Lab: '+ref,'ok');
 };
 
 window.removeFromLab=function(ref){
@@ -3970,9 +4348,10 @@ window.removeFromLab=function(ref){
   renderAdminPrint();
 };
 
-function getLabPapers(){
+async function getLabPapers(){
   var refs=getLabQueue();
-  var all=getPublished();
+  if(!refs.length) return [];
+  var all=await getPublished();
   return refs.map(function(ref){ return all.find(function(p){ return p.ref===ref; }); }).filter(Boolean);
 }
 
@@ -3980,11 +4359,11 @@ function getLabPapers(){
 /* ══════════════════════════════════════
    DIGITAL LAB — renderAdminPrint
 ══════════════════════════════════════ */
-function renderAdminPrint(){
+async function renderAdminPrint(){
   var el=$('screen-admin-print');
   if(!el) return;
   el.style.display='block';
-  var papers=getLabPapers();
+  var papers=await getLabPapers();
   var adm=getAdminSettings();
   window._printPapers=papers;
   _applyLabConfigToDom(ADMIN.labConfig);
@@ -4166,7 +4545,7 @@ function _applyLabConfigToDom(c){
 }
 
 function _saveLabConfig(){
-  try{ localStorage.setItem('ee_lab_config',JSON.stringify(ADMIN.labConfig)); }catch(e){}
+  _supabase.from('admin_settings').upsert({key:'lab_config',value:JSON.stringify(ADMIN.labConfig)},{onConflict:'key'});
 }
 
 window.runLabCommand=async function(){
@@ -4204,10 +4583,9 @@ window.runLabCommand=async function(){
         var p=pps[0];
         if(p.questions&&p.questions[qIdx]){
           p.questions[qIdx]._svgDiagram=svg;
-          var stored=getPublished();
-          var sp=stored.find(function(x){ return x.ref===p.ref; });
-          if(sp&&sp.questions&&sp.questions[qIdx]) sp.questions[qIdx]._svgDiagram=svg;
-          savePublished(stored);
+          // Update in Supabase
+          var updData=Object.assign({},p);
+          await _supabase.from('papers').update({data:updData}).eq('ref',p.ref);
           toast('Diagram injected into Question '+(qIdx+1),'ok',4000);
           ADMIN.labHistory.push({type:'drawing',cmd:cmd,result:'Diagram added to Q'+(qIdx+1),time:time});
           renderAdminPrint();
@@ -4259,7 +4637,8 @@ function getFormatDesc(mode){
 
 window.setDesignTemplate=function(t){
   ADMIN.designTemplate=t;
-  localStorage.setItem('ee_admin_template',t);
+  ADMIN.designTemplate=t;
+  _supabase.from('admin_settings').upsert({key:'design_template',value:t},{onConflict:'key'});
   var papers=getLabPapers();
   if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
 };
@@ -4492,16 +4871,9 @@ window.runAiOptimize=async function(){
             ai: true
           };
         });
-        // Save
-        var stored=getPublished();
-        var sp=stored.find(function(x){ return x.ref===p.ref; });
-        if(sp){
-          sp.questions=mergedQs;
-          sp.objCount=mergedQs.filter(function(q){ return q.k==='obj'; }).length;
-          sp.fitbCount=mergedQs.filter(function(q){ return q.k==='fitb'; }).length;
-          sp.thCount=mergedQs.filter(function(q){ return q.k==='theory'; }).length;
-          savePublished(stored);
-        }
+        // Save to Supabase
+        var updPaper1=Object.assign({},p,{questions:mergedQs,objCount:mergedQs.filter(function(q){return q.k==='obj';}).length,fitbCount:mergedQs.filter(function(q){return q.k==='fitb';}).length,thCount:mergedQs.filter(function(q){return q.k==='theory';}).length});
+        await _supabase.from('papers').update({data:updPaper1}).eq('ref',p.ref);
       }
     } catch(e){ toast('Optimize failed for '+p.ref+': '+e.message,'err'); }
   }
@@ -4521,12 +4893,9 @@ window.setQLayout=function(pi,qi,layout){
   var papers=window._printPapers;
   if(!papers||!papers[pi]||!papers[pi].questions||!papers[pi].questions[qi]) return;
   papers[pi].questions[qi].layout=layout;
-  // Persist to localStorage
-  var stored=getPublished();
+  // Persist layout to Supabase (fire and forget)
   var ref=papers[pi].ref;
-  var sp=stored.find(function(x){ return x.ref===ref; });
-  if(sp&&sp.questions&&sp.questions[qi]) sp.questions[qi].layout=layout;
-  savePublished(stored);
+  var updP=Object.assign({},papers[pi]);_supabase.from('papers').update({data:updP}).eq('ref',ref);
   // Update button states visually
   var plabEl=$('plab_'+pi);
   if(plabEl){
@@ -4550,9 +4919,10 @@ window.setPrintMode=function(mode){
   var strip=$('labConfigStrip'); if(strip) strip.innerHTML=renderLabConfigStrip();
   renderAdminPrint();
   if(mode==='auto'){
-    var papers=getLabPapers();
+    getLabPapers().then(function(papers){
     var resolved=resolveLayoutMode(papers);
     toast('🤖 Auto mode — selected '+getModeName(resolved),'ok',3000);
+    });
   } else {
     toast(getModeName(mode)+' mode active','ok',2500);
   }
@@ -4561,12 +4931,8 @@ window.setPrintMode=function(mode){
 window.setAllLayout=function(layout){
   var papers=getLabPapers();
   papers.forEach(function(p){ (p.questions||[]).forEach(function(q){ q.layout=layout; }); });
-  var stored=getPublished();
-  papers.forEach(function(p){
-    var sp=stored.find(function(x){ return x.ref===p.ref; });
-    if(sp) sp.questions=(p.questions||[]);
-  });
-  savePublished(stored);
+  // Persist all layout changes to Supabase
+  papers.forEach(function(p){ _supabase.from('papers').update({data:Object.assign({},p)}).eq('ref',p.ref); });
   toast('All questions set to '+layout+' layout','ok');
   renderAdminPrint();
 };
@@ -4576,7 +4942,9 @@ window.uploadLogo=function(e){
   if(file.size>210000){ toast('Logo must be under 200KB','warn'); return; }
   var reader=new FileReader();
   reader.onload=function(ev){
-    localStorage.setItem('ee_admin_logo',ev.target.result);
+    var logoData=ev.target.result;
+    if(window._adminSettingsCache) window._adminSettingsCache.logo=logoData;
+    _supabase.from('admin_settings').upsert({key:'logo',value:logoData},{onConflict:'key'});
     toast('Logo uploaded ✓','ok');
     renderAdminPrint();
   };
@@ -4584,20 +4952,23 @@ window.uploadLogo=function(e){
 };
 
 window.removeLogo=function(){
-  localStorage.removeItem('ee_admin_logo');
+  if(window._adminSettingsCache) window._adminSettingsCache.logo='';
+  _supabase.from('admin_settings').upsert({key:'logo',value:''},{onConflict:'key'});
   toast('Logo removed','ok');
   renderAdminPrint();
 };
 
-window.saveBranding=function(){
+window.saveBranding=async function(){
   var wm=($('adminWatermark')||{}).value||'';
   var sc=($('adminSchoolName')||{}).value||'';
   var addr=($('adminAddress')||{}).value||'';
-  localStorage.setItem('ee_admin_watermark',wm.trim());
-  localStorage.setItem('ee_admin_school',sc.trim());
-  localStorage.setItem('ee_admin_address',addr.trim());
+  var br={watermark:wm.trim(),school:sc.trim(),address:addr.trim()};
+  if(window._adminSettingsCache) Object.assign(window._adminSettingsCache,br);
+  ['watermark','school','address'].forEach(function(k){
+    _supabase.from('admin_settings').upsert({key:k,value:br[k]},{onConflict:'key'});
+  });
   toast('Branding saved ✓','ok');
-  var papers=getLabPapers();
+  var papers=await getLabPapers();
   if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
 };
 
@@ -4881,7 +5252,7 @@ function buildEcoQuadrant(paper,questions,adm,today,partLabel){
 */
 function getHouseStyle(){
   try{
-    var raw=localStorage.getItem('ee_house_style');
+    var raw=window._houseStyleCache?JSON.stringify(window._houseStyleCache):null;
     if(raw){ var j=JSON.parse(raw); if(j&&typeof j==='object') return j; }
   }catch(e){}
   return {
@@ -4897,7 +5268,11 @@ function getHouseStyle(){
   };
 }
 function saveHouseStyle(hs){
-  try{ localStorage.setItem('ee_house_style',JSON.stringify(hs||{})); return true; }catch(e){ return false; }
+  try{
+    window._houseStyleCache=hs||{};
+    _supabase.from('admin_settings').upsert({key:'house_style',value:JSON.stringify(hs||{})},{onConflict:'key'});
+    return true;
+  }catch(e){ return false; }
 }
 
 function buildHouseStyleHeader(paper,adm,compact){
@@ -5008,16 +5383,14 @@ window.runAiOptimize=async function(){
             ai: true
           };
         });
-        // Save
-        var stored=getPublished();
-        var sp=stored.find(function(x){ return x.ref===p.ref; });
-        if(sp){
-          sp.questions=mergedQs;
-          sp.objCount=mergedQs.filter(function(q){ return q.k==='obj'; }).length;
-          sp.fitbCount=mergedQs.filter(function(q){ return q.k==='fitb'; }).length;
-          sp.thCount=mergedQs.filter(function(q){ return q.k==='theory'; }).length;
-          savePublished(stored);
-        }
+        // Save to Supabase
+        var updPaper2=Object.assign({},p,{
+          questions:mergedQs,
+          objCount:mergedQs.filter(function(q){ return q.k==='obj'; }).length,
+          fitbCount:mergedQs.filter(function(q){ return q.k==='fitb'; }).length,
+          thCount:mergedQs.filter(function(q){ return q.k==='theory'; }).length
+        });
+        await _supabase.from('papers').update({data:updPaper2}).eq('ref',p.ref);
       }
     } catch(e){ toast('Optimize failed for '+p.ref+': '+e.message,'err'); }
   }
@@ -5037,12 +5410,9 @@ window.setQLayout=function(pi,qi,layout){
   var papers=window._printPapers;
   if(!papers||!papers[pi]||!papers[pi].questions||!papers[pi].questions[qi]) return;
   papers[pi].questions[qi].layout=layout;
-  // Persist to localStorage
-  var stored=getPublished();
+  // Persist layout to Supabase (fire and forget)
   var ref=papers[pi].ref;
-  var sp=stored.find(function(x){ return x.ref===ref; });
-  if(sp&&sp.questions&&sp.questions[qi]) sp.questions[qi].layout=layout;
-  savePublished(stored);
+  var updP=Object.assign({},papers[pi]);_supabase.from('papers').update({data:updP}).eq('ref',ref);
   // Update button states visually
   var plabEl=$('plab_'+pi);
   if(plabEl){
@@ -5479,11 +5849,12 @@ window.doPrint=function(){
    Per-class "Print All" and master "Print All Classes" buttons.
    Each paper routed through its correct mode before stacking.
 ══════════════════════════════════════ */
-window.openBatchPrint=function(){
+window.openBatchPrint=async function(){
   var adm=getAdminSettings();
   var termKey=ADMIN.selectedTerm||'1st Term';
   // Only approved papers for current term
-  var all=getPublished().filter(function(p){ return p.term===termKey && p.adminStatus==='approved'; });
+  var allPapers=await getPublished();
+  var all=allPapers.filter(function(p){ return p.term===termKey && p.adminStatus==='approved'; });
   if(!all.length){
     toast('\u26a0 No approved papers for '+termKey+' yet. Approve papers in Production Queue first.','warn',5000);
     return;
@@ -5574,33 +5945,33 @@ window.batchToggleClass=function(safeCls,checked){
   document.querySelectorAll('.bp-subj-chk[data-cls="'+safeCls+'"]').forEach(function(c){ c.checked=!!checked; });
 };
 
-window.batchPrintSingle=function(ref){
-  var all=getPublished();
+window.batchPrintSingle=async function(ref){
+  var all=await getPublished();
   var p=all.find(function(x){ return x.ref===ref; });
   if(!p){ toast('Paper not found','warn'); return; }
   closeBatchPrint();
   executeBatchPrint([p]);
 };
 
-window.batchPrintClass=function(safeCls){
+window.batchPrintClass=async function(safeCls){
   var refs=[];
   document.querySelectorAll('.bp-subj-chk[data-cls="'+safeCls+'"]').forEach(function(c){
     if(c.checked) refs.push(c.getAttribute('data-ref'));
   });
   if(!refs.length){ toast('No subjects selected in this class','warn'); return; }
-  var all=getPublished();
+  var all=await getPublished();
   var selected=refs.map(function(r){ return all.find(function(x){ return x.ref===r; }); }).filter(Boolean);
   closeBatchPrint();
   executeBatchPrint(selected);
 };
 
-window.batchPrintSelected=function(){
+window.batchPrintSelected=async function(){
   var refs=[];
   document.querySelectorAll('.bp-subj-chk').forEach(function(c){
     if(c.checked) refs.push(c.getAttribute('data-ref'));
   });
   if(!refs.length){ toast('No subjects selected','warn'); return; }
-  var all=getPublished();
+  var all=await getPublished();
   var selected=refs.map(function(r){ return all.find(function(x){ return x.ref===r; }); }).filter(Boolean);
   closeBatchPrint();
   executeBatchPrint(selected);
@@ -6105,6 +6476,18 @@ function renderAdminSett(){
     +'<button class="btn bp" onclick="saveApiKeyAdmin()">💾 Save Key</button>'
     +'</div></div>'
 
+
+    +'<div class="card">'
+    +'<div class="ct">👥 User Management</div>'
+    +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:14px;line-height:1.7;">Invite teachers and manage admin roles. Only admins can access Production Queue and Digital Lab.</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">'
+    +'<div class="fl" style="flex:1;margin:0;"><label>Email Address</label><input type="email" class="fi" id="inviteEmail" placeholder="teacher@school.edu.ng"/></div>'
+    +'<div class="fl" style="margin:0;"><label>Role</label><select class="fs" id="inviteRole"><option value="teacher">Teacher</option><option value="admin">Admin</option></select></div>'
+    +'<button class="btn bp bsm" onclick="inviteUser()">➕ Invite</button>'
+    +'</div>'
+    +'<div id="userMgmtArea"><div style="color:var(--mute);font-size:12px;">Loading…</div></div>'
+    +'</div>'
+
     +'<div class="card">'
     +'<div class="ct">Data Management</div>'
     +'<div style="display:flex;gap:9px;flex-wrap:wrap;">'
@@ -6113,17 +6496,21 @@ function renderAdminSett(){
     +'</div></div>'
 
     +'</div>';
+  // Load users after render
+  setTimeout(function(){ renderUserManagement(); }, 100);
 }
 
 window.saveDeadline=function(){
   var v=($('adminDeadlineInp')||{}).value||'';
   if(!v){ toast('Pick a deadline date and time','warn'); return; }
-  localStorage.setItem('ee_admin_deadline',v);
+  if(window._adminSettingsCache) window._adminSettingsCache.deadline=v;
+  _supabase.from('admin_settings').upsert({key:'deadline',value:v},{onConflict:'key'});
   toast('Deadline saved: '+new Date(v).toLocaleString(),'ok');
   startDeadlineWatcher();
 };
 window.clearDeadline=function(){
-  localStorage.removeItem('ee_admin_deadline');
+  if(window._adminSettingsCache) window._adminSettingsCache.deadline='';
+  _supabase.from('admin_settings').upsert({key:'deadline',value:''},{onConflict:'key'});
   clearTimeout(ADMIN._deadlineTimer);
   toast('Deadline cleared','ok');
   renderAdminSett();
@@ -6132,9 +6519,11 @@ window.saveAdminBranding=function(){
   var sc=($('adminSchNm')||{}).value||'';
   var wm=($('adminWmInp')||{}).value||'';
   var addr=($('adminAddrInp')||{}).value||'';
-  localStorage.setItem('ee_admin_school',sc.trim());
-  localStorage.setItem('ee_admin_watermark',wm.trim());
-  localStorage.setItem('ee_admin_address',addr.trim());
+  var br={school:sc.trim(),watermark:wm.trim(),address:addr.trim()};
+  if(window._adminSettingsCache) Object.assign(window._adminSettingsCache,br);
+  ['school','watermark','address'].forEach(function(k){
+    _supabase.from('admin_settings').upsert({key:k,value:br[k]},{onConflict:'key'});
+  });
   toast('Admin branding saved ✓','ok');
 };
 window.saveHouseStyleForm=function(){
@@ -6160,21 +6549,20 @@ window.clearHouseStyleForm=function(){
   ['hsHeaderTop','hsHeaderExtra','hsExamTitle','hsStudentStrip','hsInstructions','hsFooterLeft','hsFooterCenter','hsFooterRight'].forEach(function(id){
     var el=$(id); if(el) el.value='';
   });
-  try{ localStorage.removeItem('ee_house_style'); }catch(e){}
+  try{ window._houseStyleCache={}; _supabase.from('admin_settings').upsert({key:'house_style',value:'{}'},{onConflict:'key'}); }catch(e){}
   toast('House Style cleared','ok');
 };
 window.saveApiKeyAdmin=function(){
   var v=($('settKeyInp2')||{}).value||''; v=v.trim();
   API_KEY=v;
-  if(v) localStorage.setItem('openrouter_api_key',v);
-  else  localStorage.removeItem('openrouter_api_key');
+  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'api_key',value:v||''},{onConflict:'user_id,key'});
   refreshApiStatus(); toast('API key saved ✓','ok');
 };
 
 /* ── Deadline Watcher ────────────────── */
 function startDeadlineWatcher(){
   clearTimeout(ADMIN._deadlineTimer);
-  var dl=localStorage.getItem('ee_admin_deadline'); if(!dl) return;
+  var dl=(window._adminSettingsCache&&window._adminSettingsCache.deadline)||''; if(!dl) return;
   var target=new Date(dl).getTime();
   function check(){
     var now=Date.now();
@@ -6188,18 +6576,90 @@ function startDeadlineWatcher(){
 }
 
 /* ══════════════════════════════════════
-   BOOT
+   BOOT — Supabase Auth Gated
 ══════════════════════════════════════ */
-window.addEventListener('DOMContentLoaded',function(){
-  S.tradeSubject=localStorage.getItem('ee_trade')||DEFAULT_TRADE;
-  S.cfg.school=localStorage.getItem('ee_school')||'';
-  S.cfg.term=localStorage.getItem('ee_defterm')||'1st Term';
-  API_KEY=localStorage.getItem('openrouter_api_key')||'';
-  refreshApiStatus();
-  startDeadlineWatcher();
-  renderDash();
-  $('screen-dash').style.display='block';
+window.addEventListener('DOMContentLoaded', function(){
+  // Enter key on login/register fields
+  ['authEmail','authPass'].forEach(function(id){
+    var el=$(id); if(!el) return;
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  });
+  ['regName','regEmail','regPass'].forEach(function(id){
+    var el=$(id); if(!el) return;
+    el.addEventListener('keydown', function(e){ if(e.key==='Enter') doRegister(); });
+  });
+
+  // Check existing session
+  _supabase.auth.getSession().then(function(res){
+    var session = res.data && res.data.session;
+    if(session && session.user){
+      _loadUserAndBoot(session.user);
+    } else {
+      showAuthScreen();
+    }
+  });
+
+  // Listen for auth state changes (logout from another tab etc.)
+  _supabase.auth.onAuthStateChange(function(event, session){
+    if(event === 'SIGNED_OUT' && !session){
+      CURRENT_USER = null;
+      showAuthScreen();
+    }
+  });
 });
+
+/* ══════════════════════════════════════
+   ADMIN — USER MANAGEMENT
+══════════════════════════════════════ */
+window.renderUserManagement = async function(){
+  var el=$('userMgmtArea'); if(!el) return;
+  el.innerHTML='<div style="color:var(--mute);font-size:12px;">Loading users…</div>';
+  var res = await _supabase.from('profiles').select('*').order('created_at',{ascending:true});
+  if(res.error){ el.innerHTML='<div style="color:var(--red);font-size:12px;">Error loading users: '+res.error.message+'</div>'; return; }
+  var users = res.data||[];
+  el.innerHTML = users.map(function(u){
+    var isMe = CURRENT_USER && u.id === CURRENT_USER.id;
+    return '<div class="user-row">'
+      +'<div class="user-row-email">'+esc(u.email||u.name||u.id)+(isMe?' <span style="font-size:10px;color:var(--mute);">(you)</span>':'')+'</div>'
+      +'<span class="user-row-role '+u.role+'">'+esc(u.role)+'</span>'
+      +(!isMe ? '<button class="btn bq bsm" style="font-size:11px;padding:5px 10px;" onclick="toggleUserRole(\''+u.id+'\',\''+u.role+'\')">Make '+(u.role==='admin'?'Teacher':'Admin')+'</button>' : '')
+      +'</div>';
+  }).join('') || '<div style="color:var(--mute);font-size:12px;">No users found.</div>';
+};
+
+window.toggleUserRole = async function(uid, currentRole){
+  var newRole = currentRole === 'admin' ? 'teacher' : 'admin';
+  var res = await _supabase.from('profiles').update({role: newRole}).eq('id', uid);
+  if(res.error){ toast('Failed: '+res.error.message,'err'); return; }
+  toast('Role updated to '+newRole+' ✓','ok');
+  renderUserManagement();
+};
+
+window.inviteUser = async function(){
+  var email = ($('inviteEmail')||{}).value||'';
+  email = email.trim().toLowerCase();
+  if(!email){ toast('Enter an email address','warn'); return; }
+  var role = ($('inviteRole')||{}).value||'teacher';
+  // Create auth user via admin signup — user sets own password via email
+  var res = await _supabase.auth.signUp({
+    email: email,
+    password: Math.random().toString(36).slice(-10)+'Aa1!', // temp password
+    options: { data: { role: role } }
+  });
+  if(res.error){ toast('Invite failed: '+res.error.message,'err'); return; }
+  if(res.data && res.data.user){
+    await _supabase.from('profiles').upsert({
+      id: res.data.user.id,
+      email: email,
+      name: email.split('@')[0],
+      role: role
+    });
+  }
+  toast('✓ User invited: '+email+' ('+role+')','ok',5000);
+  var inp=$('inviteEmail'); if(inp) inp.value='';
+  renderUserManagement();
+};
+
 
 </script>
 </body>
