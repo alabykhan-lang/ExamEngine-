@@ -10,7 +10,7 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --ink:#0A0F1E; --ink2:#1E2A3A; --ink3:#334155; --mute:#6B7A99;
@@ -1113,20 +1113,22 @@ var OR_TITLE   = 'ExamEngine Pro v12.5';
 ══════════════════════════════════════ */
 var _supabase;
 (function(){
-  try{
-    var SUPA_URL='https://qbjtiximcchhnxhttogq.supabase.co';
-    var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
-    // UMD bundle exposes either window.supabase.createClient or supabase.createClient
-    var lib = (typeof supabase!=='undefined'&&supabase.createClient) ? supabase
-              : (window.Supabase||window.supabase||null);
-    if(!lib||!lib.createClient) throw new Error('Supabase SDK not loaded');
+  var SUPA_URL='https://qbjtiximcchhnxhttogq.supabase.co';
+  var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
+  // jsdelivr @supabase/supabase-js@2 UMD exposes window.supabase = { createClient }
+  var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+  if(lib && lib.createClient){
     _supabase = lib.createClient(SUPA_URL, SUPA_KEY);
-  } catch(e){
-    console.error('Supabase init failed:',e);
-    // Show error on auth screen once DOM is ready
-    document.addEventListener('DOMContentLoaded',function(){
-      var err=document.getElementById('authErr');
-      if(err){ err.textContent='Connection error: '+e.message+'. Please refresh the page.'; err.classList.add('show'); }
+  } else {
+    // Fallback: try after DOM loads
+    document.addEventListener('DOMContentLoaded', function(){
+      var lib2 = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+      if(lib2 && lib2.createClient){
+        _supabase = lib2.createClient(SUPA_URL, SUPA_KEY);
+      } else {
+        var err=document.getElementById('authErr');
+        if(err){ err.textContent='Failed to load database library. Check your internet connection and refresh.'; err.classList.add('show'); }
+      }
     });
   }
 }());
@@ -1251,24 +1253,23 @@ async function _loadUserSettings(){
     ADMIN.selectedTerm = m.defterm || '1st Term';
   }
 }
+function showAuthScreen(){
   var s=$('screen-auth'); if(s) s.classList.add('visible');
+  var nav=$('nav'); if(nav) nav.style.display='none';
+  var sb=$('sidebar'); if(sb) sb.style.display='none';
   clearAuthErr(); setAuthLoading(false);
-  // Clear password
   var p=$('authPass'); if(p) p.value='';
 }
 function hideAuthScreen(){
   var s=$('screen-auth'); if(s) s.classList.remove('visible');
+  var nav=$('nav'); if(nav) nav.style.display='';
+  var sb=$('sidebar'); if(sb) sb.style.display='';
 }
 
 /* ── Boot the app after auth ────────── */
-function bootApp(){
-  // Update user chip
+async function bootApp(){
   var chip=$('userChipName');
   if(chip) chip.textContent = (CURRENT_USER.name||CURRENT_USER.email).split(' ')[0];
-
-  // Enter key on password field
-  var passEl=$('authPass');
-  if(passEl) passEl.onkeydown=function(e){ if(e.key==='Enter') doLogin(); };
 
   // Init app state from Supabase user_settings
   await _loadUserSettings();
@@ -6591,7 +6592,7 @@ function startDeadlineWatcher(){
    BOOT — Supabase Auth Gated
 ══════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', function(){
-  // Enter key on login/register fields
+  // Enter key handlers
   ['authEmail','authPass'].forEach(function(id){
     var el=$(id); if(!el) return;
     el.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
@@ -6601,29 +6602,32 @@ window.addEventListener('DOMContentLoaded', function(){
     el.addEventListener('keydown', function(e){ if(e.key==='Enter') doRegister(); });
   });
 
-  if(!_supabase){
-    showAuthScreen();
-    showAuthErr('Could not connect to database. Check your internet connection and refresh.');
-    return;
-  }
-
-  // Check existing session
-  _supabase.auth.getSession().then(function(res){
-    var session = res.data && res.data.session;
-    if(session && session.user){
-      _loadUserAndBoot(session.user);
-    } else {
+  // Small delay to ensure Supabase SDK is ready
+  setTimeout(function(){
+    if(!_supabase){
       showAuthScreen();
+      showAuthErr('Could not connect to database. Check your internet and refresh.');
+      return;
     }
-  }).catch(function(){ showAuthScreen(); });
-
-  // Listen for auth state changes
-  _supabase.auth.onAuthStateChange(function(event, session){
-    if(event === 'SIGNED_OUT' && !session){
-      CURRENT_USER = null;
+    _supabase.auth.getSession().then(function(res){
+      var session = res.data && res.data.session;
+      if(session && session.user){
+        _loadUserAndBoot(session.user);
+      } else {
+        showAuthScreen();
+      }
+    }).catch(function(e){
       showAuthScreen();
-    }
-  });
+      showAuthErr('Session check failed: '+e.message);
+    });
+
+    _supabase.auth.onAuthStateChange(function(event, session){
+      if(event === 'SIGNED_OUT' && !session){
+        CURRENT_USER = null;
+        showAuthScreen();
+      }
+    });
+  }, 100);
 });
 
 /* ══════════════════════════════════════
