@@ -1111,10 +1111,25 @@ var OR_TITLE   = 'ExamEngine Pro v12.5';
 /* ══════════════════════════════════════
    SUPABASE INIT
 ══════════════════════════════════════ */
-var _supabase = supabase.createClient(
-  'https://qbjtiximcchhnxhttogq.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U'
-);
+var _supabase;
+(function(){
+  try{
+    var SUPA_URL='https://qbjtiximcchhnxhttogq.supabase.co';
+    var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
+    // UMD bundle exposes either window.supabase.createClient or supabase.createClient
+    var lib = (typeof supabase!=='undefined'&&supabase.createClient) ? supabase
+              : (window.Supabase||window.supabase||null);
+    if(!lib||!lib.createClient) throw new Error('Supabase SDK not loaded');
+    _supabase = lib.createClient(SUPA_URL, SUPA_KEY);
+  } catch(e){
+    console.error('Supabase init failed:',e);
+    // Show error on auth screen once DOM is ready
+    document.addEventListener('DOMContentLoaded',function(){
+      var err=document.getElementById('authErr');
+      if(err){ err.textContent='Connection error: '+e.message+'. Please refresh the page.'; err.classList.add('show'); }
+    });
+  }
+}());
 
 /* ── AUTH STATE ───────────────────── */
 var CURRENT_USER = null;   // { id, email, name, role }
@@ -1141,18 +1156,22 @@ window.authTab = function(mode){
 
 /* ── SIGN IN ──────────────────────── */
 window.doLogin = async function(){
+  if(!_supabase){ showAuthErr('Connection not ready. Please refresh the page.'); return; }
   var email = ($('authEmail')||{}).value||'';
   var pass  = ($('authPass')||{}).value||'';
   email = email.trim().toLowerCase();
   if(!email||!pass){ showAuthErr('Please enter your email and password.'); return; }
   setAuthLoading(true);
-  var res = await _supabase.auth.signInWithPassword({ email: email, password: pass });
-  if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
-  await _loadUserAndBoot(res.data.user);
+  try{
+    var res = await _supabase.auth.signInWithPassword({ email: email, password: pass });
+    if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
+    await _loadUserAndBoot(res.data.user);
+  }catch(e){ setAuthLoading(false); showAuthErr('Sign in failed: '+e.message); }
 };
 
 /* ── REGISTER ─────────────────────── */
 window.doRegister = async function(){
+  if(!_supabase){ showAuthErr('Connection not ready. Please refresh the page.'); return; }
   var name  = ($('regName')||{}).value||'';
   var email = ($('regEmail')||{}).value||'';
   var pass  = ($('regPass')||{}).value||'';
@@ -1163,19 +1182,16 @@ window.doRegister = async function(){
   if(!email)      { showAuthErr('Please enter your email address.'); return; }
   if(pass.length < 6){ showAuthErr('Password must be at least 6 characters.'); return; }
   setAuthLoading(true);
-  // Sign up with Supabase Auth
-  var res = await _supabase.auth.signUp({ email: email, password: pass });
-  if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
-  var uid = res.data.user && res.data.user.id;
-  if(!uid){ setAuthLoading(false); showAuthErr('Registration failed. Please try again.'); return; }
-  // Create profile row immediately — role is always 'teacher' on self-register
-  await _supabase.from('profiles').upsert({
-    id: uid, email: email, name: name, role: 'teacher'
-  });
-  // Auto sign in
-  var loginRes = await _supabase.auth.signInWithPassword({ email: email, password: pass });
-  if(loginRes.error){ setAuthLoading(false); showAuthErr('Account created! Please sign in.'); authTab('login'); return; }
-  await _loadUserAndBoot(loginRes.data.user);
+  try{
+    var res = await _supabase.auth.signUp({ email: email, password: pass });
+    if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
+    var uid = res.data.user && res.data.user.id;
+    if(!uid){ setAuthLoading(false); showAuthErr('Registration failed. Please try again.'); return; }
+    await _supabase.from('profiles').upsert({ id:uid, email:email, name:name, role:'teacher' });
+    var loginRes = await _supabase.auth.signInWithPassword({ email:email, password:pass });
+    if(loginRes.error){ setAuthLoading(false); showAuthErr('Account created! Please sign in.'); authTab('login'); return; }
+    await _loadUserAndBoot(loginRes.data.user);
+  }catch(e){ setAuthLoading(false); showAuthErr('Registration failed: '+e.message); }
 };
 
 window.doLogout = async function(){
@@ -1203,22 +1219,18 @@ async function _loadUserAndBoot(authUser){
     var res = await _supabase.from('profiles').select('*').eq('id', authUser.id).single();
     var profile = res.data;
     if(!profile){
-      // First-time sign in — create profile
       var name = (authUser.email||'').split('@')[0];
       var insertRes = await _supabase.from('profiles').insert({
-        id: authUser.id,
-        email: authUser.email,
-        name: name,
-        role: 'teacher'
+        id: authUser.id, email: authUser.email, name: name, role: 'teacher'
       }).select().single();
-      profile = insertRes.data || { id: authUser.id, email: authUser.email, name: name, role: 'teacher' };
+      profile = insertRes.data || { id:authUser.id, email:authUser.email, name:name, role:'teacher' };
     }
-    CURRENT_USER = { id: profile.id, email: profile.email, name: profile.name||profile.email, role: profile.role||'teacher' };
+    CURRENT_USER = { id:profile.id, email:profile.email, name:profile.name||profile.email, role:profile.role||'teacher' };
     hideAuthScreen();
     bootApp();
   } catch(e){
     setAuthLoading(false);
-    showAuthErr('Could not load your profile. Please try again.');
+    showAuthErr('Could not load profile: '+e.message+'. Please try again.');
   }
 }
 
@@ -6589,6 +6601,12 @@ window.addEventListener('DOMContentLoaded', function(){
     el.addEventListener('keydown', function(e){ if(e.key==='Enter') doRegister(); });
   });
 
+  if(!_supabase){
+    showAuthScreen();
+    showAuthErr('Could not connect to database. Check your internet connection and refresh.');
+    return;
+  }
+
   // Check existing session
   _supabase.auth.getSession().then(function(res){
     var session = res.data && res.data.session;
@@ -6597,9 +6615,9 @@ window.addEventListener('DOMContentLoaded', function(){
     } else {
       showAuthScreen();
     }
-  });
+  }).catch(function(){ showAuthScreen(); });
 
-  // Listen for auth state changes (logout from another tab etc.)
+  // Listen for auth state changes
   _supabase.auth.onAuthStateChange(function(event, session){
     if(event === 'SIGNED_OUT' && !session){
       CURRENT_USER = null;
