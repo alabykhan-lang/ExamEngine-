@@ -1021,7 +1021,7 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
     <button class="sb-link" id="sbSett" onclick="navTo('sett')"><span class="sb-ico">⚙</span> Settings</button>
   </nav>
   <nav class="sb-nav" id="sbNavAdmin" style="display:none;">
-    <button class="sb-link" id="sbAdminDash" onclick="navTo('admin-dash')"><span class="sb-ico">🗂</span> Production Queue</button>
+    <button class="sb-link" id="sbAdminDash" onclick="navTo('admin-dash')"><span class="sb-ico">🗂</span> Production Queue <span id="adminNewBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:auto;"></span></button>
     <button class="sb-link" id="sbAdminPrint" onclick="navTo('admin-print')"><span class="sb-ico">🔬</span> Digital Lab</button>
     <div class="sb-divider"></div>
     <button class="sb-link" id="sbAdminSett" onclick="navTo('admin-sett')"><span class="sb-ico">⚙</span> Admin Settings</button>
@@ -1227,13 +1227,7 @@ async function _loadUserAndBoot(authUser){
       }).select().single();
       profile = insertRes.data || { id:authUser.id, email:authUser.email, name:name, role:'teacher' };
     }
-    var _superAdmin = 'alabykhan@gmail.com';
-    var _forcedRole = (profile.email||'').toLowerCase() === _superAdmin ? 'admin' : (profile.role||'teacher');
-    // Sync DB if super-admin row was created as teacher
-    if(_forcedRole === 'admin' && profile.role !== 'admin'){
-      _supabase.from('profiles').update({role:'admin'}).eq('id', profile.id);
-    }
-    CURRENT_USER = { id:profile.id, email:profile.email, name:profile.name||profile.email, role:_forcedRole };
+    CURRENT_USER = { id:profile.id, email:profile.email, name:profile.name||profile.email, role:profile.role||'teacher' };
     hideAuthScreen();
     bootApp();
   } catch(e){
@@ -1244,20 +1238,77 @@ async function _loadUserAndBoot(authUser){
 
 /* ── Load user settings from Supabase ── */
 async function _loadUserSettings(){
-  if(!CURRENT_USER){ return; }
-  var res = await _supabase.from('user_settings').select('*').eq('user_id', CURRENT_USER.id);
-  var m = {};
-  (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
-  S.tradeSubject  = m.trade    || DEFAULT_TRADE;
-  S.cfg.school    = m.school   || '';
-  S.cfg.term      = m.defterm  || '1st Term';
-  API_KEY         = m.api_key  || '';
+  if(!CURRENT_USER) return;
+  try{
+    var res = await _supabase.from('user_settings').select('*').eq('user_id', CURRENT_USER.id);
+    if(res.error){ console.warn('user_settings load error:', res.error.message); }
+    var m = {};
+    (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
+    S.tradeSubject  = m.trade    || DEFAULT_TRADE;
+    S.cfg.school    = m.school   || '';
+    S.cfg.term      = m.defterm  || '1st Term';
+    API_KEY         = m.api_key  || '';
+    // Restore in-progress draft if present
+    if(m.current_draft){
+      try{
+        var draft=JSON.parse(m.current_draft);
+        if(draft && draft.slots && draft.slots.length && draft.cfg){
+          window._savedDraft=draft;
+        }
+      }catch(e){}
+    }
+  }catch(e){ console.warn('_loadUserSettings exception:', e.message); }
   // Pre-load admin settings cache for everyone (needed for school name etc.)
   await _fetchAdminSettings();
-  // Override ADMIN.selectedTerm if admin
   if(CURRENT_USER.role==='admin'){
-    ADMIN.selectedTerm = m.defterm || '1st Term';
+    try{
+      var res2=await _supabase.from('user_settings').select('value').eq('user_id',CURRENT_USER.id).eq('key','defterm').single();
+      if(res2.data) ADMIN.selectedTerm=res2.data.value||'1st Term';
+    }catch(e){}
   }
+}
+
+/* ── Robust single-key upsert helper ── */
+async function _saveSetting(key, value){
+  if(!CURRENT_USER) return;
+  try{
+    var res=await _supabase.from('user_settings').upsert(
+      {user_id:CURRENT_USER.id, key:key, value:value},
+      {onConflict:'user_id,key'}
+    );
+    if(res.error){
+      // Fallback: try delete + insert if upsert fails (constraint may not exist)
+      await _supabase.from('user_settings').delete().eq('user_id',CURRENT_USER.id).eq('key',key);
+      await _supabase.from('user_settings').insert({user_id:CURRENT_USER.id, key:key, value:value});
+    }
+  }catch(e){ console.warn('_saveSetting failed:', key, e.message); }
+}
+
+/* ── Auto-save draft to Supabase ── */
+var _draftSaveTimer=null;
+function scheduleDraftSave(){
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer=setTimeout(function(){
+    if(!CURRENT_USER||!S.slots.length) return;
+    var draft={
+      cfg:JSON.parse(JSON.stringify(S.cfg)),
+      at:S.at,
+      path:S.path,
+      scr:S.scr,
+      tradeSubject:S.tradeSubject,
+      difficultyLevel:S.difficultyLevel,
+      slots:S.slots.filter(function(s){ return s.q; }).map(function(s){
+        return {id:s.id,k:s.k,q:s.q,included:s.included};
+      }),
+      schemeWeeks:S.schemeWeeks,
+      ts:Date.now()
+    };
+    _saveSetting('current_draft', JSON.stringify(draft));
+  }, 3000); // debounce 3s
+}
+function clearDraft(){
+  _saveSetting('current_draft','');
+  window._savedDraft=null;
 }
 function showAuthScreen(){
   var s=$('screen-auth'); if(s) s.classList.add('visible');
@@ -1280,12 +1331,29 @@ async function bootApp(){
   // Init app state from Supabase user_settings
   await _loadUserSettings();
 
-  // Force role — super admin email always gets admin regardless of DB cache timing
-  if((CURRENT_USER.email||'').toLowerCase() === 'alabykhan@gmail.com') CURRENT_USER.role = 'admin';
+  // Force super-admin role
+  if((CURRENT_USER.email||'').toLowerCase()==='alabykhan@gmail.com') CURRENT_USER.role='admin';
+
+  // Force role based on DB profile — admins cannot be faked
   ROLE = CURRENT_USER.role === 'admin' ? 'admin' : 'teacher';
   _applyRoleUI(ROLE);
   refreshApiStatus();
   startDeadlineWatcher();
+
+  // Admin: start polling for new submissions every 60s
+  if(ROLE==='admin'){
+    clearInterval(window._adminPollTimer);
+    window._adminPollTimer=setInterval(async function(){
+      if(S.screen==='admin-dash'){
+        var count=await _supabase.from('papers').select('id',{count:'exact',head:true}).eq('status','submitted');
+        var n=count.count||0;
+        var badge=$('adminNewBadge');
+        if(badge) badge.textContent=n>0?n+' new':'';
+        if(badge) badge.style.display=n>0?'inline-block':'none';
+      }
+    },60000);
+  }
+
   renderDash();
   $('screen-dash').style.display='block';
 }
@@ -1656,6 +1724,19 @@ async function renderDash(){
 
   var papers = await getPublished();
   var drafts  = [];
+  // Show restore-draft banner if a draft is waiting
+  var draftBanner='';
+  if(window._savedDraft && window._savedDraft.slots && window._savedDraft.slots.length){
+    var d=window._savedDraft;
+    var dAge=Math.round((Date.now()-(d.ts||0))/60000);
+    var dLabel=esc((d.cfg&&d.cfg.subj)||'Unknown subject')+' — '+esc((d.cfg&&d.cfg.cls)||'');
+    draftBanner='<div class="banner b-teal" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">'
+      +'<div><strong>📝 Draft recovered</strong> — '+dLabel+' ('+dAge+' min ago, '+d.slots.length+' questions)</div>'
+      +'<div style="display:flex;gap:8px;">'
+      +'<button class="btn bp bsm" onclick="restoreDraft()">↩ Restore Draft</button>'
+      +'<button class="btn bq bsm" onclick="discardDraft()">🗑 Discard</button>'
+      +'</div></div>';
+  }
   var school  = S.cfg.school||'Your School';
   var now     = new Date();
   var termKey = now.getMonth()<4?'1st Term':now.getMonth()<8?'2nd Term':'3rd Term';
@@ -1684,6 +1765,7 @@ async function renderDash(){
     +'<button class="dash-new-btn" onclick="navTo(\'new\')">✏ Set New Questions</button>'
     +'</div>'
     +correctionHtml
+    +draftBanner
     +'<div class="stat-grid">'
     +'<div class="stat-card"><div class="stat-num">'+papers.length+'</div><div class="stat-lbl">Total Papers</div><div class="stat-sub">All time</div></div>'
     +'<div class="stat-card"><div class="stat-num">'+thisTerm+'</div><div class="stat-lbl">This Term</div><div class="stat-sub">'+termKey+'</div></div>'
@@ -1771,48 +1853,10 @@ window.doLoadByRef = async function(){
   var el=$('loadResult');
   el.innerHTML='<div style="padding:20px;text-align:center;color:var(--mute);">Searching…</div>';
   var res = await _supabase.from('papers').select('*').eq('ref', ref).single();
-  var row = res.data;
-  var p = row ? Object.assign({}, row.data||{}, { ref: row.ref, _db_id: row.id }) : null;
+  var p = res.data ? Object.assign({}, res.data.data||{}, { ref: res.data.ref, _db_id: res.data.id }) : null;
   if(!p){
     el.innerHTML='<div class="banner b-warn">⚠ No paper found with reference <strong>'+esc(ref)+'</strong>. Check the reference and try again.</div>';
     return;
-  }
-  var qs=p.questions||[];
-  var osQ=qs.filter(function(q){ return q.k==='obj'; });
-  var fsQ=qs.filter(function(q){ return q.k==='fitb'; });
-  var tsQ=qs.filter(function(q){ return q.k==='theory'; });
-  var qHtml='';
-  if(osQ.length){
-    qHtml+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin:16px 0 8px;">Section A — Objectives ('+osQ.length+')</div>';
-    osQ.forEach(function(q,i){
-      qHtml+='<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+esc(q.t)+'</div>'
-        +(q.svgInline?'<div style="margin:6px 0;">'+q.svgInline+'</div>':'')
-        +(q.o?'<div class="sopts" style="margin-top:6px;">'+q.o.map(function(o,oi){
-          return '<div class="sopt'+(oi===q.a?' correct':'')+'"><span class="sok">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
-        }).join('')+'</div>':'')
-        +'</div></div>';
-    });
-  }
-  if(fsQ.length){
-    qHtml+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin:16px 0 8px;">Section B — Fill-in-Blank ('+fsQ.length+')</div>';
-    fsQ.forEach(function(q,i){
-      qHtml+='<div class="qp fitb-qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+esc(q.t)+'</div>'
-        +(q.answer?'<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>':'')
-        +'</div></div>';
-    });
-  }
-  if(tsQ.length){
-    var tSec=osQ.length&&fsQ.length?'C':osQ.length||fsQ.length?'B':'A';
-    qHtml+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin:16px 0 8px;">Section '+tSec+' — Theory ('+tsQ.length+')</div>';
-    tsQ.forEach(function(q,i){
-      qHtml+='<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+esc(q.t)+'</div>'
-        +(q.svgInline?'<div style="margin:6px 0;">'+q.svgInline+'</div>':'')
-        +(q.marks?'<div style="font-size:11px;color:var(--mute);">['+q.marks+' marks]</div>':'')
-        +'</div></div>';
-    });
   }
   el.innerHTML='<div class="arch-card" style="flex-direction:column;align-items:flex-start;gap:10px;">'
     +'<div style="display:flex;gap:14px;align-items:center;width:100%;">'
@@ -1820,53 +1864,12 @@ window.doLoadByRef = async function(){
     +'<div class="arch-body">'
     +'<div class="arch-title">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
     +'<div class="arch-meta">'+esc(p.term)+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
-    +'<div class="arch-meta">'+osQ.length+' objectives · '+fsQ.length+' fill-in-blank · '+tsQ.length+' theory</div>'
+    +'<div class="arch-meta">'+p.objCount+' objectives · '+(p.fitbCount||0)+' fill-in-blank · '+p.thCount+' theory</div>'
     +'<div class="arch-ref">📋 '+esc(p.ref)+' · '+esc(p.date)+'</div>'
     +'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:7px;align-items:flex-end;">'
     +'<div class="status-pill sp-pub">Published</div>'
-    +'<button class="btn bp bsm" onclick="reprintPaper(\''+esc(p.ref)+'\')">🖨 Reprint Paper</button>'
-    +'<button class="btn bq bsm" onclick="reprintPaper(\''+esc(p.ref)+'\',true)">📋 + Marking Guide</button>'
     +'</div>'
-    +'</div>'
-    +'<div style="width:100%;">'+qHtml+'</div>'
     +'</div>';
-  setTimeout(function(){ math(el); },300);
-};
-
-/* ══════════════════════════════════════
-   REPRINT — load any paper by ref and print
-══════════════════════════════════════ */
-window.reprintPaper = async function(ref, withGuide){
-  if(!ref){ toast('No reference supplied','warn'); return; }
-  toast('Loading paper for reprint…','info',3000);
-  var res = await _supabase.from('papers').select('*').eq('ref', ref).single();
-  var row = res.data;
-  if(!row){ toast('Paper not found: '+ref,'err'); return; }
-  var p = Object.assign({}, row.data||{}, { ref: row.ref });
-  var qs = p.questions||[];
-  // Reconstruct slot-like arrays buildPrint expects
-  var toSlot=function(q){ return {q:q,included:true}; };
-  var os=qs.filter(function(q){ return q.k==='obj'; }).map(toSlot);
-  var fs=qs.filter(function(q){ return q.k==='fitb'; }).map(toSlot);
-  var ts=qs.filter(function(q){ return q.k==='theory'; }).map(toSlot);
-  // Temporarily populate S.cfg from saved paper so buildPrint uses correct metadata
-  var prevCfg=Object.assign({},S.cfg);
-  S.cfg.cls=p.cls||S.cfg.cls;
-  S.cfg.subj=p.subj||S.cfg.subj;
-  S.cfg.term=p.term||S.cfg.term;
-  S.cfg.school=p.school||S.cfg.school;
-  S.cfg.std=p.std||S.cfg.std;
-  S.cfg.instr=p.instr||S.cfg.instr||'Answer all questions. Time allowed: 1 hour 30 minutes.';
-  S.cfg.theoryPaperInstr=p.theoryPaperInstr||S.cfg.theoryPaperInstr||'';
-  var prevAt=S.at; S.at=p.at||'Examination';
-  buildPrint(os,fs,ts,!!withGuide);
-  document.body.classList.remove('economy-mode');
-  setTimeout(function(){
-    window.print();
-    // Restore state after print dialog
-    S.cfg=prevCfg; S.at=prevAt;
-  },350);
 };
 
 /* ══════════════════════════════════════
@@ -1900,21 +1903,12 @@ function renderArchList(papers){
       +'<div class="arch-meta">'+p.objCount+' obj · '+(p.fitbCount||0)+' fill-in-blank · '+p.thCount+' theory</div>'
       +'<div class="arch-ref">📋 '+esc(p.ref)+' · '+esc(p.date)+'</div>'
       +'</div>'
-      +'<div class="arch-acts" style="flex-direction:column;gap:6px;align-items:flex-end;">'
+      +'<div class="arch-acts">'
       +'<span class="status-pill sp-pub">Published</span>'
-      +'<button class="btn bp bsm" style="font-size:10.5px;" onclick="archViewRef(\''+esc(p.ref)+'\')">🔍 View</button>'
-      +'<button class="btn bq bsm" style="font-size:10.5px;" onclick="reprintPaper(\''+esc(p.ref)+'\')">🖨 Reprint</button>'
       +'</div>'
       +'</div>';
   }).join('');
 }
-
-window.archViewRef = function(ref){
-  navTo('load');
-  setTimeout(function(){
-    var inp=$('loadRef'); if(inp){ inp.value=ref; doLoadByRef(); }
-  },200);
-};
 
 window.filterArch = async function(){
   var q=($('archSearch')||{value:''}).value.toLowerCase();
@@ -1989,23 +1983,22 @@ function renderSett(){
 window.saveApiKey = function(){
   var v=($('settKeyInp')||{}).value||''; v=v.trim();
   API_KEY=v;
-  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'api_key',value:v||''},{onConflict:'user_id,key'});
+  _saveSetting('api_key', v);
   refreshApiStatus(); toast('API key saved ✓','ok');
 };
 window.clearApiKey = function(){
   API_KEY='';
-  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'api_key',value:''},{onConflict:'user_id,key'});
+  _saveSetting('api_key','');
   refreshApiStatus(); toast('API key cleared','ok');
   renderSett();
 };
 window.saveSchool = function(){
   var s=($('settSchool')||{}).value||'';
   var t=($('settTerm')||{}).value||'1st Term';
-  if(CURRENT_USER){
-    _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'school',value:s},{onConflict:'user_id,key'});
-    _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'defterm',value:t},{onConflict:'user_id,key'});
-  }
-  S.cfg.school=s; S.cfg.term=t;
+  _saveSetting('school', s.trim());
+  _saveSetting('defterm', t);
+  if(CURRENT_USER && CURRENT_USER.role==='admin') ADMIN.selectedTerm=t;
+  S.cfg.school=s.trim(); S.cfg.term=t;
   toast('School details saved ✓','ok');
 };
 window.setTrade = function(id){
@@ -2015,7 +2008,7 @@ window.setTrade = function(id){
   });
 };
 window.saveTrade = function(){
-  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'trade',value:S.tradeSubject},{onConflict:'user_id,key'});
+  _saveSetting('trade', S.tradeSubject);
   toast('Trade subject saved: '+getTradeById(S.tradeSubject).name+' ✓','ok');
 };
 window.clearAllData = async function(){
@@ -2027,6 +2020,31 @@ window.clearAllData = async function(){
   }
   toast('All papers cleared','ok');
 };
+window.restoreDraft=function(){
+  var d=window._savedDraft; if(!d||!d.slots) return;
+  S.cfg=Object.assign({cls:'',term:'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
+  S.at=d.at||'Examination';
+  S.path=d.path||'auto';
+  S.tradeSubject=d.tradeSubject||DEFAULT_TRADE;
+  S.difficultyLevel=d.difficultyLevel||'Balanced';
+  S.slots=d.slots||[];
+  S.schemeWeeks=d.schemeWeeks||[];
+  S.schemeLoaded=S.schemeWeeks.length>0;
+  S.schemeCommitted=false;
+  window._savedDraft=null;
+  ['screen-dash','screen-gate','screen-load','screen-arch','screen-sett'].forEach(function(id){
+    var el=$(id); if(el) el.style.display='none';
+  });
+  $('app').style.display='';
+  S.scr=2; hdr();
+  $('s1').style.display='none';
+  $('s2').style.display='block';
+  $('s3').style.display='none';
+  renderWorkshop();
+  toast('Draft restored — '+S.slots.filter(function(s){ return s.q; }).length+' questions ready','ok',4000);
+};
+window.discardDraft=function(){ clearDraft(); renderDash(); };
+
 function getTradeById(id){
   return TRADE_SUBJECTS.find(function(t){ return t.id===id; }) || TRADE_SUBJECTS[0];
 }
@@ -2034,11 +2052,11 @@ function getTradeById(id){
 /* ══════════════════════════════════════
    PAPER DETAIL (view published)
 ══════════════════════════════════════ */
-window.viewPaperDetail = function(ref){
-  navTo('load');
-  setTimeout(function(){
-    var inp=$('loadRef'); if(inp){ inp.value=ref; doLoadByRef(); }
-  },200);
+window.viewPaperDetail = async function(ref){
+  var res=await _supabase.from('papers').select('*').eq('ref',ref).single();
+  var p=res.data?(Object.assign({},res.data.data||{},{ref:res.data.ref})):null;
+  if(!p){ toast('Paper not found','err'); return; }
+  toast('📋 '+p.ref+' · '+(p.subj||'')+(p.cls?' · '+p.cls:''),'ok',4000);
 };
 
 /* ══════════════════════════════════════
@@ -2319,10 +2337,18 @@ function s1Auto(){
     +'<div class="card"><div class="ct">Assessment Type</div>'
     +'<div class="atog">'
     +'<button class="ab '+(S.at==='Examination'?'on':'')+'" id="aex">📋 Examination</button>'
-    +'<button class="ab '+(S.at==='C.A.'?'on':'')+'" id="aca">📝 C.A.</button>'
+    +'<button class="ab '+(S.at==='C.A.'||S.at==='C.A. Test 1'||S.at==='C.A. Test 2'?'on':'')+'" id="aca">📝 C.A.</button>'
     +'</div>'
-    +'<div style="margin-top:9px;font-size:12px;color:var(--mute);">'
-    +(S.at==='Examination'?'<b style="color:var(--blue)">EXAM</b> — Full terminal paper.':'<b style="color:var(--amber)">C.A.</b> — Topic-specific, shorter.')
+    // C.A. sub-options
+    +'<div id="caSubOpts" style="display:'+(S.at==='C.A.'||S.at==='C.A. Test 1'||S.at==='C.A. Test 2'?'flex':'none')+';gap:8px;margin-top:10px;flex-wrap:wrap;">'
+    +'<button class="ab bsm '+(S.at==='C.A. Test 1'?'on':'')+'" id="acat1" style="font-size:11.5px;">📝 Test 1 <span style="font-size:10px;font-weight:400;">(First 3 topics)</span></button>'
+    +'<button class="ab bsm '+(S.at==='C.A. Test 2'?'on':'')+'" id="acat2" style="font-size:11.5px;">📝 Test 2 <span style="font-size:10px;font-weight:400;">(First 6 topics)</span></button>'
+    +'</div>'
+    +'<div style="margin-top:9px;font-size:12px;color:var(--mute);" id="atDesc">'
+    +(S.at==='Examination'?'<b style="color:var(--blue)">EXAM</b> — Full terminal paper covering all term topics.'
+     :S.at==='C.A. Test 1'?'<b style="color:var(--amber)">TEST 1</b> — Weeks 1–3 only. Questions drawn from the first 3 scheme topics.'
+     :S.at==='C.A. Test 2'?'<b style="color:var(--amber)">TEST 2</b> — Weeks 1–6. Questions cover the first 6 scheme topics.'
+     :'<b style="color:var(--amber)">C.A.</b> — Select Test 1 or Test 2 above.')
     +'</div></div>'
 
     // Step 1
@@ -2399,31 +2425,6 @@ function s1Auto(){
     +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Private — only sent to Gemini. Not printed on paper.</div>'
     +'</div></div>'
 
-    // Diagram Questions
-    +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="diagCard">'
-    +'<div class="ct">📐 Diagram / SVG Questions <span style="font-size:9px;font-weight:600;background:var(--blue-lt);color:var(--blue);padding:2px 8px;border-radius:10px;margin-left:8px;">Optional</span></div>'
-    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">'
-    +'<div class="eco-switch'+(S.cfg.diagOpts&&S.cfg.diagOpts.include?' on':'')+'" id="diagToggle" onclick="toggleDiagOpts()" style="cursor:pointer;"></div>'
-    +'<span style="font-size:13px;font-weight:600;color:var(--ink3);">Include diagram-based questions</span>'
-    +'</div>'
-    +'<div id="diagOptsBody" style="display:'+(S.cfg.diagOpts&&S.cfg.diagOpts.include?'block':'none')+';padding-top:6px;">'
-    +'<div class="r2">'
-    +'<div class="fl"><label>No. of diagram questions</label>'
-    +'<input type="number" class="num-input" id="diagCount" min="1" max="10" value="'+(S.cfg.diagOpts&&S.cfg.diagOpts.count||1)+'"/>'
-    +'</div>'
-    +'<div class="fl"><label>Which section?</label>'
-    +'<select class="fs" id="diagSection">'
-    +'<option value="obj"'+(S.cfg.diagOpts&&S.cfg.diagOpts.section==='obj'?' selected':'')+'>Section A — Objectives</option>'
-    +'<option value="theory"'+((!S.cfg.diagOpts||!S.cfg.diagOpts.section||S.cfg.diagOpts.section==='theory')?' selected':'')+'>Theory / Essay</option>'
-    +'<option value="both"'+(S.cfg.diagOpts&&S.cfg.diagOpts.section==='both'?' selected':'')+'>Both Sections</option>'
-    +'</select>'
-    +'</div></div>'
-    +'<div class="fl"><label>Diagram description hint <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional — AI will decide if blank)</span></label>'
-    +'<textarea class="fta" id="diagDesc" style="min-height:54px;" placeholder="e.g. A labeled diagram of the human digestive system, a circuit diagram with resistors, a plant cell cross-section…">'+(S.cfg.diagOpts&&S.cfg.diagOpts.desc||'')+'</textarea>'
-    +'</div>'
-    +'<div class="banner b-teal" style="font-size:11.5px;margin-bottom:0;">🖼 AI will generate inline SVG diagrams sized for A4 print. Each diagram question includes the figure and asks candidates to label, analyse, or calculate from it.</div>'
-    +'</div></div>'
-
     // Paper Header
     +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="metaCard">'
     +'<div class="ct">Paper Header Info</div>'
@@ -2438,8 +2439,61 @@ function s1Auto(){
     +'</div></div>';
 
   // Events
-  $('aex').onclick=function(){ S.at='Examination'; s1Auto(); };
-  $('aca').onclick=function(){ S.at='C.A.'; s1Auto(); };
+  // ── Assessment Type wiring (inline — no full re-render) ──
+  function _setAt(val){
+    S.at=val;
+    // Update toggle buttons
+    [$('aex'),$('aca')].forEach(function(b){ if(b) b.classList.remove('on'); });
+    if(val==='Examination'){ if($('aex')) $('aex').classList.add('on'); }
+    else { if($('aca')) $('aca').classList.add('on'); }
+    // Show/hide sub-options
+    var sub=$('caSubOpts');
+    if(sub) sub.style.display=(val==='Examination'?'none':'flex');
+    // Update sub-option highlights
+    [$('acat1'),$('acat2')].forEach(function(b){ if(b) b.classList.remove('on'); });
+    if(val==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
+    if(val==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
+    // Update description text
+    var atd=$('atDesc');
+    if(atd){
+      if(val==='Examination') atd.innerHTML='<b style="color:var(--blue)">EXAM</b> — Full terminal paper covering all term topics.';
+      else if(val==='C.A. Test 1') atd.innerHTML='<b style="color:var(--amber)">TEST 1</b> — Weeks 1–3 only. Questions drawn from the first 3 scheme topics.';
+      else if(val==='C.A. Test 2') atd.innerHTML='<b style="color:var(--amber)">TEST 2</b> — Weeks 1–6. Questions cover the first 6 scheme topics.';
+      else atd.innerHTML='<b style="color:var(--amber)">C.A.</b> — Select Test 1 or Test 2 above.';
+    }
+    // Apply topic limits for CA tests
+    if(val==='C.A. Test 1'&&S.schemeWeeks.length){
+      S.cfg.topics=S.schemeWeeks.slice(0,3).map(function(w){ return w.topic; });
+      var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
+    } else if(val==='C.A. Test 2'&&S.schemeWeeks.length){
+      S.cfg.topics=S.schemeWeeks.slice(0,6).map(function(w){ return w.topic; });
+      var tc2=$('tagCloud'); if(tc2) tc2.innerHTML=renderTagCloud();
+    } else if(val==='Examination'&&S.schemeWeeks.length){
+      S.cfg.topics=S.schemeWeeks.map(function(w){ return w.topic; });
+      var tc3=$('tagCloud'); if(tc3) tc3.innerHTML=renderTagCloud();
+    }
+    // C.A. tip banner
+    var qCard=$('qCard');
+    if(qCard){
+      var oldTip=qCard.querySelector('.ca-tip'); if(oldTip) oldTip.remove();
+      if(val!=='Examination'){
+        var tip=document.createElement('div');
+        tip.className='banner b-amber ca-tip';
+        tip.style.marginTop='10px';
+        tip.innerHTML='💡 C.A. Tip: Typically max 20 objectives + 3 theory for '+val+'. Adjust counts above.';
+        qCard.appendChild(tip);
+      }
+    }
+    checkS1Ready();
+  }
+  $('aex').onclick=function(){ _setAt('Examination'); };
+  $('aca').onclick=function(){ _setAt(S.at==='Examination'?'C.A.':S.at); };
+  if($('acat1')) $('acat1').onclick=function(){ _setAt('C.A. Test 1'); };
+  if($('acat2')) $('acat2').onclick=function(){ _setAt('C.A. Test 2'); };
+  // Restore sub-option state on re-render
+  if(S.at!=='Examination'){ var sub2=$('caSubOpts'); if(sub2) sub2.style.display='flex'; }
+  if(S.at==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
+  if(S.at==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
   $('fterm').onchange=function(e){ S.cfg.term=e.target.value; onClassTermChange(); };
   $('fcl').onchange=function(e){ S.cfg.cls=e.target.value; onClassTermChange(); };
   $('fst').onchange=function(e){
@@ -2455,16 +2509,6 @@ function s1Auto(){
   $('ftp').oninput=function(e){ S.cfg.topicText=e.target.value; checkS1Ready(); };
   $('ftheoryPaper').oninput=function(e){ S.cfg.theoryPaperInstr=e.target.value; };
   $('ftheoryAi').oninput=function(e){ S.cfg.theoryAiInstr=e.target.value; };
-  // Diagram opts wiring
-  if(!S.cfg.diagOpts) S.cfg.diagOpts={include:false,count:1,section:'theory',desc:''};
-  window.toggleDiagOpts=function(){
-    S.cfg.diagOpts.include=!S.cfg.diagOpts.include;
-    var tog=$('diagToggle'); if(tog) tog.classList.toggle('on',S.cfg.diagOpts.include);
-    var body=$('diagOptsBody'); if(body) body.style.display=S.cfg.diagOpts.include?'block':'none';
-  };
-  var dc=$('diagCount'); if(dc) dc.oninput=function(e){ S.cfg.diagOpts.count=parseInt(e.target.value)||1; };
-  var ds=$('diagSection'); if(ds) ds.onchange=function(e){ S.cfg.diagOpts.section=e.target.value; };
-  var dd=$('diagDesc'); if(dd) dd.oninput=function(e){ S.cfg.diagOpts.desc=e.target.value; };
   $('s1n').onclick=function(){
     var on=parseInt($('objN').value)||0;
     var fn=parseInt($('fitbN').value)||0;
@@ -2690,33 +2734,42 @@ window.doLoadScheme=async function(){
     actualSubj.toLowerCase().includes('fashion')||actualSubj.toLowerCase().includes('beauty')||
     actualSubj.toLowerCase().includes('trade'));
 
-  var prompt='You are a Nigerian curriculum specialist with authoritative knowledge of the NERDC 2026 Basic and Secondary Education syllabuses.\n\n'
-    +'TASK: Generate the official NERDC 2026 Scheme of Work for the exact subject, class, and term below.\n\n'
-    +'SUBJECT: '+actualSubj+'\n'
-    +'CLASS: '+cls+' — '+levelCtx+'\n'
-    +'TERM: '+termCtx+'\n\n'
-    +'NERDC 2026 CURRICULUM FRAMEWORK NOTES:\n'
-    +'- The 2026 revision reorganized content into themes, strands, and competency-based outcomes.\n'
-    +'- SS topics follow the WAEC/NECO approved examination syllabus for that subject.\n'
-    +'- JSS topics follow the integrated thematic NERDC Basic Education curriculum.\n'
-    +'- A full Nigerian term has 10–13 CONTENT teaching weeks of substantive subject matter.\n'
-    +(isVocational?'- For vocational/trade subjects: follow the NABTEB/NERDC vocational trade curriculum strands.\n':'')+'\n'
-    +'MANDATORY RULES — each rule is NON-NEGOTIABLE:\n'
-    +'1. ONLY include real, verifiable NERDC 2026 syllabus topics for this exact subject and class level.\n'
-    +'2. NEVER include administrative weeks: Revision, Examination, Mid-Term Break, Resumption, Orientation, Closing, or any non-teaching week.\n'
-    +'3. Topics must be SPECIFIC and SUBSTANTIVE — not vague. Wrong: "Introduction". Correct: "Cell Structure and the Cell Theory".\n'
-    +'4. Topics must follow the NERDC syllabus SEQUENCE — progressive from foundational to complex within the term.\n'
-    +'5. Topics must be TERM-APPROPRIATE — match the term context described above.\n'
-    +'6. Each week must have a DISTINCT topic — no repetition, no padding, no filler weeks.\n'
-    +'7. Subtopics must be 1–2 specific, actionable instructional content points per week.\n'
-    +'8. Generate exactly the correct number of teaching weeks for this subject (10–13 weeks).\n\n'
-    +'OUTPUT FORMAT:\n'
-    +'Return ONLY a valid JSON array — no preamble, no explanation, no markdown, no code fences:\n'
+  var prompt='You are a certified Nigerian curriculum specialist.\n'
+    +'Your knowledge base includes the official NERDC 2026 National Curriculum documents, WAEC Chief Examiner Reports, NECO approved syllabuses, SUBEB frameworks, and peer-reviewed Nigerian secondary education journals.\n\n'
+    +'TASK: Produce the NERDC 2026 Scheme of Work for the EXACT subject, class, and term specified. This scheme must match what is in the official government-approved curriculum document — NOT a generic or improvised version.\n\n'
+    +'═══════════════════════════════════\n'
+    +'SUBJECT : '+actualSubj+'\n'
+    +'CLASS   : '+cls+' — '+levelCtx+'\n'
+    +'TERM    : '+termCtx+'\n'
+    +'═══════════════════════════════════\n\n'
+    +'AUTHORITATIVE SOURCES TO DRAW FROM (in priority order):\n'
+    +'1. NERDC 2026 National Curriculum Framework — the primary reference for ALL Nigerian public school subjects\n'
+    +(cLow.includes('ss')?'2. WAEC Unified Syllabus (current edition) — mandatory for SS subjects\n3. NECO approved examination topics list\n':'')
+    +(cLow.includes('jss')?'2. NERDC Basic Education Curriculum (BEC) 2026 revision — JSS 1–3 integrated curriculum\n':'')
+    +(cLow.includes('primary')?'2. NERDC Revised Primary Education Curriculum 2026 — continuous assessment framework\n':'')
+    +(isVocational?'2. NABTEB/NERDC Trade and Vocational Curriculum — '+actualSubj+' strand\n':'')
+    +'LAST RESORT: Cross-referenced Nigerian teaching resources from SUBEB and state curriculum offices\n\n'
+    +'NON-NEGOTIABLE RULES:\n'
+    +'1. Use ONLY real, verifiable NERDC 2026 syllabus topics. If uncertain about a topic title, use the closest verified equivalent — never invent.\n'
+    +'2. NEVER include non-teaching/administrative weeks: Revision, Examination, Break, Resumption, Orientation, Holiday, Mock, Test Week, Closing.\n'
+    +'3. Topics must be SPECIFIC and TESTABLE — wrong: "Introduction". Correct: "Cell Theory and Cell Structure".\n'
+    +'4. Follow the NERDC progressive sequence: foundational concepts first, complexity increasing each week.\n'
+    +'5. Topics must be TERM-APPROPRIATE — match what a teacher would teach in '+term+' at '+cls+' level.\n'
+    +'6. Every week must have a UNIQUE topic. Absolutely no repetition, no padding, no filler.\n'
+    +'7. Subtopics must be 1–3 specific instructional content points that a teacher would actually teach in that lesson.\n'
+    +'8. Generate EXACTLY '+( cLow.includes('primary')||cLow.includes('kg')||cLow.includes('nursery')||cLow.includes('creche') ? '10' : '13' )+' teaching weeks. Count them. Every week must be present.\n\n'
+    +'EXAMPLES OF CORRECT SPECIFICITY:\n'
+    +'✓ "Photosynthesis: Light and Dark Reactions" — specific, testable\n'
+    +'✓ "Quadratic Equations: Solution by Factorisation and Formula" — specific, testable\n'
+    +'✓ "Civic Rights and Responsibilities of Nigerian Citizens" — specific, testable\n'
+    +'✗ "Introduction to the topic" — vague, unacceptable\n'
+    +'✗ "Continuation" — meaningless, unacceptable\n\n'
+    +'OUTPUT FORMAT — Return ONLY a valid JSON array, no preamble, no markdown, no code fences:\n'
     +'[\n'
-    +'  {"week":"Week 1","topic":"Exact NERDC topic title","subtopics":"Specific content point 1; Specific content point 2"},\n'
-    +'  {"week":"Week 2","topic":"Next topic","subtopics":"Content point 1; Content point 2"}\n'
+    +'  {"week":"Week 1","topic":"Exact verified NERDC topic title","subtopics":"Specific instructional content point 1; Specific content point 2"},\n'
+    +'  {"week":"Week 2","topic":"Next verified topic","subtopics":"Content point 1; Content point 2"}\n'
     +']\n'
-    +'JSON array ONLY.';
+    +'JSON ARRAY ONLY. Start with [ and end with ]. Nothing else.';
 
   callGeminiScheme(prompt)
     .then(function(weeks){
@@ -2847,16 +2900,7 @@ function renderSlot(s){
     var q=s.q;
     // Render question text (supports LaTeX via KaTeX)
     body='<div class="stx">'+q.t+'</div>';
-    // Show inline SVG diagram if AI generated one
-    if(q.svgInline){
-      body+='<div class="diagram-box" style="margin:8px 0;border:1px solid var(--bdr);border-radius:8px;padding:10px;background:var(--surf2);">'
-        +q.svgInline
-        +'<div style="font-size:10px;color:var(--mute);margin-top:5px;">📐 AI-generated SVG diagram — prints inline on paper</div>'
-        +'</div>';
-    } else if(q.svgHint && !q.svgInline){
-      body+='<div style="font-size:11px;color:var(--amber);padding:6px 10px;background:var(--amber-lt);border-radius:6px;margin:6px 0;">📐 Diagram: <em>'+esc(q.svgHint)+'</em> — generating SVG…</div>';
-    }
-    // Show diagram image if attached (from scanner)
+    // Show diagram image if attached
     if(q.diagImg){
       body+='<div class="diagram-box">'
         +'<img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/>'
@@ -2929,7 +2973,14 @@ function getActualSubj(){
 
 function buildPrompt(cfg,type,count,extra){
   var subj=getActualSubj();
-  var topicStr=cfg.topics&&cfg.topics.length?cfg.topics.join(', '):(cfg.topicText||'');
+  // For CA tests — constrain topics to the correct week range
+  var effectiveTopics=cfg.topics&&cfg.topics.length?cfg.topics.slice():(cfg.topicText?cfg.topicText.split(',').map(function(t){return t.trim();}).filter(Boolean):[]);
+  if(S.at==='C.A. Test 1'&&S.schemeWeeks.length) effectiveTopics=S.schemeWeeks.slice(0,3).map(function(w){return w.topic;});
+  if(S.at==='C.A. Test 2'&&S.schemeWeeks.length) effectiveTopics=S.schemeWeeks.slice(0,6).map(function(w){return w.topic;});
+  var topicStr=effectiveTopics.join(', ');
+  var caNote=S.at==='C.A. Test 1'?'\nASSESSMENT: C.A. Test 1 — questions MUST only cover the first 3 topics listed. Do NOT go beyond those topics.\n'
+            :S.at==='C.A. Test 2'?'\nASSESSMENT: C.A. Test 2 — questions MUST only cover the first 6 topics listed. Do NOT go beyond those topics.\n'
+            :'';
   var diffNote=(cfg.std==='Custom/Internal'&&S.difficultyLevel)
     ?'  Difficulty: '+S.difficultyLevel+' — '
       +(S.difficultyLevel==='Lenient'?'straightforward recall, accessible to most students.\n'
@@ -2944,8 +2995,8 @@ function buildPrompt(cfg,type,count,extra){
   p+='\n\nContext:\n'
     +'  Class: '+cfg.cls+'\n  Subject: '+subj+'\n  Term: '+cfg.term+'\n'
     +'  Standard: '+cfg.std+'\n  Curriculum: NERDC 2026 (Nigeria)\n'
-    +diffNote;
-  if(topicStr) p+='  Topics: '+topicStr+'\n';
+    +caNote+diffNote;
+  if(topicStr) p+='  Topics covered: '+topicStr+'\n';
 
   if(type==='theory'){
     if(cfg.theoryAiInstr&&cfg.theoryAiInstr.trim())
@@ -2961,15 +3012,6 @@ function buildPrompt(cfg,type,count,extra){
   if(extra) p+='  Extra: '+extra+'\n';
 
   if(type==='obj'){
-    // Diagram injection for objectives
-    var dOpts=S.cfg.diagOpts||{};
-    if(dOpts.include&&(dOpts.section==='obj'||dOpts.section==='both')){
-      var dCnt=Math.min(dOpts.count||1,count);
-      p+='\nDIAGRAM REQUIREMENT: '+dCnt+' of these objective questions MUST be diagram-based. '
-        +'For each diagram question include a "svgHint" field: a clear 1-sentence description of the SVG figure to generate (e.g. "labeled diagram of the human heart"). '
-        +(dOpts.desc?'Teacher hint: '+dOpts.desc:'')
-        +'\n';
-    }
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
       +'{"q":"question text (LaTeX for math)","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard"}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
@@ -2978,17 +3020,8 @@ function buildPrompt(cfg,type,count,extra){
       +'{"q":"sentence with ___________ at the end where the answer goes","answer":"expected answer","topic":"topic","difficulty":"easy|medium|hard","marks":2}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   } else {
-    // Diagram injection for theory
-    var dOptsT=S.cfg.diagOpts||{};
-    if(dOptsT.include&&(dOptsT.section==='theory'||dOptsT.section==='both')){
-      var dCntT=Math.min(dOptsT.count||1,count);
-      p+='\nDIAGRAM REQUIREMENT: '+dCntT+' of these theory questions MUST reference a diagram. '
-        +'Include a "svgHint" field: a 1-sentence description of the SVG figure (e.g. "labeled plant cell cross-section"). '
-        +(dOptsT.desc?'Teacher hint: '+dOptsT.desc:'')
-        +'\n';
-    }
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for formulas)","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard","svgHint":"optional diagram description or null"}\n'
+      +'{"q":"question text (LaTeX for formulas)","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard"}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   }
   return p;
@@ -3011,24 +3044,19 @@ async function generateAll(){
     try{
       var qs=await callGemini(buildPrompt(S.cfg,type,slots.length));
       if(Array.isArray(qs)){
-        var svgPromises=[];
         qs.forEach(function(raw,i){
           var s=slots[i]; if(!s) return;
           s.loading=false; s.err=null;
           if(type==='obj'){
-            s.q={t:raw.q||raw.question||'',k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1,svgHint:raw.svgHint||null};
+            s.q={t:raw.q||raw.question||'',k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
           } else if(type==='fitb'){
             s.q={t:raw.q||raw.question||'',k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
           } else {
-            s.q={t:raw.q||raw.question||'',k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgHint:raw.svgHint||null};
+            s.q={t:raw.q||raw.question||'',k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
           }
           var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
-          // Queue SVG generation for diagram slots
-          if(s.q.svgHint && API_KEY){
-            svgPromises.push((function(slot){ return callGeminiDraw(slot.q.svgHint).then(function(svg){ slot.q.svgInline=svg; var e=$('slot_'+slot.id); if(e) e.outerHTML=renderSlot(slot); }).catch(function(){}); })(s));
-          }
+          scheduleDraftSave();
         });
-        if(svgPromises.length) Promise.all(svgPromises).then(function(){ updateProgress(); });
       }
     } catch(e){
       slots.forEach(function(s){ s.loading=false; s.err=e.message; var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s); });
@@ -3175,24 +3203,6 @@ function s2Manual(){
     +'</div></div>'
     +'<div class="fl"><label>Custom Instructions (Optional)</label>'
     +'<textarea class="fta" id="ntxInstr" style="min-height:60px;" placeholder="e.g. Focus on the food chain section only. Include one question on photosynthesis."></textarea>'
-    +'</div>'
-    +'<div class="card" style="margin:14px 0 0;padding:16px;background:var(--surf2);">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:10px;">📐 Diagram / SVG Questions <span style="font-size:9px;background:var(--blue-lt);color:var(--blue);padding:2px 8px;border-radius:10px;margin-left:6px;">Optional</span></div>'
-    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">'
-    +'<div class="eco-switch" id="ntxDiagToggle" onclick="toggleNtxDiag()" style="cursor:pointer;"></div>'
-    +'<span style="font-size:12.5px;font-weight:600;color:var(--ink3);">Include diagram-based questions</span>'
-    +'</div>'
-    +'<div id="ntxDiagBody" style="display:none;">'
-    +'<div class="r2">'
-    +'<div class="fl"><label>Count</label><input type="number" class="num-input" id="ntxDiagCount" min="1" max="5" value="1"/></div>'
-    +'<div class="fl"><label>Section</label><select class="fs" id="ntxDiagSection">'
-    +'<option value="obj">Objectives</option><option value="theory" selected>Theory</option><option value="both">Both</option>'
-    +'</select></div></div>'
-    +'<div class="fl"><label>Diagram hint (optional)</label>'
-    +'<textarea class="fta" id="ntxDiagDesc" style="min-height:48px;" placeholder="e.g. labeled diagram of plant cell, food chain, electrical circuit…"></textarea>'
-    +'</div>'
-    +'<div class="banner b-teal" style="font-size:11.5px;margin-bottom:0;">🖼 SVG diagrams will be generated inline and printed at A4 scale with your questions.</div>'
-    +'</div></div>'
     +'</div></div>'
     +'<div id="ntxStatus" style="margin-top:10px;"></div>'
     +'<div class="card" id="ntxSlotArea" style="display:none;margin-top:14px;margin-bottom:0;">'
@@ -3214,16 +3224,6 @@ function s2Manual(){
   $('mfsubj').oninput =function(e){ S.cfg.subj =e.target.value; };
   $('mfterm').onchange=function(e){ S.cfg.term =e.target.value; };
   $('mfsc').oninput   =function(e){ S.cfg.school=e.target.value; };
-  // NTX diagram opts
-  if(!S._ntxDiagOpts) S._ntxDiagOpts={include:false,count:1,section:'theory',desc:''};
-  window.toggleNtxDiag=function(){
-    S._ntxDiagOpts.include=!S._ntxDiagOpts.include;
-    var tog=$('ntxDiagToggle'); if(tog) tog.classList.toggle('on',S._ntxDiagOpts.include);
-    var body=$('ntxDiagBody'); if(body) body.style.display=S._ntxDiagOpts.include?'block':'none';
-  };
-  var ndc=$('ntxDiagCount'); if(ndc) ndc.oninput=function(e){ S._ntxDiagOpts.count=parseInt(e.target.value)||1; };
-  var nds=$('ntxDiagSection'); if(nds) nds.onchange=function(e){ S._ntxDiagOpts.section=e.target.value; };
-  var ndd=$('ntxDiagDesc'); if(ndd) ndd.oninput=function(e){ S._ntxDiagOpts.desc=e.target.value; };
 }
 
 /* ── NTX Difficulty tracker ── */
@@ -3785,40 +3785,47 @@ function goReview(){
   };
 
   $('s3save').onclick=async function(){
-    var btn=$('s3save'); if(btn){btn.disabled=true;btn.textContent='Saving…';}
+    var btn=$('s3save'); if(btn){btn.disabled=true;btn.textContent='💾 Saving…';}
     var ref='EE-'+Date.now().toString(36).toUpperCase().slice(-6);
+    var dispSubj2=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
     var allQs=[].concat(
       os.map(function(s){ return {k:'obj',t:s.q.t,o:s.q.o,a:s.q.a,marks:s.q.marks||1,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; }),
       fs.map(function(s){ return {k:'fitb',t:s.q.t,answer:s.q.answer,marks:s.q.marks||2,topic:s.q.topic,layout:'standard'}; }),
       ts.map(function(s){ return {k:'theory',t:s.q.t,marks:s.q.marks||10,s:s.q.s,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; })
     );
     var paper={
-      ref:ref, cls:c.cls, subj:dispSubj, term:c.term,
+      ref:ref, cls:c.cls, subj:dispSubj2, term:c.term,
       std:c.std, at:S.at, school:c.school||S.cfg.school||'',
       objCount:os.length, fitbCount:fs.length, thCount:ts.length,
+      instr:c.instr||'', theoryPaperInstr:c.theoryPaperInstr||'',
       date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
       ts:Date.now(),
       adminStatus:'submitted',
       correctionNote:'',
       autoGen:false,
-      questions:allQs
+      questions:allQs,
+      user_name:CURRENT_USER.name||CURRENT_USER.email
     };
     try{
       await saveSinglePaper(paper);
+      clearDraft();
       $('s3').innerHTML='<div class="pg"><div class="suw">'
         +'<div class="sui">🎓</div>'
-        +'<div class="sut">Paper Saved</div>'
-        +'<div class="sum">Your '+S.at+' for <strong>'+esc(c.cls)+' — '+esc(dispSubj)+'</strong> has been saved to the Archive.</div>'
-        +'<div class="ref-pill">📋 Ref: '+ref+'</div><br/>'
+        +'<div class="sut">Paper Saved &amp; Submitted</div>'
+        +'<div class="sum">Your <strong>'+esc(S.at)+'</strong> for <strong>'+esc(c.cls)+' — '+esc(dispSubj2)+'</strong> has been submitted to the admin production queue.</div>'
+        +'<div class="ref-pill">📋 Ref: '+ref+'</div>'
+        +'<div class="banner b-ok" style="margin:16px 0;text-align:left;font-size:12px;">'
+        +'✅ <strong>What happens next:</strong> The admin will review this paper in the Production Queue. Check your Archive for approval status or correction notes.'
+        +'</div>'
         +'<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">'
         +'<button class="btn bg" onclick="navTo(\'arch\')">📚 View Archive</button>'
         +'<button class="btn bq" id="newPaper">Create Another Paper</button>'
         +'</div></div></div>';
       $('newPaper').onclick=resetAll;
-      toast('✓ Saved — '+ref,'ok',4000);
+      toast('✓ Paper submitted — Ref: '+ref,'ok',5000);
     } catch(e){
       if(btn){btn.disabled=false;btn.textContent='💾 Save to Archive';}
-      toast('Save failed: '+(e.message||'unknown error'),'err');
+      toast('Save failed: '+(e.message||'check your internet connection'),'err',7000);
     }
   };
 }
@@ -3827,17 +3834,27 @@ window.printPaperOnly=function(){
   var os=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
   var fs=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
   var ts=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
+  if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
   buildPrint(os,fs,ts,false);
-  document.body.classList.remove('economy-mode');
-  setTimeout(function(){ window.print(); },350);
+  document.body.classList.remove('economy-mode','lab-print-mode');
+  document.body.classList.add('normal-mode');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ document.body.classList.remove('normal-mode'); },1200);
+  },400);
 };
 window.printWithGuide=function(){
   var os=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
   var fs=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
   var ts=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
+  if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
   buildPrint(os,fs,ts,true);
-  document.body.classList.remove('economy-mode');
-  setTimeout(function(){ window.print(); },350);
+  document.body.classList.remove('economy-mode','lab-print-mode');
+  document.body.classList.add('normal-mode');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ document.body.classList.remove('normal-mode'); },1200);
+  },400);
 };
 
 /* ══════════════════════════════════════
@@ -3872,9 +3889,6 @@ function buildPrint(os,fs,ts,includeGuide){
     os.forEach(function(s,i){
       var q=s.q;
       h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+q.t;
-      if(q.svgInline){
-        h+='<div style="margin:6pt 0 4pt;text-align:center;">'+q.svgInline+'</div>';
-      }
       if(q.o&&q.o.length){
         h+='<div class="ep-opts">'+q.o.map(function(o,oi){
           return '<div class="ep-opt"><span class="ep-opt-k">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
@@ -3908,7 +3922,6 @@ function buildPrint(os,fs,ts,includeGuide){
     ts.forEach(function(s,i){
       var q=s.q;
       h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+q.t
-        +(q.svgInline?'<div style="margin:6pt 0 4pt;text-align:center;">'+q.svgInline+'</div>':'')
         +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
         +'<div class="ep-ans"></div></div>';
     });
@@ -4062,8 +4075,7 @@ async function savePublished(arr){
 }
 
 async function saveSinglePaper(p){
-  // Upsert a single paper object to Supabase
-  if(!CURRENT_USER) return null;
+  if(!CURRENT_USER){ throw new Error('Not logged in — cannot save paper.'); }
   var payload = {
     ref: p.ref,
     user_id: CURRENT_USER.id,
@@ -4073,13 +4085,31 @@ async function saveSinglePaper(p){
     status: p.adminStatus||'submitted',
     data: p
   };
+  var result=null;
   if(p._db_id){
-    var res = await _supabase.from('papers').update(payload).eq('id', p._db_id).select().single();
-    return res.data;
+    // Update existing row
+    var upRes = await _supabase.from('papers').update(payload).eq('id', p._db_id).select().single();
+    if(upRes.error){ throw new Error('Update failed: '+upRes.error.message); }
+    result=upRes.data;
   } else {
-    var res2 = await _supabase.from('papers').insert(payload).select().single();
-    return res2.data;
+    // Try insert first, fallback to upsert on ref conflict
+    var insRes = await _supabase.from('papers').insert(payload).select().single();
+    if(insRes.error){
+      if(insRes.error.code==='23505'||insRes.error.message.includes('duplicate')||insRes.error.message.includes('unique')){
+        // Ref collision — update by ref
+        var updRes2=await _supabase.from('papers').update(payload).eq('ref',p.ref).select().single();
+        if(updRes2.error){ throw new Error('Save failed: '+updRes2.error.message); }
+        result=updRes2.data;
+      } else {
+        throw new Error('Insert failed: '+insRes.error.message);
+      }
+    } else {
+      result=insRes.data;
+    }
   }
+  // Tag the paper object with its DB id for future updates
+  if(result&&result.id) p._db_id=result.id;
+  return result;
 }
 
 function getAdminSettings(){
@@ -6763,7 +6793,7 @@ window.clearHouseStyleForm=function(){
 window.saveApiKeyAdmin=function(){
   var v=($('settKeyInp2')||{}).value||''; v=v.trim();
   API_KEY=v;
-  if(CURRENT_USER) _supabase.from('user_settings').upsert({user_id:CURRENT_USER.id,key:'api_key',value:v||''},{onConflict:'user_id,key'});
+  _saveSetting('api_key', v);
   refreshApiStatus(); toast('API key saved ✓','ok');
 };
 
