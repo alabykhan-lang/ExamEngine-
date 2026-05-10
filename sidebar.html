@@ -1,0 +1,40 @@
+﻿<!-- ══ SIDEBAR ══════════════════════════ -->
+<div id="sb-overlay" onclick="closeSidebar()"></div>
+<div id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-brand-mark" id="sbBrandMark">E</div>
+    <div>
+      <div class="sb-brand-name" id="sbBrandName">ExamEngine</div>
+      <div class="sb-brand-ver">Pro · v12</div>
+    </div>
+  </div>
+  <nav class="sb-nav" id="sbNavTeacher">
+    <button class="sb-link active" id="sbDash" onclick="navTo('dash')"><span class="sb-ico">🏠</span> Dashboard</button>
+    <button class="sb-link" id="sbNew" onclick="navTo('new')"><span class="sb-ico">📝</span> Set Questions</button>
+    <div class="sb-divider"></div>
+    <button class="sb-link" id="sbLoad" onclick="navTo('load')"><span class="sb-ico">📂</span> Load / View Questions</button>
+    <button class="sb-link" id="sbArch" onclick="navTo('arch')"><span class="sb-ico">🗄</span> Archive</button>
+    <div class="sb-divider"></div>
+    <button class="sb-link" id="sbSett" onclick="navTo('sett')"><span class="sb-ico">⚙</span> Settings</button>
+  </nav>
+  <nav class="sb-nav" id="sbNavAdmin" style="display:none;">
+    <button class="sb-link" id="sbAdminDash" onclick="navTo('admin-dash')"><span class="sb-ico">🗂</span> Production Queue <span id="adminNewBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:auto;"></span></button>
+    <button class="sb-link" id="sbAdminPrint" onclick="navTo('admin-print')"><span class="sb-ico">🔬</span> Digital Lab</button>
+    <div class="sb-divider"></div>
+    <button class="sb-link" id="sbAdminSett" onclick="navTo('admin-sett')"><span class="sb-ico">⚙</span> Admin Settings</button>
+  </nav>
+  <div class="sb-foot">
+    <div class="sb-api-status">
+      <div class="sb-dot" id="sbDot"></div>
+      <span id="sbApiLbl">No API Key</span>
+    </div>
+    <div>ExamEngine Pro · NERDC 2026</div>
+  </div>
+  <div class="role-switcher">
+    <div class="role-sw-label">Active Portal</div>
+    <div class="role-sw-btns">
+      <button class="role-sw-btn active" id="swTeacher" onclick="switchRole('teacher')">👨‍🏫<br/>Teacher</button>
+      <button class="role-sw-btn admin" id="swAdmin" onclick="switchRole('admin')">🛡<br/>Admin</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,20 @@
+﻿<!-- ══ NAV ═════════════════════════════ -->
+<header id="nav">
+  <div class="nav-in">
+    <button class="nav-hamburger" onclick="openSidebar()" title="Menu">☰</button>
+    <div class="logo"><div class="logo-mark">E</div>ExamEngine</div>
+    <div class="steps" id="stps"></div>
+    <div class="nav-r">
+      <span id="navRoleBadge" class="role-badge teacher" style="margin-right:4px;">Teacher</span>
+      <div class="api-chip" id="apiChip" onclick="navTo('sett')">
+        <div class="api-dot" id="apiDot"></div>
+        <span id="apiLbl">No API Key</span>
+      </div>
+      <div id="queueChip" style="display:none;font-size:10.5px;font-weight:700;padding:5px 10px;border-radius:20px;background:var(--amber-lt);border:1.5px solid var(--amber-bdr);color:var(--amber);font-family:var(--mono);">⏳ <span id="queueLbl">queuing…</span></div>
+      <div class="user-chip" onclick="doLogout()" title="Click to sign out">
+        <span>👤</span>
+        <span class="user-chip-name" id="userChipName">…</span>
+      </div>
+    </div>
+  </div>
+</header>

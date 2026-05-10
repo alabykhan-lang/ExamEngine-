@@ -1,0 +1,49 @@
+﻿<!-- ══ AUTH SCREEN ════════════════════════ -->
+<div id="screen-auth" class="visible">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-mark">E</div>
+      <div class="auth-logo-name">ExamEngine Pro</div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--rs);padding:4px;gap:4px;margin-bottom:24px;">
+      <button id="tabLogin" onclick="authTab('login')" style="flex:1;padding:9px;border-radius:7px;border:none;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff;transition:all .2s;">Sign In</button>
+      <button id="tabRegister" onclick="authTab('register')" style="flex:1;padding:9px;border-radius:7px;border:none;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--mute);transition:all .2s;">Register</button>
+    </div>
+
+    <div class="auth-err" id="authErr"></div>
+
+    <!-- Sign In -->
+    <div id="authLoginPanel">
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="authEmail" placeholder="you@school.edu.ng" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="authPass" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="auth-btn" id="authBtn" onclick="doLogin()">Sign In →</button>
+    </div>
+
+    <!-- Register -->
+    <div id="authRegisterPanel" style="display:none;">
+      <div class="auth-field">
+        <label>Full Name</label>
+        <input type="text" id="regName" placeholder="e.g. Amina Yusuf" autocomplete="name"/>
+      </div>
+      <div class="auth-field">
+        <label>Email Address</label>
+        <input type="email" id="regEmail" placeholder="you@school.edu.ng" autocomplete="email"/>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="regPass" placeholder="Min 6 characters" autocomplete="new-password"/>
+      </div>
+      <button class="auth-btn" id="regBtn" onclick="doRegister()">Create Account →</button>
+    </div>
+
+    <div class="auth-spinner" id="authSpinner">Please wait…</div>
+  </div>
+</div>
