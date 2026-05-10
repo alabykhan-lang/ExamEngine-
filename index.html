@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,maximum-scale=5.0"/>
+<title>ExamEngine Pro v12.5 — Teacher &amp; Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css"/>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- Component containers — injected at boot -->
+<div id="c-auth"></div>
+<div id="c-sidebar"></div>
+<div id="c-nav"></div>
+<div id="c-screens"></div>
+
+<script>
+(function(){
+  var parts = [
+    { id:'c-auth',    src:'components/auth.html' },
+    { id:'c-sidebar', src:'components/sidebar.html' },
+    { id:'c-nav',     src:'components/nav.html' },
+    { id:'c-screens', src:'components/screens.html' }
+  ];
+  var loaded = 0;
+  var total  = parts.length;
+
+  parts.forEach(function(p){
+    fetch(p.src)
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        document.getElementById(p.id).innerHTML = html;
+        loaded++;
+        if(loaded === total) bootScript();
+      })
+      .catch(function(err){
+        console.error('Failed to load ' + p.src + ':', err);
+        loaded++;
+        if(loaded === total) bootScript();
+      });
+  });
+
+  function bootScript(){
+    var s = document.createElement('script');
+    s.src = 'script.js';
+    document.body.appendChild(s);
+  }
+}());
+</script>
+</body>
+</html>
