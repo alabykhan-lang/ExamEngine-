@@ -18,26 +18,30 @@ var OR_TITLE   = 'ExamEngine Pro v12.5';
    SUPABASE INIT
 ══════════════════════════════════════ */
 var _supabase;
-(function(){
-  var SUPA_URL='https://qbjtiximcchhnxhttogq.supabase.co';
-  var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
-  // jsdelivr @supabase/supabase-js@2 UMD exposes window.supabase = { createClient }
+var _supabaseUrl = 'https://qbjtiximcchhnxhttogq.supabase.co';
+var _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
+
+function _initSupabase(){
   var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
   if(lib && lib.createClient){
-    _supabase = lib.createClient(SUPA_URL, SUPA_KEY);
-  } else {
-    // Fallback: try after DOM loads
-    document.addEventListener('DOMContentLoaded', function(){
-      var lib2 = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
-      if(lib2 && lib2.createClient){
-        _supabase = lib2.createClient(SUPA_URL, SUPA_KEY);
-      } else {
-        var err=document.getElementById('authErr');
-        if(err){ err.textContent='Failed to load database library. Check your internet connection and refresh.'; err.classList.add('show'); }
-      }
-    });
+    _supabase = lib.createClient(_supabaseUrl, _supabaseKey);
+    return true;
   }
-}());
+  return false;
+}
+
+// Try immediately (sync CDN scripts should be ready)
+_initSupabase();
+
+// Fallback: retry after DOM loads
+if(!_supabase){
+  document.addEventListener('DOMContentLoaded', function(){
+    if(!_initSupabase()){
+      var err=document.getElementById('authErr');
+      if(err){ err.textContent='Database library failed to load. Check your internet connection and refresh.'; err.classList.add('show'); }
+    }
+  });
+}
 
 /* ── AUTH STATE ───────────────────── */
 var CURRENT_USER = null;   // { id, email, name, role }
@@ -64,7 +68,9 @@ window.authTab = function(mode){
 
 /* ── SIGN IN ──────────────────────── */
 window.doLogin = async function(){
-  if(!_supabase){ showAuthErr('Connection not ready. Please refresh the page.'); return; }
+  // Re-init if not ready
+  if(!_supabase){ _initSupabase(); }
+  if(!_supabase){ showAuthErr('Database not ready. Please refresh the page.'); return; }
   var email = ($('authEmail')||{}).value||'';
   var pass  = ($('authPass')||{}).value||'';
   email = email.trim().toLowerCase();
@@ -74,12 +80,31 @@ window.doLogin = async function(){
     var res = await _supabase.auth.signInWithPassword({ email: email, password: pass });
     if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
     await _loadUserAndBoot(res.data.user);
-  }catch(e){ setAuthLoading(false); showAuthErr('Sign in failed: '+e.message); }
+  }catch(e){
+    var msg = e.message||'';
+    // Retry once on transient network failure
+    if(msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')){
+      try{
+        await new Promise(function(r){ setTimeout(r, 1500); });
+        var res2 = await _supabase.auth.signInWithPassword({ email: email, password: pass });
+        if(res2.error){ setAuthLoading(false); showAuthErr(res2.error.message); return; }
+        await _loadUserAndBoot(res2.data.user);
+        return;
+      }catch(e2){
+        setAuthLoading(false);
+        showAuthErr('Cannot reach the database server. Your Supabase project may be paused — visit supabase.com/dashboard to resume it, then try again.');
+        return;
+      }
+    }
+    setAuthLoading(false);
+    showAuthErr('Sign in failed: '+msg);
+  }
 };
 
 /* ── REGISTER ─────────────────────── */
 window.doRegister = async function(){
-  if(!_supabase){ showAuthErr('Connection not ready. Please refresh the page.'); return; }
+  if(!_supabase){ _initSupabase(); }
+  if(!_supabase){ showAuthErr('Database not ready. Please refresh the page.'); return; }
   var name  = ($('regName')||{}).value||'';
   var email = ($('regEmail')||{}).value||'';
   var pass  = ($('regPass')||{}).value||'';
@@ -3076,6 +3101,8 @@ async function saveSinglePaper(p){
         var updRes2=await _supabase.from('papers').update(payload).eq('ref',p.ref).select().single();
         if(updRes2.error){ throw new Error('Save failed: '+updRes2.error.message); }
         result=updRes2.data;
+      } else if(insRes.error.message.includes('infinite recursion')||insRes.error.message.includes('policy for relation')){
+        throw new Error('Database policy error — please run the RLS fix SQL in your Supabase dashboard (SQL Editor → paste supabase_fix.sql → Run), then try again.');
       } else {
         throw new Error('Insert failed: '+insRes.error.message);
       }
