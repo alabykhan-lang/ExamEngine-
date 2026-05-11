@@ -3101,10 +3101,9 @@ async function saveSinglePaper(p){
         var updRes2=await _supabase.from('papers').update(payload).eq('ref',p.ref).select().single();
         if(updRes2.error){ throw new Error('Save failed: '+updRes2.error.message); }
         result=updRes2.data;
-      } else if(insRes.error.message.includes('infinite recursion')||insRes.error.message.includes('policy for relation')){
-        throw new Error('Database policy error — please run the RLS fix SQL in your Supabase dashboard (SQL Editor → paste supabase_fix.sql → Run), then try again.');
       } else {
-        throw new Error('Insert failed: '+insRes.error.message);
+        // Always show the real Supabase error so we can diagnose it
+        throw new Error('Insert failed: '+insRes.error.message+' [code: '+(insRes.error.code||'?')+']');
       }
     } else {
       result=insRes.data;
