@@ -3631,7 +3631,7 @@ async function renderAdminPrint(){
         var diagHtml=q._svgDiagram?'<div class="q-diag-wrap">'+q._svgDiagram+'<div class="q-diag-label">AI-generated diagram</div></div>':'';
         return '<div class="q-layout-row" id="qrow_'+pi+'_'+qi+'">'
           +'<div class="q-layout-num">'+(qi+1)+'</div>'
-          +'<div class="q-layout-text">'+kLabel+' <span>'+esc(q.t||'')+'</span>'+optsHtml+diagHtml+'</div>'
+          +'<div class="q-layout-text" style="word-break:break-word;white-space:normal;">'+kLabel+' <span>'+(q.t||'')+'</span>'+optsHtml+diagHtml+'</div>'
           +'<div class="q-layout-ctrl">'
           +'<button class="layout-btn'+(q.layout==='compact'?' on':'')+'" onclick="setQLayout('+pi+','+qi+',\'compact\')" title="Compact">C</button>'
           +'<button class="layout-btn'+(q.layout==='standard'||!q.layout?' on':'')+'" onclick="setQLayout('+pi+','+qi+',\'standard\')" title="Standard">S</button>'
