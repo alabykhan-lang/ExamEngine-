@@ -3417,13 +3417,13 @@ window.setSbFilter=function(f){
 
 /* ── Admin Approve / Reject ──────────── */
 window.adminApprove=async function(ref){
-  var res=await _supabase.from('papers').update({status:'approved',data:null}).eq('ref',ref);
-  // Also update the data blob's adminStatus field
+  // Fetch the existing row FIRST so we can preserve the full data blob (especially questions)
   var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
-  if(rowRes.data){
-    var d=Object.assign({},rowRes.data.data||{},{adminStatus:'approved',correctionNote:''});
-    await _supabase.from('papers').update({status:'approved',data:d}).eq('ref',ref);
-  }
+  if(!rowRes.data){ toast('Paper not found: '+ref,'err'); return; }
+  // Patch only status fields — keep everything else (questions, instr, etc.) intact
+  var existing=rowRes.data.data||{};
+  var d=Object.assign({},existing,{adminStatus:'approved',correctionNote:''});
+  await _supabase.from('papers').update({status:'approved',data:d}).eq('ref',ref);
   toast('✅ '+ref+' Approved','ok');
   renderAdminDash();
 };
@@ -3565,55 +3565,136 @@ window.autoGenerateMissing=async function(){
 /* ══════════════════════════════════════
    ADMIN DIGITAL LAB — Manual Send System
 ══════════════════════════════════════ */
-// Lab Queue: papers admin manually sends to Digital Lab
-function getLabQueue(){ return window._labQueue||[]; }
+// Lab Queue stores full paper snapshots (not just refs) to be immune to DB data loss
+function getLabQueue(){
+  var q=window._labQueue||[];
+  // Backward compat: old queues stored ref strings — keep as-is, handled in getLabPapers
+  return q;
+}
 function saveLabQueue(arr){
   window._labQueue=arr;
   _supabase.from('admin_settings').upsert({key:'lab_queue',value:JSON.stringify(arr)},{onConflict:'key'});
 }
 
-// Send to lab from Production Queue
-window.sendToLab=function(ref){
+// Send to lab — fetch full paper from DB and snapshot it into the queue
+window.sendToLab=async function(ref){
   var q=getLabQueue();
-  if(q.find(function(x){ return x===ref; })){ toast('Already in Digital Lab','warn'); return; }
+  var alreadyRef=q.find(function(x){ return (typeof x==='string'?x:(x&&x.ref))===ref; });
+  if(alreadyRef){ toast('Already in Digital Lab','warn'); return; }
+  // Fetch the full paper row from Supabase to snapshot questions
+  try{
+    var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
+    if(rowRes.data){
+      var d=rowRes.data.data||{};
+      var snapshot=Object.assign({},d,{
+        _db_id:rowRes.data.id,
+        ref:rowRes.data.ref||ref,
+        cls:rowRes.data.class_name||d.cls,
+        subj:rowRes.data.subject||d.subj,
+        term:rowRes.data.term||d.term,
+        adminStatus:rowRes.data.status||d.adminStatus,
+        user_id:rowRes.data.user_id
+      });
+      q.push(snapshot);
+      saveLabQueue(q);
+      toast('📤 Sent to Digital Lab: '+ref,'ok');
+      return;
+    }
+  }catch(e){ console.warn('sendToLab fetch failed',e); }
+  // Fallback: store just the ref string (old behavior)
   q.push(ref);
   saveLabQueue(q);
   toast('📤 Sent to Digital Lab: '+ref,'ok');
 };
 
 window.removeFromLab=function(ref){
-  var q=getLabQueue().filter(function(x){ return x!==ref; });
+  var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
   saveLabQueue(q);
   toast('Removed from lab','ok');
   renderAdminPrint();
 };
 
+// Repair a paper whose questions were lost (e.g. wiped by old approval bug)
+// Removes old entry from queue and re-fetches fresh snapshot from DB
+window.repairLabPaper=async function(ref){
+  toast('🔧 Repairing paper data…','info',4000);
+  // Remove stale entry
+  var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
+  window._labQueue=q;
+  try{
+    var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
+    if(rowRes.data){
+      var d=rowRes.data.data||{};
+      var qs=d.questions||[];
+      if(!qs.length){
+        toast('⚠ No questions in database for '+ref+'. The data was permanently lost. Please re-submit this paper from the teacher side.','warn',8000);
+      } else {
+        var snapshot=Object.assign({},d,{
+          _db_id:rowRes.data.id,
+          ref:rowRes.data.ref||ref,
+          cls:rowRes.data.class_name||d.cls,
+          subj:rowRes.data.subject||d.subj,
+          term:rowRes.data.term||d.term,
+          adminStatus:rowRes.data.status||d.adminStatus,
+          user_id:rowRes.data.user_id
+        });
+        q.push(snapshot);
+        toast('✅ Repair successful — '+qs.length+' questions restored','ok',4000);
+      }
+    } else {
+      toast('Paper not found in database: '+ref,'err');
+    }
+  }catch(e){
+    toast('Repair failed: '+e.message,'err');
+  }
+  saveLabQueue(q);
+  renderAdminPrint();
+};
+
 async function getLabPapers(){
-  var refs=getLabQueue();
-  if(!refs.length) return [];
-  var all=await getPublished();
-  var papers=refs.map(function(ref){ return all.find(function(p){ return p.ref===ref; }); }).filter(Boolean);
-  // Re-fetch any paper whose questions array is missing (older schema or partial data)
+  var queue=getLabQueue();
+  if(!queue.length) return [];
+
+  var papers=[];
+  var legacyRefs=[]; // old ref-string entries that need DB lookup
+
+  queue.forEach(function(entry){
+    if(typeof entry==='string'){
+      legacyRefs.push(entry);
+    } else if(entry&&entry.ref){
+      papers.push(entry); // already a full snapshot
+    }
+  });
+
+  // Resolve legacy ref-only entries from DB
+  if(legacyRefs.length){
+    var all=await getPublished();
+    legacyRefs.forEach(function(ref){
+      var p=all.find(function(x){ return x.ref===ref; });
+      if(p) papers.push(p);
+    });
+  }
+
+  // For any paper still missing questions, attempt a direct DB re-fetch as last resort
   for(var i=0;i<papers.length;i++){
-    var p=papers[i];
-    if(!p.questions||!p.questions.length){
+    if(!papers[i].questions||!papers[i].questions.length){
       try{
-        var row=await _supabase.from('papers').select('*').eq('ref',p.ref).single();
+        var row=await _supabase.from('papers').select('*').eq('ref',papers[i].ref).single();
         if(row.data&&row.data.data&&row.data.data.questions&&row.data.data.questions.length){
           papers[i]=Object.assign({},row.data.data,{
             _db_id:row.data.id,
-            ref:row.data.ref||p.ref,
-            cls:row.data.class_name||p.cls,
-            subj:row.data.subject||p.subj,
-            term:row.data.term||p.term,
-            adminStatus:row.data.status||p.adminStatus,
-            user_id:row.data.user_id,
-            ts:new Date(row.data.created_at).getTime()
+            ref:row.data.ref||papers[i].ref,
+            cls:row.data.class_name||papers[i].cls,
+            subj:row.data.subject||papers[i].subj,
+            term:row.data.term||papers[i].term,
+            adminStatus:row.data.status||papers[i].adminStatus,
+            user_id:row.data.user_id
           });
         }
-      }catch(e){ console.warn('getLabPapers re-fetch failed for '+p.ref,e); }
+      }catch(e){ console.warn('getLabPapers re-fetch failed for '+papers[i].ref,e); }
     }
   }
+
   return papers;
 }
 
@@ -3662,14 +3743,23 @@ async function renderAdminPrint(){
           +'<button class="layout-btn'+(q.layout==='wide'?' on':'')+'" onclick="setQLayout('+pi+','+qi+',\'wide\')" title="Wide">W</button>'
           +'</div></div>';
       }).join('');
+      // If no questions, show repair banner instead
+      var noQWarning='';
+      if(!qs.length){
+        noQWarning='<div class="banner b-warn" style="margin:8px 0;font-size:12px;">'
+          +'⚠ <strong>No questions found</strong> for this paper. The question data may have been lost. '
+          +'<button class="btn bq bsm" style="margin-left:8px;" onclick="repairLabPaper(\''+esc(p.ref)+'\')">🔧 Repair</button>'
+          +'</div>';
+      }
       return '<div class="print-lab" id="plab_'+pi+'">'
         +'<div class="print-lab-head">'
         +'<div><div class="print-lab-title">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-        +'<div class="print-lab-meta">'+esc(p.term)+' · '+esc(p.ref)+(p.autoGen?' · ⚡ Auto-Generated':'')+'</div></div>'
+        +'<div class="print-lab-meta">'+esc(p.term)+' · '+esc(p.ref)+(p.autoGen?' · ⚡ Auto-Generated':'')+' · '+qs.length+' questions</div></div>'
         +'<div style="display:flex;gap:6px;align-items:center;">'+renderStatusBadge(p.adminStatus||'pending',p)
         +'<button class="btn-ghost" style="color:var(--red);" onclick="removeFromLab(\''+esc(p.ref)+'\')">✕ Remove</button></div>'
-        +'</div>'+qRows+'</div>';
+        +'</div>'+noQWarning+qRows+'</div>';
     }).join('');
+
   }
 
   var previewHtml='';
