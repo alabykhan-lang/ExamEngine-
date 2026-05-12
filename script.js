@@ -3592,7 +3592,29 @@ async function getLabPapers(){
   var refs=getLabQueue();
   if(!refs.length) return [];
   var all=await getPublished();
-  return refs.map(function(ref){ return all.find(function(p){ return p.ref===ref; }); }).filter(Boolean);
+  var papers=refs.map(function(ref){ return all.find(function(p){ return p.ref===ref; }); }).filter(Boolean);
+  // Re-fetch any paper whose questions array is missing (older schema or partial data)
+  for(var i=0;i<papers.length;i++){
+    var p=papers[i];
+    if(!p.questions||!p.questions.length){
+      try{
+        var row=await _supabase.from('papers').select('*').eq('ref',p.ref).single();
+        if(row.data&&row.data.data&&row.data.data.questions&&row.data.data.questions.length){
+          papers[i]=Object.assign({},row.data.data,{
+            _db_id:row.data.id,
+            ref:row.data.ref||p.ref,
+            cls:row.data.class_name||p.cls,
+            subj:row.data.subject||p.subj,
+            term:row.data.term||p.term,
+            adminStatus:row.data.status||p.adminStatus,
+            user_id:row.data.user_id,
+            ts:new Date(row.data.created_at).getTime()
+          });
+        }
+      }catch(e){ console.warn('getLabPapers re-fetch failed for '+p.ref,e); }
+    }
+  }
+  return papers;
 }
 
 
@@ -3603,6 +3625,8 @@ async function renderAdminPrint(){
   var el=$('screen-admin-print');
   if(!el) return;
   el.style.display='block';
+  // Always re-fetch admin settings so window._labQueue is current from Supabase
+  await _fetchAdminSettings();
   var papers=await getLabPapers();
   var adm=getAdminSettings();
   window._printPapers=papers;
@@ -3801,7 +3825,7 @@ window.runLabCommand=async function(){
     if(parsed.isDrawingCommand){
       var desc=parsed.drawingDescription||cmd;
       var qIdx=(parsed.targetQuestionIndex!==undefined&&parsed.targetQuestionIndex!==null)?parseInt(parsed.targetQuestionIndex):0;
-      var pps=window._printPapers||getLabPapers();
+      var pps=window._printPapers||[];
       var hostPaper=pps[0];
 
       // Layout-aware: determine target diagram size based on current mode
@@ -3852,7 +3876,7 @@ window.runLabCommand=async function(){
       ADMIN.labHistory.push({type:'layout',cmd:cmd,result:resultMsg,time:time});
       var strip=$('labConfigStrip'); if(strip) strip.innerHTML=renderLabConfigStrip();
       var hist=$('labHistory'); if(hist) hist.innerHTML=renderLabHistory();
-      var pps2=getLabPapers();
+      var pps2=window._printPapers||[];
       if(pps2.length) renderDigitalLabPreview(pps2,getAdminSettings());
       toast(resultMsg,'ok',3500);
     }
@@ -3879,7 +3903,7 @@ window.setDesignTemplate=function(t){
   ADMIN.designTemplate=t;
   ADMIN.designTemplate=t;
   _supabase.from('admin_settings').upsert({key:'design_template',value:t},{onConflict:'key'});
-  var papers=getLabPapers();
+  var papers=window._printPapers||[];
   if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
 };
 
@@ -3890,7 +3914,7 @@ window.setFormat=function(mode){
   document.querySelectorAll('#formatToggle .ab').forEach(function(b,i){
     b.classList.toggle('on',(i===0&&!ADMIN.economyMode)||(i===1&&ADMIN.economyMode==='primary')||(i===2&&ADMIN.economyMode==='mirror'));
   });
-  var papers=getLabPapers();
+  var papers=window._printPapers||[];
   if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
 };
 
@@ -4063,7 +4087,7 @@ window.runAiOptimize=async function(){
   if(!API_KEY){ toast('Add your API key first','warn'); return; }
   var instr=($('aiOptimizeInstr')||{}).value||'';
   if(!instr.trim()){ toast('Enter your optimization instructions','warn'); return; }
-  var papers=getLabPapers();
+  var papers=window._printPapers||[];
   if(!papers.length){ toast('No papers in lab to optimize','warn'); return; }
   var status=$('aiOptStatus');
   if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+papers.length+' paper(s)…';
@@ -4159,17 +4183,15 @@ window.setPrintMode=function(mode){
   var strip=$('labConfigStrip'); if(strip) strip.innerHTML=renderLabConfigStrip();
   renderAdminPrint();
   if(mode==='auto'){
-    getLabPapers().then(function(papers){
-    var resolved=resolveLayoutMode(papers);
+    var resolved=resolveLayoutMode(window._printPapers||[]);
     toast('🤖 Auto mode — selected '+getModeName(resolved),'ok',3000);
-    });
   } else {
     toast(getModeName(mode)+' mode active','ok',2500);
   }
 };
 
 window.setAllLayout=function(layout){
-  var papers=getLabPapers();
+  var papers=window._printPapers||[];
   papers.forEach(function(p){ (p.questions||[]).forEach(function(q){ q.layout=layout; }); });
   // Persist all layout changes to Supabase
   papers.forEach(function(p){ _supabase.from('papers').update({data:Object.assign({},p)}).eq('ref',p.ref); });
@@ -4575,7 +4597,7 @@ window.runAiOptimize=async function(){
   if(!API_KEY){ toast('Add your API key first','warn'); return; }
   var instr=($('aiOptimizeInstr')||{}).value||'';
   if(!instr.trim()){ toast('Enter your optimization instructions','warn'); return; }
-  var papers=getLabPapers();
+  var papers=window._printPapers||[];
   if(!papers.length){ toast('No papers in lab to optimize','warn'); return; }
   var status=$('aiOptStatus');
   if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+papers.length+' paper(s)…';
@@ -4936,7 +4958,7 @@ function buildMultiSubjectHtml(papers,adm){
    PRINT ENGINE — doPrint (updated for 4 modes)
 ══════════════════════════════════════ */
 window.doPrint=function(){
-  var papers=getLabPapers();
+  var papers=window._printPapers||[];
   var adm=getAdminSettings();
   if(!papers.length){ toast('No papers in lab to print','warn'); return; }
   window._printPapers=papers;
