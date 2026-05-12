@@ -1,6024 +1,3212 @@
-'use strict';
+/* MagicEditor v2.0 — Way To Success Standard Schools — 1st Edition 2025/2026 */
 
-/* ══════════════════════════════════════
-   MODELS
-══════════════════════════════════════ */
-var MODELS = {
-  primary:  'google/gemini-3-flash-preview',
-  fallback: 'google/gemini-2.5-flash',
-  scheme:   'google/gemini-2.5-flash',
-  lab:      'anthropic/claude-3.5-sonnet',
-  drawing:  'google/gemini-2.5-flash'
+let CATEGORIES={
+  teachers:{label:'Staff Profiles',tag:'Staff',title:'Staff Profile Submission',subtitle:'Share your journey and message to the graduating class.',icon:'👨‍🏫',photoRequired:true,fields:[
+    {id:'name',label:'Full name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'title',label:'Title / position',type:'text',required:true,placeholder:'e.g. Head of Mathematics Department'},
+    {id:'subject',label:'Subject(s) taught',type:'text',required:true,placeholder:'e.g. Mathematics, Further Mathematics'},
+    {id:'years',label:'Years at the school',type:'text',required:true,placeholder:'e.g. 8 years'},
+    {id:'qualification',label:'Highest qualification',type:'text',required:true,placeholder:'e.g. M.Sc. Mathematics'},
+    {id:'bio',label:'Short bio',type:'textarea',required:true,long:true,hint:'50–80 words about you'},
+    {id:'quote',label:'Favourite quote or motto',type:'textarea',required:false,hint:'Optional.'},
+    {id:'message',label:'Message to the graduating class',type:'textarea',required:true,long:true,hint:'30–50 words of wisdom or encouragement.'}
+  ]},
+  primary5:{label:'Primary 5 Graduates',tag:'Primary 5',title:'Primary 5 Graduate Profile',subtitle:'For pupils completing Primary 5 this year.',icon:'🧒',photoRequired:true,fields:[
+    {id:'name',label:'Full name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'nickname',label:'Nickname',type:'text',required:false,placeholder:'Optional'},
+    {id:'parents',label:"Parents' names",type:'text',required:false,placeholder:'Optional'},
+    {id:'favSubject',label:'Favourite subject',type:'text',required:true,placeholder:'e.g. English, Mathematics'},
+    {id:'ambition',label:'What I want to be',type:'text',required:true,placeholder:'e.g. Doctor, Pilot, Teacher'},
+    {id:'favActivity',label:'Favourite class activity',type:'text',required:false,placeholder:'Optional'},
+    {id:'hobbies',label:'Hobbies',type:'text',required:false,placeholder:'Optional'},
+    {id:'message',label:'A short message',type:'textarea',required:true,hint:'2–3 sentences.'},
+    {id:'quote',label:'Favourite quote',type:'textarea',required:false,hint:'Optional'}
+  ]},
+  jss3:{label:'JSS3 Graduates',tag:'JSS3',title:'JSS3 Graduate Profile',subtitle:'For students completing Junior Secondary 3 this year.',icon:'🎒',photoRequired:true,fields:[
+    {id:'name',label:'Full name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'nickname',label:'Nickname',type:'text',required:false,placeholder:'Optional'},
+    {id:'dob',label:'Date of birth',type:'date',required:false},
+    {id:'parents',label:"Parents' names",type:'text',required:false,placeholder:'Optional'},
+    {id:'favSubject',label:'Favourite subject',type:'text',required:true,placeholder:'e.g. Biology, Mathematics'},
+    {id:'ambition',label:'Career ambition',type:'text',required:true,placeholder:'e.g. Engineer, Nurse, Lawyer'},
+    {id:'hobbies',label:'Hobbies & interests',type:'text',required:false,placeholder:'Optional'},
+    {id:'message',label:'Personal message',type:'textarea',required:true,long:true,hint:'A message to classmates, teachers, or family.'},
+    {id:'quote',label:'Favourite quote',type:'textarea',required:false,hint:'Optional'}
+  ]},
+  ss3:{label:'SS3 Graduates',tag:'SS3',title:'SS3 Graduate Profile',subtitle:'For students completing Senior Secondary 3 — the main graduating class.',icon:'🎓',photoRequired:true,fields:[
+    {id:'name',label:'Full name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'nickname',label:'Nickname',type:'text',required:false,placeholder:'Optional'},
+    {id:'dob',label:'Date of birth',type:'date',required:false},
+    {id:'parents',label:"Parents' names",type:'text',required:false,placeholder:'Optional'},
+    {id:'favSubject',label:'Favourite subject',type:'text',required:true,placeholder:'e.g. Further Mathematics, Literature'},
+    {id:'ambition',label:'Career ambition',type:'text',required:true,placeholder:'e.g. Medical Doctor, Software Engineer'},
+    {id:'nextStop',label:'University / institution (if known)',type:'text',required:false,placeholder:'Optional'},
+    {id:'hobbies',label:'Hobbies & interests',type:'text',required:false,placeholder:'Optional'},
+    {id:'memorableMoment',label:'Most memorable school moment',type:'textarea',required:false,hint:'A day, event, or lesson you will never forget.'},
+    {id:'message',label:'Personal message / legacy',type:'textarea',required:true,long:true,hint:'Your parting message to classmates, teachers, family.'},
+    {id:'advice',label:'Parting advice to juniors',type:'textarea',required:false,hint:'What would you tell a JSS1 student?'},
+    {id:'quote',label:'Favourite quote',type:'textarea',required:false,hint:'Optional'}
+  ]},
+  speeches:{label:'Speeches & Addresses',tag:'Speeches',title:'Speech / Address Submission',subtitle:'Formal addresses for the maiden edition.',icon:'🎤',photoRequired:false,fields:[
+    {id:'speechType',label:'Type of address',type:'select',required:true,options:["Proprietor's Speech","Senior Boy's Speech","External Body Address","Graduating Class Message","Other"]},
+    {id:'speakerName',label:'Speaker name',type:'text',required:true,placeholder:'Full name'},
+    {id:'speakerTitle',label:'Speaker title / role',type:'text',required:true,placeholder:'e.g. Proprietor, Senior Boy'},
+    {id:'speakerOrg',label:'Organization / affiliation',type:'text',required:false,placeholder:'Optional'},
+    {id:'speechTitle',label:'Speech title',type:'text',required:false,placeholder:'Optional'},
+    {id:'speechDate',label:'Date of speech',type:'date',required:false},
+    {id:'speechBody',label:'Full speech text',type:'textarea',required:true,long:true,hint:'Paste the complete speech here.'}
+  ]},
+  creative:{label:'Creative Corner',tag:'Creative',title:'Creative Submission',subtitle:'Poems, stories, jokes, and riddles.',icon:'✍️',photoRequired:false,fields:[
+    {id:'contribType',label:'Type of submission',type:'select',required:true,options:['Poem','Short Story','Joke','Riddle','Other']},
+    {id:'contribName',label:'Your name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'contribRole',label:'Your class or role',type:'text',required:true,placeholder:'e.g. SS3 Science, Teacher'},
+    {id:'contribTitle',label:'Title of your piece',type:'text',required:true,placeholder:'e.g. "The Sunset Over Our School"'},
+    {id:'contribBody',label:'Your submission',type:'textarea',required:true,long:true,hint:'The full poem, story, or joke.'},
+    {id:'contribNote',label:'Note to editor',type:'textarea',required:false,hint:'Optional — any context or dedication.'}
+  ]},
+  events:{label:'School Life & Events',tag:'Events',title:'Event / Activity Report',subtitle:'Sports days, excursions, competitions, achievements.',icon:'📸',photoRequired:true,photoMulti:true,photoMax:5,fields:[
+    {id:'eventType',label:'Event type',type:'select',required:true,options:['Sports Day','Excursion','Competition','Achievement','Academic Event','Other']},
+    {id:'eventName',label:'Event name',type:'text',required:true,placeholder:'e.g. Inter-House Sports 2025'},
+    {id:'eventDate',label:'Event date',type:'date',required:false},
+    {id:'eventLocation',label:'Location',type:'text',required:false,placeholder:'Optional'},
+    {id:'reporterName',label:'Submitted by',type:'text',required:true,placeholder:'Your name / role'},
+    {id:'eventSummary',label:'Event summary',type:'text',required:true,placeholder:'One-line summary'},
+    {id:'eventReport',label:'Full report',type:'textarea',required:true,long:true,hint:'The full story. Who, what, when, where, why.'}
+  ]},
+  academic:{label:'Academic & Educational',tag:'Academic',title:'Academic & Educational Content',subtitle:'Articles, subject features, and educational write-ups.',icon:'📚',photoRequired:false,fields:[
+    {id:'authorName',label:'Author name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'authorRole',label:'Role / title',type:'text',required:true,placeholder:'e.g. Science Teacher, Head of Department'},
+    {id:'subjectArea',label:'Subject area',type:'text',required:true,placeholder:'e.g. Biology, History, Mathematics'},
+    {id:'articleTitle',label:'Article title',type:'text',required:true,placeholder:'The title of your piece'},
+    {id:'articleSummary',label:'Brief summary',type:'textarea',required:false,hint:'Optional — 1-2 sentences.'},
+    {id:'articleBody',label:'Full article',type:'textarea',required:true,long:true,hint:'The complete article.'},
+    {id:'references',label:'References / sources',type:'textarea',required:false,hint:'Optional'}
+  ]},
+  interviews:{label:'Interviews',tag:'Interview',title:'Interview Submission',subtitle:'Q&A with old students, guest speakers, senior staff.',icon:'🎙️',photoRequired:true,fields:[
+    {id:'intervieweeName',label:'Interviewee name',type:'text',required:true,placeholder:'The person being interviewed'},
+    {id:'intervieweeTitle',label:'Interviewee title / role',type:'text',required:true,placeholder:'e.g. Old Student (Class of 2010)'},
+    {id:'interviewerName',label:'Interviewer name',type:'text',required:true,placeholder:'Who conducted the interview'},
+    {id:'interviewDate',label:'Date of interview',type:'date',required:false},
+    {id:'introParagraph',label:'Introduction paragraph',type:'textarea',required:true,hint:'2-3 sentences introducing the interviewee.'},
+    {id:'qaBody',label:'Interview Q&A',type:'textarea',required:true,long:true,hint:'Q: [question]\nA: [answer]'},
+    {id:'closingNote',label:'Closing note',type:'textarea',required:false,hint:'Optional'}
+  ]},
+  motivational:{label:'Motivational Articles',tag:'Motivation',title:'Motivational Article Submission',subtitle:'Inspirational pieces for the graduating class.',icon:'💡',photoRequired:false,fields:[
+    {id:'authorName',label:'Author name',type:'text',required:true,placeholder:'As it should appear in print'},
+    {id:'authorRole',label:'Role',type:'text',required:true,placeholder:'e.g. Principal, Teacher, Alumnus'},
+    {id:'articleTitle',label:'Article title',type:'text',required:true,placeholder:'The title of your message'},
+    {id:'articleBody',label:'Article body',type:'textarea',required:true,long:true,hint:'Your message of motivation, wisdom, or encouragement.'},
+    {id:'pullQuote',label:'Pull-out quote',type:'textarea',required:false,hint:'A powerful line to highlight in the layout.'},
+    {id:'dedication',label:'Dedication',type:'textarea',required:false,hint:'Optional'}
+  ]},
+  gallery:{label:'Photo Gallery',tag:'Gallery',title:'Photo Gallery Submission',subtitle:'Standalone photos for the photo gallery section.',icon:'🖼️',photoRequired:true,fields:[
+    {id:'submitterName',label:'Submitted by',type:'text',required:true,placeholder:'Your name'},
+    {id:'submitterRole',label:'Your role',type:'text',required:false,placeholder:'Optional'},
+    {id:'photoCaption',label:'Photo caption',type:'textarea',required:true,hint:'A short description — what, when, where.'},
+    {id:'photoCategory',label:'Category',type:'select',required:true,options:['Graduation Day','Classroom Life','Sports','Cultural Day','Award Ceremony','Excursion','Portrait','Candid','Other']},
+    {id:'photoDate',label:'Date photo was taken',type:'date',required:false}
+  ]}
 };
-var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
-var OR_REFERER = 'https://examengine.pro';
-var OR_TITLE   = 'ExamEngine Pro v12.5';
-
-/* ══════════════════════════════════════
-   SUPABASE INIT
-══════════════════════════════════════ */
-var _supabase;
-var _supabaseUrl = 'https://qbjtiximcchhnxhttogq.supabase.co';
-var _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
-
-function _initSupabase(){
-  var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
-  if(lib && lib.createClient){
-    _supabase = lib.createClient(_supabaseUrl, _supabaseKey);
-    return true;
+let CATEGORY_KEYS=Object.keys(CATEGORIES);
+const BUILTIN_CATEGORIES=JSON.parse(JSON.stringify(CATEGORIES));
+const BUILTIN_CATEGORY_KEYS=Object.keys(BUILTIN_CATEGORIES);
+function ensureCategoriesReady(){
+  if(!CATEGORIES||typeof CATEGORIES!=='object'||Array.isArray(CATEGORIES)){
+    CATEGORIES=JSON.parse(JSON.stringify(BUILTIN_CATEGORIES));
   }
-  return false;
-}
-
-// Try immediately (sync CDN scripts should be ready)
-_initSupabase();
-
-// Fallback: retry after DOM loads
-if(!_supabase){
-  document.addEventListener('DOMContentLoaded', function(){
-    if(!_initSupabase()){
-      var err=document.getElementById('authErr');
-      if(err){ err.textContent='Database library failed to load. Check your internet connection and refresh.'; err.classList.add('show'); }
+  BUILTIN_CATEGORY_KEYS.forEach(k=>{
+    if(!CATEGORIES[k]||typeof CATEGORIES[k]!=='object'){
+      CATEGORIES[k]=JSON.parse(JSON.stringify(BUILTIN_CATEGORIES[k]));
     }
   });
-}
-
-/* ── AUTH STATE ───────────────────── */
-var CURRENT_USER = null;   // { id, email, name, role }
-var _authMode = 'login';
-
-/* ── TAB SWITCHER ─────────────────── */
-window.authTab = function(mode){
-  _authMode = mode;
-  clearAuthErr();
-  var lp=$('authLoginPanel'), rp=$('authRegisterPanel');
-  var tl=$('tabLogin'), tr=$('tabRegister');
-  if(mode==='login'){
-    if(lp) lp.style.display='block';
-    if(rp) rp.style.display='none';
-    if(tl){ tl.style.background='var(--blue)'; tl.style.color='#fff'; tl.style.fontWeight='700'; }
-    if(tr){ tr.style.background='transparent'; tr.style.color='var(--mute)'; tr.style.fontWeight='600'; }
-  } else {
-    if(lp) lp.style.display='none';
-    if(rp) rp.style.display='block';
-    if(tr){ tr.style.background='var(--blue)'; tr.style.color='#fff'; tr.style.fontWeight='700'; }
-    if(tl){ tl.style.background='transparent'; tl.style.color='var(--mute)'; tl.style.fontWeight='600'; }
+  CATEGORY_KEYS=Object.keys(CATEGORIES).filter(k=>CATEGORIES[k]&&typeof CATEGORIES[k]==='object');
+  if(!CATEGORY_KEYS.length){
+    CATEGORIES=JSON.parse(JSON.stringify(BUILTIN_CATEGORIES));
+    CATEGORY_KEYS=[...BUILTIN_CATEGORY_KEYS];
   }
-};
-
-/* ── SIGN IN ──────────────────────── */
-window.doLogin = async function(){
-  // Re-init if not ready
-  if(!_supabase){ _initSupabase(); }
-  if(!_supabase){ showAuthErr('Database not ready. Please refresh the page.'); return; }
-  var email = ($('authEmail')||{}).value||'';
-  var pass  = ($('authPass')||{}).value||'';
-  email = email.trim().toLowerCase();
-  if(!email||!pass){ showAuthErr('Please enter your email and password.'); return; }
-  setAuthLoading(true);
-  try{
-    var res = await _supabase.auth.signInWithPassword({ email: email, password: pass });
-    if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
-    await _loadUserAndBoot(res.data.user);
-  }catch(e){
-    var msg = e.message||'';
-    // Retry once on transient network failure
-    if(msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')){
-      try{
-        await new Promise(function(r){ setTimeout(r, 1500); });
-        var res2 = await _supabase.auth.signInWithPassword({ email: email, password: pass });
-        if(res2.error){ setAuthLoading(false); showAuthErr(res2.error.message); return; }
-        await _loadUserAndBoot(res2.data.user);
-        return;
-      }catch(e2){
-        setAuthLoading(false);
-        showAuthErr('Cannot reach the database server. Your Supabase project may be paused — visit supabase.com/dashboard to resume it, then try again.');
-        return;
-      }
-    }
-    setAuthLoading(false);
-    showAuthErr('Sign in failed: '+msg);
-  }
-};
-
-/* ── REGISTER ─────────────────────── */
-window.doRegister = async function(){
-  if(!_supabase){ _initSupabase(); }
-  if(!_supabase){ showAuthErr('Database not ready. Please refresh the page.'); return; }
-  var name  = ($('regName')||{}).value||'';
-  var email = ($('regEmail')||{}).value||'';
-  var pass  = ($('regPass')||{}).value||'';
-  name  = name.trim();
-  email = email.trim().toLowerCase();
-  pass  = pass.trim();
-  if(!name)       { showAuthErr('Please enter your full name.'); return; }
-  if(!email)      { showAuthErr('Please enter your email address.'); return; }
-  if(pass.length < 6){ showAuthErr('Password must be at least 6 characters.'); return; }
-  setAuthLoading(true);
-  try{
-    var res = await _supabase.auth.signUp({ email: email, password: pass });
-    if(res.error){ setAuthLoading(false); showAuthErr(res.error.message); return; }
-    var uid = res.data.user && res.data.user.id;
-    if(!uid){ setAuthLoading(false); showAuthErr('Registration failed. Please try again.'); return; }
-    await _supabase.from('profiles').upsert({ id:uid, email:email, name:name, role:'teacher' });
-    var loginRes = await _supabase.auth.signInWithPassword({ email:email, password:pass });
-    if(loginRes.error){ setAuthLoading(false); showAuthErr('Account created! Please sign in.'); authTab('login'); return; }
-    await _loadUserAndBoot(loginRes.data.user);
-  }catch(e){ setAuthLoading(false); showAuthErr('Registration failed: '+e.message); }
-};
-
-window.doLogout = async function(){
-  if(!confirm('Sign out?')) return;
-  await _supabase.auth.signOut();
-  CURRENT_USER = null;
-  showAuthScreen();
-};
-
-function showAuthErr(msg){
-  var el=$('authErr'); if(!el) return;
-  el.textContent=msg; el.classList.add('show');
+  return CATEGORY_KEYS;
 }
-function clearAuthErr(){ var el=$('authErr'); if(el) el.classList.remove('show'); }
-function setAuthLoading(on){
-  var btn=$('authBtn'), rb=$('regBtn'), sp=$('authSpinner');
-  if(btn){ btn.disabled=on; btn.textContent=on?'Signing in…':'Sign In →'; }
-  if(rb){  rb.disabled=on;  rb.textContent=on?'Creating account…':'Create Account →'; }
-  if(sp){ sp.classList.toggle('show',on); }
+const EDITORIAL_META={'editorial-note':{label:'Editorial Note',tag:'Editorial Note'},'appreciation':{label:'Appreciation Section',tag:'Appreciation'}};
+
+/* ═══════════════════════════════════════════════════════════
+   SUPABASE DATABASE LAYER
+   Primary store: Supabase (cloud, multi-device)
+   Fallback: localStorage (offline resilience)
+═══════════════════════════════════════════════════════════ */
+const SUPA_URL='https://srkgolzstppnyntrkemk.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNya2dvbHpzdHBwbnludHJrZW1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjg4MTAsImV4cCI6MjA5MjgwNDgxMH0.M1uVsgraBxXGDrLSqBgz9e3QFRmSjaZBgz7xoGlOo3c';
+let _supa=null;
+let subs=[];
+let lsSettings=loadLsSettingsFromStorage();
+let bulkPhotos=[];
+let sectionOrder=loadSectionOrder();
+let formConfig=loadFormConfig();
+
+function loadLsSettingsFromStorage(){
+  try{
+    const s=JSON.parse(localStorage.getItem('me_ls_settings')||'null');
+    if(s&&typeof s==='object')return s;
+  }catch(e){}
+  return {magTitle:'The Torch',schoolName:'Way To Success Standard Schools',edition:'1st Edition',year:'2025/2026',color1:'#1a2744',color2:'#7dd4a8',color3:'#8b1a1a',pageSize:'a4',orientation:'portrait',pageNums:'yes'};
 }
 
-/* ── Load profile from DB ─────────── */
-async function _loadUserAndBoot(authUser){
-  try{
-    var res = await _supabase.from('profiles').select('*').eq('id', authUser.id).single();
-    var profile = res.data;
-    if(!profile){
-      var name = (authUser.email||'').split('@')[0];
-      var insertRes = await _supabase.from('profiles').insert({
-        id: authUser.id, email: authUser.email, name: name, role: 'teacher'
-      }).select().single();
-      profile = insertRes.data || { id:authUser.id, email:authUser.email, name:name, role:'teacher' };
-    }
-    CURRENT_USER = { id:profile.id, email:profile.email, name:profile.name||profile.email, role:profile.role||'teacher' };
-    hideAuthScreen();
-    bootApp();
-  } catch(e){
-    setAuthLoading(false);
-    showAuthErr('Could not load profile: '+e.message+'. Please try again.');
-  }
+function getSupa(){
+  if(_supa)return _supa;
+  if(!window.supabase){console.warn('[DB] Supabase CDN not yet loaded');return null;}
+  try{_supa=window.supabase.createClient(SUPA_URL,SUPA_KEY);return _supa;}
+  catch(e){console.warn('[DB] Supabase init failed:',e.message);return null;}
 }
-
-/* ── Load user settings from Supabase ── */
-async function _loadUserSettings(){
-  if(!CURRENT_USER) return;
-  try{
-    var res = await _supabase.from('user_settings').select('*').eq('user_id', CURRENT_USER.id);
-    if(res.error){ console.warn('user_settings load error:', res.error.message); }
-    var m = {};
-    (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
-    S.tradeSubject  = m.trade    || DEFAULT_TRADE;
-    S.cfg.school    = m.school   || '';
-    S.cfg.term      = m.defterm  || '1st Term';
-    API_KEY         = m.api_key  || '';
-    // Restore in-progress draft if present
-    if(m.current_draft){
-      try{
-        var draft=JSON.parse(m.current_draft);
-        if(draft && draft.slots && draft.slots.length && draft.cfg){
-          window._savedDraft=draft;
-        }
-      }catch(e){}
-    }
-  }catch(e){ console.warn('_loadUserSettings exception:', e.message); }
-  // Pre-load admin settings cache for everyone (needed for school name etc.)
-  await _fetchAdminSettings();
-  if(CURRENT_USER.role==='admin'){
+/* Wait for async Supabase CDN to load (max ~6s) */
+function waitForSupabase(maxMs){
+  return new Promise(resolve=>{
+    if(window.supabase){resolve(true);return;}
+    const t0=Date.now();
+    const iv=setInterval(()=>{
+      if(window.supabase){clearInterval(iv);resolve(true);return;}
+      if(Date.now()-t0>(maxMs||6000)){clearInterval(iv);resolve(false);return;}
+    },100);
+  });
+}
+/* ── Supabase Storage: full-quality photo uploads ── */
+async function uploadToStorage(file, subId){
+  const sb=getSupa();if(!sb)throw new Error('No Supabase client');
+  const ext=(file.name||'photo.jpg').split('.').pop().toLowerCase();
+  const path=`submissions/${subId}.${ext}`;
+  const{error}=await sb.storage.from('photos').upload(path,file,{cacheControl:'31536000',upsert:true});
+  if(error)throw error;
+  const{data}=sb.storage.from('photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+/* Retry helper for resilient cloud operations */
+async function withRetry(operation,label,retries=3){
+  let lastErr;
+  for(let i=0;i<retries;i++){
     try{
-      var res2=await _supabase.from('user_settings').select('value').eq('user_id',CURRENT_USER.id).eq('key','defterm').single();
-      if(res2.data) ADMIN.selectedTerm=res2.data.value||'1st Term';
-    }catch(e){}
-  }
-}
-
-/* ── Robust single-key upsert helper ── */
-async function _saveSetting(key, value){
-  if(!CURRENT_USER) return;
-  try{
-    var res=await _supabase.from('user_settings').upsert(
-      {user_id:CURRENT_USER.id, key:key, value:value},
-      {onConflict:'user_id,key'}
-    );
-    if(res.error){
-      // Fallback: try delete + insert if upsert fails (constraint may not exist)
-      await _supabase.from('user_settings').delete().eq('user_id',CURRENT_USER.id).eq('key',key);
-      await _supabase.from('user_settings').insert({user_id:CURRENT_USER.id, key:key, value:value});
-    }
-  }catch(e){ console.warn('_saveSetting failed:', key, e.message); }
-}
-
-/* ── Auto-save draft to Supabase ── */
-var _draftSaveTimer=null;
-function scheduleDraftSave(){
-  clearTimeout(_draftSaveTimer);
-  _draftSaveTimer=setTimeout(function(){
-    if(!CURRENT_USER||!S.slots.length) return;
-    var draft={
-      cfg:JSON.parse(JSON.stringify(S.cfg)),
-      at:S.at,
-      path:S.path,
-      scr:S.scr,
-      tradeSubject:S.tradeSubject,
-      difficultyLevel:S.difficultyLevel,
-      slots:S.slots.filter(function(s){ return s.q; }).map(function(s){
-        return {id:s.id,k:s.k,q:s.q,included:s.included};
-      }),
-      schemeWeeks:S.schemeWeeks,
-      ts:Date.now()
-    };
-    _saveSetting('current_draft', JSON.stringify(draft));
-  }, 3000); // debounce 3s
-}
-function clearDraft(){
-  _saveSetting('current_draft','');
-  window._savedDraft=null;
-}
-function showAuthScreen(){
-  var s=$('screen-auth'); if(s) s.classList.add('visible');
-  var nav=$('nav'); if(nav) nav.style.display='none';
-  var sb=$('sidebar'); if(sb) sb.style.display='none';
-  clearAuthErr(); setAuthLoading(false);
-  var p=$('authPass'); if(p) p.value='';
-}
-function hideAuthScreen(){
-  var s=$('screen-auth'); if(s) s.classList.remove('visible');
-  var nav=$('nav'); if(nav) nav.style.display='';
-  var sb=$('sidebar'); if(sb) sb.style.display='';
-}
-
-/* ── Boot the app after auth ────────── */
-async function bootApp(){
-  var chip=$('userChipName');
-  if(chip) chip.textContent = (CURRENT_USER.name||CURRENT_USER.email).split(' ')[0];
-
-  // Init app state from Supabase user_settings
-  await _loadUserSettings();
-
-  // Force super-admin role
-  if((CURRENT_USER.email||'').toLowerCase()==='alabykhan@gmail.com') CURRENT_USER.role='admin';
-
-  // Force role based on DB profile — admins cannot be faked
-  ROLE = CURRENT_USER.role === 'admin' ? 'admin' : 'teacher';
-  _applyRoleUI(ROLE);
-  refreshApiStatus();
-  startDeadlineWatcher();
-
-  // Admin: start polling for new submissions every 60s
-  if(ROLE==='admin'){
-    clearInterval(window._adminPollTimer);
-    window._adminPollTimer=setInterval(async function(){
-      if(S.screen==='admin-dash'){
-        var count=await _supabase.from('papers').select('id',{count:'exact',head:true}).eq('status','submitted');
-        var n=count.count||0;
-        var badge=$('adminNewBadge');
-        if(badge) badge.textContent=n>0?n+' new':'';
-        if(badge) badge.style.display=n>0?'inline-block':'none';
-      }
-    },60000);
-  }
-
-  renderDash();
-  $('screen-dash').style.display='block';
-}
-
-/* ── ROLE STATE ───────────────────── */
-var ROLE = 'teacher'; // always set from DB, never from button click alone
-
-function _applyRoleUI(role){
-  var nt=$('sbNavTeacher'), na=$('sbNavAdmin');
-  var st=$('swTeacher'),    sa=$('swAdmin');
-  var bm=$('sbBrandMark'),  bn=$('sbBrandName');
-  var rb=$('navRoleBadge');
-  if(role==='admin'){
-    if(nt) nt.style.display='none';
-    if(na) na.style.display='block';
-    if(st){ st.classList.remove('active'); }
-    if(sa){ sa.classList.add('active'); }
-    if(bm){ bm.style.background='var(--admin)'; bm.style.boxShadow='var(--sh-admin)'; }
-    if(bn){ bn.style.color='var(--admin)'; }
-    if(rb){ rb.className='role-badge admin'; rb.textContent='Admin'; }
-  } else {
-    if(nt) nt.style.display='block';
-    if(na) na.style.display='none';
-    if(sa){ sa.classList.remove('active'); }
-    if(st){ st.classList.add('active'); }
-    if(bm){ bm.style.background='var(--blue)'; bm.style.boxShadow='var(--sh-blue)'; }
-    if(bn){ bn.style.color='var(--blue)'; }
-    if(rb){ rb.className='role-badge teacher'; rb.textContent='Teacher'; }
-  }
-}
-
-window.switchRole = function(role){
-  // Only allow role switch if user actually has that role in DB
-  if(role==='admin' && CURRENT_USER && CURRENT_USER.role!=='admin'){
-    toast('⛔ Admin access only — contact your administrator','err',4000);
-    return;
-  }
-  ROLE = role;
-  _applyRoleUI(role);
-  navTo(role==='admin'?'admin-dash':'dash');
-  closeSidebar();
-};
-
-/* ══════════════════════════════════════
-   NERDC 2026 — HARDCODED. EXACT AS PROVIDED.
-══════════════════════════════════════ */
-var NERDC = {
-  'Primary 1-3': [
-    'English Studies','Mathematics','Yoruba Language',
-    'Nigerian Language (Igbo/Hausa)','Basic Science',
-    'Physical & Health Education','Nigerian History',
-    'Social and Citizenship Studies','Cultural & Creative Arts (CCA)',
-    'Religious Studies (CRS/IS)','Arabic (Optional)'
-  ],
-  'Primary 4-6': [
-    'English Studies','Mathematics','Yoruba Language',
-    'Nigerian Language (Igbo/Hausa)','Basic Science & Technology',
-    'Physical & Health Education','Basic Digital Literacy',
-    'Nigerian History','Social and Citizenship Studies',
-    'Cultural & Creative Arts (CCA)','Pre-vocational Studies (Agric/Home Ec)',
-    'French','Religious Studies (CRS/IS)'
-  ],
-  'JSS 1-3': [
-    'English Studies','Mathematics','Yoruba Language',
-    'Nigerian Language (Igbo/Hausa)','Intermediate Science',
-    'Physical & Health Education','Digital Technologies',
-    'Nigerian History','Social and Citizenship Studies','Business Studies',
-    'Cultural & Creative Arts (CCA)','French','Religious Studies (CRS/IS)',
-    'Trade Subject','Arabic (Optional)'
-  ],
-  'SS 1-3': [
-    'English Language (Core)','General Mathematics (Core)',
-    'Citizenship and Heritage Studies (Core)','Digital Technologies (Core)',
-    'Trade Subject','Yoruba Language','Biology','Chemistry','Physics',
-    'Further Mathematics','Agricultural Science','Geography','Economics',
-    'Government','Literature-in-English','Financial Accounting','Commerce',
-    'Nigerian History','Christian Religious Studies','Islamic Studies'
-  ],
-  'Early': [
-    'English Language','Mathematics','Literacy and Numeracy',
-    'Cultural & Creative Arts','Physical & Health Education',
-    'Religious Studies (CRS/IS)','Yoruba Language','Nigerian Language','Social Habits'
-  ]
-};
-
-var TRADE_SUBJECTS = [
-  { id:'livestock', name:'Livestock Farming', icon:'🐄', desc:'Animal husbandry, rearing, and farm management' },
-  { id:'solar',     name:'Solar Energy Tech',  icon:'☀️', desc:'Installation, maintenance, photovoltaic systems' },
-  { id:'fashion',   name:'Fashion & Design',   icon:'✂️', desc:'Garment construction, textiles, pattern cutting' },
-  { id:'beauty',    name:'Beauty Therapy',     icon:'💄', desc:'Cosmetology, skin care, nail technology' }
-];
-var DEFAULT_TRADE = 'livestock';
-
-function getSubjectList(cls) {
-  if (!cls) return NERDC['SS 1-3'];
-  var c = cls.toLowerCase();
-  if (c === 'creche' || c.includes('kg') || c.includes('nursery')) return NERDC['Early'];
-  if (c.includes('primary')) {
-    var n = parseInt(c.replace(/\D/g,'')) || 0;
-    return n <= 3 ? NERDC['Primary 1-3'] : NERDC['Primary 4-6'];
-  }
-  if (c.includes('jss')) return NERDC['JSS 1-3'];
-  if (c.includes('ss'))  return NERDC['SS 1-3'];
-  return NERDC['SS 1-3'];
-}
-
-function isTradeSubject(cls) {
-  if (!cls) return false;
-  var c = cls.toLowerCase();
-  return c.includes('jss') || c.includes('ss');
-}
-
-/* ══════════════════════════════════════
-   STATIC DATA
-══════════════════════════════════════ */
-var L = ['A','B','C','D'];
-var CL = ['Creche','KG 1','KG 2','Nursery 1','Nursery 2',
-  'Primary 1','Primary 2','Primary 3','Primary 4','Primary 5','Primary 6',
-  'JSS 1','JSS 2','JSS 3','SS 1','SS 2','SS 3'];
-var TERMS    = ['1st Term','2nd Term','3rd Term'];
-var STANDARDS = ['WAEC','NECO','JAMB','BECE','Common Entrance','NABTEB','Cambridge IGCSE','Custom/Internal'];
-
-function stdTagCls(s) {
-  var m={'WAEC':'t-waec','JAMB':'t-jamb','NECO':'t-neco','BECE':'t-bece','Common Entrance':'t-ce'};
-  return m[s]||'t-cust';
-}
-
-/* ══════════════════════════════════════
-   GLOBAL STATE
-══════════════════════════════════════ */
-var API_KEY = '';
-
-var S = {
-  screen: 'dash',   // dash | gate | app | load | arch | sett
-  path:   null,     // auto | manual
-  scr:    0,        // app step 1-3
-  at:     'Examination',
-  difficultyLevel: 'Balanced',
-  tradeSubject: DEFAULT_TRADE,
-  cfg: {
-    cls:'', term:'1st Term', subj:'', std:'WAEC',
-    topics:[], topicText:'',
-    objN:10, fitbN:0, thN:5,
-    instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',
-    theoryPaperInstr:'', theoryAiInstr:'', school:''
-  },
-  subjects:[], schemeWeeks:[], schemeLoaded:false, schemeCommitted:false,
-  slots:[], ocrSlots:[], ntxSlots:[], generating:false, cam:null,
-  _imgQueue:[], _ntxQueue:[]
-};
-
-/* ══════════════════════════════════════
-   UTILS
-══════════════════════════════════════ */
-function $(id){ return document.getElementById(id); }
-function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function math(el){
-  if(!window.renderMathInElement) return;
-  try{ window.renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],throwOnError:false}); }catch(e){}
-}
-
-/* Diagram full-screen lightbox */
-window.showDiagramFull=function(src){
-  var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9998;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
-  var img=document.createElement('img');
-  img.src=src;
-  img.style.cssText='max-width:92vw;max-height:88vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);';
-  ov.appendChild(img);
-  ov.onclick=function(){ document.body.removeChild(ov); };
-  document.body.appendChild(ov);
-};
-
-var _toastTimer;
-function toast(msg,type,dur){
-  type=type||'info'; dur=dur||3200;
-  var t=$('toast');
-  t.textContent=msg;
-  t.className='show '+(type==='warn'?'warn':type==='err'?'err':type==='ok'?'ok':'');
-  clearTimeout(_toastTimer);
-  _toastTimer=setTimeout(function(){t.className='';},dur);
-}
-
-/* ══════════════════════════════════════
-   SCHEME PERSISTENCE
-   Key: ee_scheme__{cls}__{subj}__{term}
-══════════════════════════════════════ */
-/* ── SCHEME PERSISTENCE — Supabase ── */
-function schemeKey(cls,subj,term){
-  return (cls||'')+'__'+(subj||'')+'__'+(term||'');
-}
-async function loadCommittedScheme(cls,subj,term){
-  if(!CURRENT_USER) return null;
-  var res=await _supabase.from('schemes').select('weeks').eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term)).single();
-  return res.data?res.data.weeks:null;
-}
-async function commitScheme(cls,subj,term,weeks){
-  if(!CURRENT_USER) return;
-  await _supabase.from('schemes').upsert({user_id:CURRENT_USER.id,scheme_key:schemeKey(cls,subj,term),weeks:weeks},{onConflict:'user_id,scheme_key'});
-}
-async function clearCommittedScheme(cls,subj,term){
-  if(!CURRENT_USER) return;
-  await _supabase.from('schemes').delete().eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term));
-}
-
-/* ══════════════════════════════════════
-   FILE PROCESSING UTILITIES
-   Handles PDF → canvas pages → base64
-   Handles DOCX → plain text via mammoth
-══════════════════════════════════════ */
-async function pdfToImages(file){
-  // Use PDF.js to render each page as a canvas image
-  if(typeof pdfjsLib==='undefined'){ throw new Error('PDF.js not loaded. Try refreshing.'); }
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  var arrayBuffer=await file.arrayBuffer();
-  var pdf=await pdfjsLib.getDocument({data:arrayBuffer}).promise;
-  var pages=[];
-  for(var i=1;i<=Math.min(pdf.numPages,20);i++){
-    var page=await pdf.getPage(i);
-    var viewport=page.getViewport({scale:1.8});
-    var canvas=document.createElement('canvas');
-    canvas.width=viewport.width; canvas.height=viewport.height;
-    var ctx=canvas.getContext('2d');
-    await page.render({canvasContext:ctx,viewport:viewport}).promise;
-    pages.push({dataUrl:canvas.toDataURL('image/jpeg',0.88),mimeType:'image/jpeg',label:'PDF Page '+i});
-  }
-  return pages;
-}
-
-async function docxToText(file){
-  if(typeof mammoth==='undefined'){ throw new Error('Mammoth.js not loaded. Try refreshing.'); }
-  var arrayBuffer=await file.arrayBuffer();
-  var result=await mammoth.extractRawText({arrayBuffer:arrayBuffer});
-  return result.value||'';
-}
-
-async function processFileForScanner(file){
-  var name=file.name||'file';
-  var type=file.type||'';
-  if(type.startsWith('image/')){ 
-    return {type:'images',pages:[{dataUrl:await readFileAsDataURL(file),mimeType:type,label:name}]};
-  }
-  if(type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
-    var pages=await pdfToImages(file);
-    return {type:'images',pages:pages};
-  }
-  if(type.includes('word')||name.toLowerCase().endsWith('.docx')||name.toLowerCase().endsWith('.doc')){
-    var text=await docxToText(file);
-    return {type:'text',text:text,label:name};
-  }
-  throw new Error('Unsupported file type: '+name);
-}
-
-async function processFileForNTX(file){
-  var name=file.name||'file';
-  var type=file.type||'';
-  if(type.startsWith('image/')){
-    return {type:'image',dataUrl:await readFileAsDataURL(file),mimeType:type,label:name};
-  }
-  if(type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
-    var pages=await pdfToImages(file);
-    // For NTX we extract text from each rendered page
-    return {type:'pdf_images',pages:pages,label:name};
-  }
-  if(type.includes('word')||name.toLowerCase().endsWith('.docx')||name.toLowerCase().endsWith('.doc')){
-    var text=await docxToText(file);
-    return {type:'text',text:text,label:name};
-  }
-  throw new Error('Unsupported file type: '+name);
-}
-
-function readFileAsDataURL(file){
-  return new Promise(function(res,rej){
-    var r=new FileReader();
-    r.onload=function(e){ res(e.target.result); };
-    r.onerror=function(){ rej(new Error('Could not read: '+file.name)); };
-    r.readAsDataURL(file);
-  });
-}
-
-/* ══════════════════════════════════════
-   SIDEBAR
-══════════════════════════════════════ */
-function openSidebar(){
-  $('sidebar').classList.add('open');
-  $('sb-overlay').classList.add('open');
-}
-function closeSidebar(){
-  $('sidebar').classList.remove('open');
-  $('sb-overlay').classList.remove('open');
-}
-
-function setSbActive(id){
-  ['sbDash','sbNew','sbLoad','sbArch','sbSett',
-   'sbAdminDash','sbAdminPrint','sbAdminSett'].forEach(function(i){
-    var el=$(i); if(el) el.classList.remove('active');
-  });
-  var el=$(id); if(el) el.classList.add('active');
-}
-
-window.navTo = function(screen){
-  closeSidebar();
-  // Push to browser history so back button works
-  try{ history.pushState({screen:screen},'','#'+screen); }catch(e){}
-  _navInternal(screen);
-};
-
-function _navInternal(screen){
-  S.screen = screen;
-  ['screen-dash','screen-gate','screen-load','screen-arch','screen-sett',
-   'screen-admin-dash','screen-admin-print','screen-admin-sett','app'].forEach(function(id){
-    var el=$(id); if(el) el.style.display='none';
-  });
-  var stps=$('stps'); if(stps) stps.innerHTML='';
-
-  if(screen==='dash')            { setSbActive('sbDash');       renderDash(); }
-  else if(screen==='new')        { setSbActive('sbNew');         showGate(); }
-  else if(screen==='load')       { setSbActive('sbLoad');        renderLoad(); }
-  else if(screen==='arch')       { setSbActive('sbArch');        renderArch(); }
-  else if(screen==='sett')       { setSbActive('sbSett');        renderSett(); }
-  else if(screen==='admin-dash') { setSbActive('sbAdminDash');   renderAdminDash(); }
-  else if(screen==='admin-print'){ setSbActive('sbAdminPrint');  renderAdminPrint(); }
-  else if(screen==='admin-sett') { setSbActive('sbAdminSett');   renderAdminSett(); }
-}
-
-// Back button support - improved
-window.addEventListener('popstate',function(e){
-  if(e.state&&e.state.screen){
-    closeSidebar();
-    _navInternal(e.state.screen);
-  } else {
-    // Fallback to default screen
-    closeSidebar();
-    _navInternal(ROLE==='admin'?'admin-dash':'dash');
-  }
-});
-
-// Handle initial load with proper history state
-window.addEventListener('load',function(){
-  // Set initial state
-  if(window.location.hash){
-    var screen=window.location.hash.substring(1);
-    if(screen) history.replaceState({screen:screen},'');
-  } else {
-    history.replaceState({screen:ROLE==='admin'?'admin-dash':'dash'},'');
-  }
-});
-
-/* ══════════════════════════════════════
-   API STATUS
-══════════════════════════════════════ */
-function refreshApiStatus(){
-  var dot=$('apiDot'), lbl=$('apiLbl'), sd=$('sbDot'), sl=$('sbApiLbl');
-  var ok=!!API_KEY;
-  if(dot){ dot.className='api-dot'+(ok?' ok':''); }
-  if(lbl){ lbl.textContent=ok?'OpenRouter Ready':'No API Key'; }
-  if(sd) { sd.className='sb-dot'+(ok?' ok':''); }
-  if(sl) { sl.textContent=ok?'OpenRouter Ready':'No API Key'; }
-}
-
-/* ══════════════════════════════════════
-   DASHBOARD
-══════════════════════════════════════ */
-async function renderDash(){
-  var el=$('screen-dash');
-  el.style.display='block';
-  el.innerHTML='<div class="pg fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading…</div></div>';
-
-  var papers = await getPublished();
-  var drafts  = [];
-  // Show restore-draft banner if a draft is waiting
-  var draftBanner='';
-  if(window._savedDraft && window._savedDraft.slots && window._savedDraft.slots.length){
-    var d=window._savedDraft;
-    var dAge=Math.round((Date.now()-(d.ts||0))/60000);
-    var dLabel=esc((d.cfg&&d.cfg.subj)||'Unknown subject')+' — '+esc((d.cfg&&d.cfg.cls)||'');
-    draftBanner='<div class="banner b-teal" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">'
-      +'<div><strong>📝 Draft recovered</strong> — '+dLabel+' ('+dAge+' min ago, '+d.slots.length+' questions)</div>'
-      +'<div style="display:flex;gap:8px;">'
-      +'<button class="btn bp bsm" onclick="restoreDraft()">↩ Restore Draft</button>'
-      +'<button class="btn bq bsm" onclick="discardDraft()">🗑 Discard</button>'
-      +'</div></div>';
-  }
-  var school  = S.cfg.school||'Your School';
-  var now     = new Date();
-  var termKey = now.getMonth()<4?'1st Term':now.getMonth()<8?'2nd Term':'3rd Term';
-  var thisTerm= papers.filter(function(p){ return p.term===termKey; }).length;
-  var recentAll = papers.slice(0,5);
-
-  // Phase 2 — Correction notes
-  var rejected = papers.filter(function(p){ return p.adminStatus==='rejected'&&p.correctionNote; });
-  var correctionHtml='';
-  if(rejected.length){
-    correctionHtml='<div class="correction-banner">'
-      +'<div class="correction-title">📮 Admin Correction Notes ('+rejected.length+')</div>'
-      +rejected.map(function(p){
-        return '<div class="correction-item">'
-          +'<div class="correction-ref">'+esc(p.ref)+' · '+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-          +'<div class="correction-note">↩ '+esc(p.correctionNote)+'</div>'
-          +'</div>';
-      }).join('')
-      +'</div>';
-  }
-
-  el.innerHTML = '<div class="pg fade">'
-    +'<div class="dash-hero">'
-    +'<div class="dash-greeting">Good '+(now.getHours()<12?'morning':now.getHours()<17?'afternoon':'evening')+'</div>'
-    +'<div class="dash-title">Welcome back,<br/>'+esc(school)+'</div>'
-    +'<button class="dash-new-btn" onclick="navTo(\'new\')">✏ Set New Questions</button>'
-    +'</div>'
-    +correctionHtml
-    +draftBanner
-    +'<div class="stat-grid">'
-    +'<div class="stat-card"><div class="stat-num">'+papers.length+'</div><div class="stat-lbl">Total Papers</div><div class="stat-sub">All time</div></div>'
-    +'<div class="stat-card"><div class="stat-num">'+thisTerm+'</div><div class="stat-lbl">This Term</div><div class="stat-sub">'+termKey+'</div></div>'
-    +'<div class="stat-card"><div class="stat-num">'+drafts.length+'</div><div class="stat-lbl">Drafts</div><div class="stat-sub">In progress</div></div>'
-    +'</div>'
-    +'<div class="recent-head">'
-    +'<div class="recent-title">Recent Papers</div>'
-    +'<div class="recent-all" onclick="navTo(\'arch\')">View all →</div>'
-    +'</div>'
-    +(recentAll.length ? recentAll.map(function(p){
-      var statusCls=p.adminStatus==='approved'?'sp-pub':p.adminStatus==='rejected'?'sp-draft':'sp-draft';
-      var statusTxt=p.adminStatus==='approved'?'Approved':p.adminStatus==='rejected'?'Rejected':p.adminStatus==='submitted'?'Pending Admin':'Draft';
-      return '<div class="recent-card" onclick="viewPaperDetail(\''+esc(p.ref)+'\')">'
-        +'<div class="recent-ico">📄</div>'
-        +'<div class="recent-body">'
-        +'<div class="recent-subj">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-        +'<div class="recent-meta">'+esc(p.term)+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
-        +'<div class="recent-ref">'+esc(p.ref)+'</div>'
-        +'</div>'
-        +'<div class="status-pill '+statusCls+'">'+statusTxt+'</div>'
-        +'</div>';
-    }).join('')
-    : '<div class="dash-empty"><div class="dash-empty-ico">📋</div>No papers yet.<br/>Tap <strong>Set New Questions</strong> to create your first exam paper.</div>')
-    +'</div>';
-}
-
-/* ══════════════════════════════════════
-   GATE — PATH CHOICE
-══════════════════════════════════════ */
-function showGate(){
-  var el=$('screen-gate');
-  el.style.display='flex';
-
-  el.innerHTML = '<div class="gate-headline">How will you build<br>today\'s paper?</div>'
-    +'<div class="gate-sub">Choose your path. Everything else follows from here.</div>'
-    +'<div class="gate-grid">'
-    +'<div class="gate-card" onclick="choosePath(\'auto\')">'
-    +'<span class="gate-badge">Recommended</span>'
-    +'<span class="gate-icon">🤖</span>'
-    +'<div class="gate-title">Automated System Path</div>'
-    +'<div class="gate-desc">Select Term, Class, and Subject — AI fetches the official NERDC 2026 Scheme of Work, then generates every question automatically.</div>'
-    +'<div class="gate-cta">Set up my paper →</div>'
-    +'</div>'
-    +'<div class="gate-card" onclick="choosePath(\'manual\')">'
-    +'<span class="gate-icon">📄</span>'
-    +'<div class="gate-title">Manual Path</div>'
-    +'<div class="gate-desc">Upload images or documents. Choose exact transcription of question sheets, or AI generation from class notes.</div>'
-    +'<div class="gate-cta">Open manual tools →</div>'
-    +'</div>'
-    +'</div>';
-}
-
-window.choosePath = function(path){
-  S.path = path;
-  ['screen-dash','screen-gate','screen-load','screen-arch','screen-sett'].forEach(function(id){
-    var el=$(id); if(el) el.style.display='none';
-  });
-  $('app').style.display='';
-  refreshApiStatus();
-  if(path==='auto'){ S.scr=1; hdr(); s1Auto(); }
-  else             { S.scr=2; hdr(); s2Manual(); }
-};
-
-/* ══════════════════════════════════════
-   LOAD / VIEW SCREEN
-══════════════════════════════════════ */
-function renderLoad(){
-  var el=$('screen-load');
-  el.style.display='block';
-  el.innerHTML='<div class="pg fade">'
-    +'<div class="ptl">Load / View Questions</div>'
-    +'<div class="pst">Enter a reference number to retrieve a published paper.</div>'
-    +'<div class="arch-search">'
-    +'<input class="fi" id="loadRef" placeholder="e.g. EE-LK3M9X" style="font-family:var(--mono);font-size:14px;"/>'
-    +'<button class="btn bp" onclick="doLoadByRef()">🔍 Load</button>'
-    +'</div>'
-    +'<div id="loadResult"></div>'
-    +'</div>';
-}
-
-window.doLoadByRef = async function(){
-  var ref = ($('loadRef')||{}).value||'';
-  ref = ref.trim().toUpperCase();
-  if(!ref){ toast('Enter a reference number','warn'); return; }
-  var el=$('loadResult');
-  el.innerHTML='<div style="padding:20px;text-align:center;color:var(--mute);">Searching…</div>';
-  var res = await _supabase.from('papers').select('*').eq('ref', ref).single();
-  var p = res.data ? Object.assign({}, res.data.data||{}, { ref: res.data.ref, _db_id: res.data.id }) : null;
-  if(!p){
-    el.innerHTML='<div class="banner b-warn">⚠ No paper found with reference <strong>'+esc(ref)+'</strong>. Check the reference and try again.</div>';
-    return;
-  }
-  el.innerHTML='<div class="arch-card" style="flex-direction:column;align-items:flex-start;gap:10px;">'
-    +'<div style="display:flex;gap:14px;align-items:center;width:100%;">'
-    +'<div class="arch-ico">📄</div>'
-    +'<div class="arch-body">'
-    +'<div class="arch-title">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-    +'<div class="arch-meta">'+esc(p.term)+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
-    +'<div class="arch-meta">'+p.objCount+' objectives · '+(p.fitbCount||0)+' fill-in-blank · '+p.thCount+' theory</div>'
-    +'<div class="arch-ref">📋 '+esc(p.ref)+' · '+esc(p.date)+'</div>'
-    +'</div>'
-    +'<div class="status-pill sp-pub">Published</div>'
-    +'</div>'
-    +'</div>';
-};
-
-/* ══════════════════════════════════════
-   ARCHIVE SCREEN
-══════════════════════════════════════ */
-async function renderArch(){
-  var el=$('screen-arch');
-  el.style.display='block';
-  el.innerHTML='<div class="pgw fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading archive…</div></div>';
-  var papers=await getPublished();
-
-  el.innerHTML='<div class="pgw fade">'
-    +'<div class="ptl">Archive</div>'
-    +'<div class="pst">All submitted papers — '+papers.length+' total.</div>'
-    +'<div class="arch-search">'
-    +'<input class="fi" id="archSearch" placeholder="Filter by subject, class or ref…" oninput="filterArch()"/>'
-    +'</div>'
-    +'<div id="archList">'
-    +renderArchList(papers)
-    +'</div></div>';
-}
-
-function renderArchList(papers){
-  if(!papers.length) return '<div class="dash-empty"><div class="dash-empty-ico">🗄</div>No papers yet.<br/>Tap <strong>Set New Questions</strong> to create your first exam paper.</div>';
-  return papers.map(function(p){
-    var st=p.adminStatus||'submitted';
-    var pillCls=st==='approved'?'sp-pub':st==='rejected'?'sp-rej':'sp-draft';
-    var pillTxt=st==='approved'?'✓ Approved':st==='rejected'?'✕ Rejected':'⏳ Pending Admin';
-    return '<div class="arch-card" onclick="viewPaperDetail(\''+esc(p.ref)+'\')">'
-      +'<div class="arch-ico">📄</div>'
-      +'<div class="arch-body">'
-      +'<div class="arch-title">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-      +'<div class="arch-meta">'+esc(p.term)+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
-      +'<div class="arch-meta">'+(p.objCount||0)+' obj · '+(p.fitbCount||0)+' fill-in-blank · '+(p.thCount||0)+' theory</div>'
-      +'<div class="arch-ref">📋 '+esc(p.ref)+' · '+esc(p.date||'')+'</div>'
-      +(st==='rejected'&&p.correctionNote?'<div style="margin-top:6px;font-size:11.5px;color:var(--red);font-style:italic;">↩ '+esc(p.correctionNote)+'</div>':'')
-      +'</div>'
-      +'<div class="arch-acts">'
-      +'<span class="status-pill '+pillCls+'">'+pillTxt+'</span>'
-      +'</div>'
-      +'</div>';
-  }).join('');
-}
-
-window.filterArch = async function(){
-  var q=($('archSearch')||{value:''}).value.toLowerCase();
-  var papers=await getPublished();
-  var filtered=papers.filter(function(p){
-    return ((p.subj||'')+(p.cls||'')+(p.ref||'')+(p.term||'')+(p.school||'')).toLowerCase().includes(q);
-  });
-  var el=$('archList'); if(el) el.innerHTML=renderArchList(filtered);
-};
-
-/* ══════════════════════════════════════
-   SETTINGS SCREEN
-══════════════════════════════════════ */
-function renderSett(){
-  var el=$('screen-sett');
-  el.style.display='block';
-  var school=S.cfg.school||'';
-  var defTerm=S.cfg.term||'1st Term';
-
-  el.innerHTML='<div class="pg fade">'
-    +'<div class="ptl">Settings</div>'
-    +'<div class="pst">Configure your API key, school details, and defaults.</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">OpenRouter API Key</div>'
-    +'<div class="fl"><div class="key-row">'
-    +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-…" value="'+esc(API_KEY||'')+'"/>'
-    +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
-    +'</div></div>'
-    +'<div class="api-note">🔑 Get your key at <strong>openrouter.ai/keys</strong>.<br/>'
-    +'Primary: <strong>google/gemini-3-flash-preview</strong> · Fallback: <strong>google/gemini-2.5-flash</strong><br/>'
-    +'Scheme Engine: <strong>google/gemini-2.5-flash</strong><br/>'
-    +'Lab Agent: <strong>anthropic/claude-3.5-sonnet</strong><br/>'
-    +'Costs pennies per full exam paper.</div>'
-    +'<div style="margin-top:14px;display:flex;gap:9px;">'
-    +'<button class="btn bq" onclick="clearApiKey()">🗑 Clear</button>'
-    +'<button class="btn bp" onclick="saveApiKey()">💾 Save Key</button>'
-    +'</div></div>'
-
-    +'<div class="card">'
-    +'<div class="ct">School Details</div>'
-    +'<div class="fl"><label>School Name</label>'
-    +'<input type="text" class="fi" id="settSchool" value="'+esc(school)+'" placeholder="e.g. Government Secondary School, Ikeja"/>'
-    +'</div>'
-    +'<div class="fl"><label>Default Term</label>'
-    +'<select class="fs" id="settTerm">'
-    +TERMS.map(function(t){ return '<option'+(t===defTerm?' selected':'')+'>'+t+'</option>'; }).join('')
-    +'</select></div>'
-    +'<button class="btn bp" onclick="saveSchool()">💾 Save Details</button>'
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">Trade Subject</div>'
-    +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:14px;">Select your school\'s registered trade subject. This is used in all JSS and SS papers.</div>'
-    +TRADE_SUBJECTS.map(function(t){
-      return '<div class="trade-opt'+(S.tradeSubject===t.id?' sel':'')+'" onclick="setTrade(\''+t.id+'\')">'
-        +'<span class="to-ico">'+t.icon+'</span>'
-        +'<div><div class="to-name">'+esc(t.name)+'</div><div class="to-desc">'+esc(t.desc)+'</div></div>'
-        +'</div>';
-    }).join('')
-    +'<div style="margin-top:14px;"><button class="btn bp" onclick="saveTrade()">💾 Save Trade Subject</button></div>'
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">Data Management</div>'
-    +'<button class="btn bred bsm" onclick="clearAllData()" style="margin-top:4px;">🗑 Clear All Published Papers</button>'
-    +'</div>'
-
-    +'</div>';
-}
-
-window.saveApiKey = function(){
-  var v=($('settKeyInp')||{}).value||''; v=v.trim();
-  API_KEY=v;
-  _saveSetting('api_key', v);
-  refreshApiStatus(); toast('API key saved ✓','ok');
-};
-window.clearApiKey = function(){
-  API_KEY='';
-  _saveSetting('api_key','');
-  refreshApiStatus(); toast('API key cleared','ok');
-  renderSett();
-};
-window.saveSchool = function(){
-  var s=($('settSchool')||{}).value||'';
-  var t=($('settTerm')||{}).value||'1st Term';
-  _saveSetting('school', s.trim());
-  _saveSetting('defterm', t);
-  if(CURRENT_USER && CURRENT_USER.role==='admin') ADMIN.selectedTerm=t;
-  S.cfg.school=s.trim(); S.cfg.term=t;
-  toast('School details saved ✓','ok');
-};
-window.setTrade = function(id){
-  S.tradeSubject=id;
-  document.querySelectorAll('.trade-opt').forEach(function(el){
-    el.classList.toggle('sel', el.onclick.toString().includes("'"+id+"'"));
-  });
-};
-window.saveTrade = function(){
-  _saveSetting('trade', S.tradeSubject);
-  toast('Trade subject saved: '+getTradeById(S.tradeSubject).name+' ✓','ok');
-};
-window.clearAllData = async function(){
-  if(!confirm('Delete ALL papers from the database? This cannot be undone.')) return;
-  if(CURRENT_USER && CURRENT_USER.role==='admin'){
-    await _supabase.from('papers').delete().neq('id','00000000-0000-0000-0000-000000000000');
-  } else {
-    await _supabase.from('papers').delete().eq('user_id', CURRENT_USER.id);
-  }
-  toast('All papers cleared','ok');
-};
-window.restoreDraft=function(){
-  var d=window._savedDraft; if(!d||!d.slots) return;
-  S.cfg=Object.assign({cls:'',term:'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
-  S.at=d.at||'Examination';
-  S.path=d.path||'auto';
-  S.tradeSubject=d.tradeSubject||DEFAULT_TRADE;
-  S.difficultyLevel=d.difficultyLevel||'Balanced';
-  S.slots=d.slots||[];
-  S.schemeWeeks=d.schemeWeeks||[];
-  S.schemeLoaded=S.schemeWeeks.length>0;
-  S.schemeCommitted=false;
-  window._savedDraft=null;
-  ['screen-dash','screen-gate','screen-load','screen-arch','screen-sett'].forEach(function(id){
-    var el=$(id); if(el) el.style.display='none';
-  });
-  $('app').style.display='';
-  S.scr=2; hdr();
-  $('s1').style.display='none';
-  $('s2').style.display='block';
-  $('s3').style.display='none';
-  renderWorkshop();
-  toast('Draft restored — '+S.slots.filter(function(s){ return s.q; }).length+' questions ready','ok',4000);
-};
-window.discardDraft=function(){ clearDraft(); renderDash(); };
-
-function getTradeById(id){
-  return TRADE_SUBJECTS.find(function(t){ return t.id===id; }) || TRADE_SUBJECTS[0];
-}
-
-/* ══════════════════════════════════════
-   PAPER DETAIL (view published)
-══════════════════════════════════════ */
-window.viewPaperDetail = async function(ref){
-  var res=await _supabase.from('papers').select('*').eq('ref',ref).single();
-  var row=res.data;
-  if(!row){ toast('Paper not found','err'); return; }
-  var p=Object.assign({},row.data||{},{ref:row.ref,_db_id:row.id,adminStatus:row.status||'submitted'});
-  var st=p.adminStatus||'submitted';
-  var pillCls=st==='approved'?'sp-pub':st==='rejected'?'sp-rej':'sp-draft';
-  var pillTxt=st==='approved'?'✓ Approved':st==='rejected'?'✕ Rejected':'⏳ Pending Admin';
-  var qs=p.questions||[];
-  var objQ=qs.filter(function(q){return q.k==='obj';});
-  var fitbQ=qs.filter(function(q){return q.k==='fitb';});
-  var thQ=qs.filter(function(q){return q.k==='theory';});
-
-  // Build detail view in screen-load (reuse that screen)
-  var el=$('screen-load');
-  ['screen-dash','screen-gate','screen-arch','screen-sett',
-   'screen-admin-dash','screen-admin-print','screen-admin-sett','app'].forEach(function(id){
-    var e=$(id); if(e) e.style.display='none';
-  });
-  el.style.display='block';
-  el.innerHTML='<div class="pgw fade">'
-    +'<button class="btn bq bsm" onclick="navTo(\'arch\')" style="margin-bottom:16px;">← Back to Archive</button>'
-    +'<div class="ptl">'+esc(p.subj||'Paper')+' — '+esc(p.cls||'')+'</div>'
-    +'<div class="pst">'+esc(p.term||'')+' · '+esc(p.at||'')+' · '+esc(p.std||'')+(p.school?' · '+esc(p.school):'')+'</div>'
-
-    +'<div class="sgrid">'
-    +'<div class="sbox"><div class="sv">'+esc(p.cls||'—')+'</div><div class="slb">Class</div></div>'
-    +'<div class="sbox"><div class="sv">'+(p.at==='C.A.'?'C.A.':'EXAM')+'</div><div class="slb">Type</div></div>'
-    +'<div class="sbox"><div class="sv">'+(p.objCount||objQ.length)+'</div><div class="slb">Objectives</div></div>'
-    +'<div class="sbox"><div class="sv">'+(p.thCount||thQ.length)+'</div><div class="slb">Theory</div></div>'
-    +'</div>'
-
-    +'<div class="card" style="margin-bottom:16px;">'
-    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-    +'<span class="ref-pill" style="margin:0;">📋 '+esc(p.ref)+'</span>'
-    +'<span class="status-pill '+pillCls+'">'+pillTxt+'</span>'
-    +(p.user_name?'<span style="font-size:11px;color:var(--mute);">by '+esc(p.user_name)+'</span>':'')
-    +(p.date?'<span style="font-size:11px;color:var(--mute);">'+esc(p.date)+'</span>':'')
-    +'</div>'
-    +(st==='rejected'&&p.correctionNote?'<div class="banner b-warn" style="margin-top:12px;">📮 <strong>Admin Note:</strong> '+esc(p.correctionNote)+'</div>':'')
-    +'</div>'
-
-    +(objQ.length?'<div class="ct">Section A — Objectives ('+objQ.length+')</div>'
-      +objQ.map(function(q,i){
-        return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-          +'<div style="flex:1;"><div>'+q.t+'</div>'
-          +(q.o?'<div class="sopts" style="margin-top:7px;">'+q.o.map(function(o,oi){
-            return '<div class="sopt '+(oi===q.a?'correct':'')+'"><span class="sok">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
-          }).join('')+'</div>':'')
-          +'</div></div>';
-      }).join(''):'')
-
-    +(fitbQ.length?'<div class="ct" style="margin-top:20px;">Section B — Fill-in-the-Blank ('+fitbQ.length+')</div>'
-      +fitbQ.map(function(q,i){
-        return '<div class="qp fitb-qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-          +'<div style="flex:1;"><div>'+q.t+'</div>'
-          +(q.answer?'<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>':'')
-          +'</div></div>';
-      }).join(''):'')
-
-    +(thQ.length?'<div class="ct" style="margin-top:20px;">'+(fitbQ.length?'Section C':'Section B')+' — Theory ('+thQ.length+')</div>'
-      +thQ.map(function(q,i){
-        return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-          +'<div style="flex:1;"><div>'+q.t+'</div>'
-          +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-          +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
-          +'</div></div></div>';
-      }).join(''):'')
-
-    +'</div>';
-  setTimeout(function(){ math(el); },300);
-};
-
-/* ══════════════════════════════════════
-   NAV HEADER
-══════════════════════════════════════ */
-function hdr(){
-  var steps=[{n:1,l:'The Contract'},{n:2,l:'The Workshop'},{n:3,l:'The Hand-off'}];
-  var c=$('stps'); if(!c) return;
-  c.innerHTML='';
-  var cur=S.scr;
-  steps.forEach(function(s,i){
-    var cls=(cur===s.n)?'on':(cur>s.n)?'dn':'';
-    var nm=(cur>s.n)?'✓':s.n;
-    c.insertAdjacentHTML('beforeend',
-      "<div class='si "+cls+"'><div class='sb2'>"+nm+"</div><div class='sn'>"+s.l+"</div></div>"
-      +(i<2?"<div class='sl "+(cur>s.n?'dn':'')+"'></div>":"")
-    );
-  });
-}
-
-/* ══════════════════════════════════════
-   API ENGINE — OpenRouter
-══════════════════════════════════════ */
-var _apiQueue=Promise.resolve();
-var _minGap=800;
-var _lastCall=0;
-function _wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-async function _gapWait(){
-  var now=Date.now(), gap=now-_lastCall;
-  if(gap<_minGap) await _wait(_minGap-gap);
-  _lastCall=Date.now();
-}
-async function extractApiError(resp){
-  try{
-    var j=await resp.json();
-    var msg=(j&&j.error&&j.error.message)?j.error.message:'';
-    if(resp.status===429||(msg&&msg.toLowerCase().includes('rate')))
-      return{is429:true,seconds:10,msg:'Rate limit hit. Retrying shortly…'};
-    if(resp.status===401) return{is429:false,msg:'Invalid API key.'};
-    if(resp.status===402) return{is429:false,msg:'Insufficient OpenRouter credits. Top up at openrouter.ai/credits.'};
-    return{is429:false,msg:msg||('API error '+resp.status)};
-  }catch(e){ return{is429:resp.status===429,seconds:10,msg:'API error '+resp.status}; }
-}
-async function _fetchOR(messages,model,isJson){
-  var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
-  if(isJson) body.response_format={type:'json_object'};
-  var r=await fetch(OR_BASE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-    body:JSON.stringify(body)
-  });
-  if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e; }
-  var data=await r.json();
-  return(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
-}
-async function _callWithRetry(messages,isJson){
-  var models=[MODELS.primary,MODELS.fallback];
-  var lastErr;
-  for(var mi=0;mi<models.length;mi++){
-    var attempts=0,max=3;
-    while(attempts<max){
-      try{ await _gapWait(); return await _fetchOR(messages,models[mi],isJson); }
-      catch(e){
-        lastErr=e; attempts++;
-        if(e.is429&&attempts<max){
-          var w=Math.max(e.seconds||10,10);
-          toast('⏳ Rate limit — waiting '+w+'s…','warn',(w+2)*1000);
-          updateApiStatus('waiting','waiting '+w+'s');
-          await _wait(w*1000);
-          updateApiStatus('ready');
-        } else if(e.is429&&mi===0){ toast('⚡ Trying fallback model…','warn',2500); break; }
-        else if(!e.is429){ break; }
-      }
+      const result=await operation();
+      return result;
+    }catch(e){
+      lastErr=e;
+      const delay=Math.min(1000*Math.pow(2,i),8000);
+      const msg=`${label} failed (try ${i+1}/${retries}): ${e.message||e}. Retrying in ${delay/1000}s…`;
+      console.warn('[DB]',msg);
+      showSync('syncing',msg);
+      await new Promise(r=>setTimeout(r,delay));
     }
   }
-  throw lastErr||new Error('API unavailable.');
-}
-function updateApiStatus(state,msg){
-  var dot=$('apiDot'),lbl=$('apiLbl'),qc=$('queueChip'),ql=$('queueLbl');
-  if(!dot) return;
-  if(state==='waiting'){
-    dot.className='api-dot'; dot.style.background='var(--amber)';
-    lbl.textContent='Rate limited';
-    if(qc) qc.style.display='inline-flex';
-    if(ql) ql.textContent=msg||'queuing…';
-  } else {
-    refreshApiStatus(); dot.style.background='';
-    if(qc) qc.style.display='none';
-  }
-}
-function parseJsonText(text){
-  text=(text||'').replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
-  try{ return JSON.parse(text); }catch(e){}
-  var arrM=text.match(/\[\s*[\s\S]*\]/); if(arrM){ try{ return JSON.parse(arrM[0]); }catch(e2){} }
-  var objM=text.match(/\{[\s\S]*\}/);
-  if(objM){ try{ var o=JSON.parse(objM[0]); var keys=['questions','items','data','results']; for(var i=0;i<keys.length;i++){ if(Array.isArray(o[keys[i]])) return o[keys[i]]; } return o; }catch(e3){} }
-  throw new Error('Could not parse API response as JSON.');
-}
-async function callGemini(prompt,opts){
-  opts=opts||{};
-  if(!API_KEY) throw new Error('No API key.');
-  var sysInstr = opts.systemInstruction
-    ? opts.systemInstruction
-    : 'You are an expert Nigerian curriculum exam question generator. Always respond with valid JSON only — no explanation, no markdown, no code fences.';
-  var messages=[
-    {role:'system',content:sysInstr},
-    {role:'user',content:prompt}
-  ];
-  var result=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true); }));
-  return parseJsonText(result);
-}
-async function callGeminiVision(base64Image,mimeType,prompt){
-  if(!API_KEY) throw new Error('No API key configured.');
-  mimeType=mimeType||'image/jpeg';
-  var messages=[{role:'user',content:[{type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64Image}},{type:'text',text:prompt}]}];
-  var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false); }));
-  return parseJsonText(text);
+  throw lastErr;
 }
 
-/* ══════════════════════════════════════
-   SCHEME API — pinned to gemini-2.5-flash
-   temperature 0.05 for maximum consistency
-══════════════════════════════════════ */
-async function callGeminiScheme(prompt){
-  if(!API_KEY) throw new Error('No API key.');
-  var messages=[
-    {role:'system',content:'You are a Nigerian curriculum specialist with authoritative knowledge of the NERDC 2026 Basic and Secondary Education syllabuses. You produce only verified, real curriculum data as valid JSON. Never invent topics. Never include administrative or non-teaching weeks.'},
-    {role:'user',content:prompt}
-  ];
-  var body={model:MODELS.scheme,messages:messages,max_tokens:4096,temperature:0.05,response_format:{type:'json_object'}};
-  var r=await fetch(OR_BASE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-    body:JSON.stringify(body)
+
+/* UUID generator for submission IDs */
+function genId(){
+  if(typeof crypto!=='undefined'&&crypto.randomUUID)return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);
   });
-  if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e; }
-  var data=await r.json();
-  var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
-  return parseJsonText(text);
 }
 
-/* ══════════════════════════════════════
-   LAB NL COMMAND — Claude Sonnet via OpenRouter
-══════════════════════════════════════ */
-async function callLabNL(command){
-  if(!API_KEY) throw new Error('No API key.');
-  var prompt='You are a layout formatting assistant for a Nigerian school exam paper system.\n'
-    +'Parse this admin command and return a JSON object with ONLY the fields the command explicitly mentions.\n\n'
-    +'COMMAND: "'+command+'"\n\n'
-    +'POSSIBLE OUTPUT FIELDS:\n'
-    +'  "printMode": "auto" or "portrait" or "landscape" or "split" or "multi"\n'
-    +'  "columns": 1 or 2\n'
-    +'  "orientation": "portrait" or "landscape"\n'
-    +'  "fontFamily": "Times New Roman" or "Arial" or "Georgia" or "Helvetica" or "Verdana"\n'
-    +'  "fontSize": one of "9pt","10pt","11pt","12pt","13pt","14pt"\n'
-    +'  "margins": one of "15mm","18mm","20mm","22mm","25mm"\n'
-    +'  "spacing": "compact" or "standard" or "wide"\n'
-    +'  "isDrawingCommand": true or false\n'
-    +'  "drawingDescription": string describing what to draw (only if isDrawingCommand is true)\n'
-    +'  "targetQuestionIndex": 0-based integer ("Question 1"=0, "Question 3"=2)\n\n'
-    +'RULES:\n'
-    +'- Only include fields the command directly mentions.\n'
-    +'- Words like "economy", "2-in-1", "duplex", "half page", "cut", "split" → printMode:"split"\n'
-    +'- Words like "normal", "standard", "portrait", "full page" → printMode:"portrait"\n'
-    +'- Words like "landscape", "horizontal", "wide page" → printMode:"landscape"\n'
-    +'- Words like "multi", "multiple subjects", "combined", "stack", "compact subjects" → printMode:"multi"\n'
-    +'- Words like "auto", "automatic", "best fit", "smart" → printMode:"auto"\n'
-    +'- If command mentions draw/diagram/figure/illustrate/sketch/SVG → isDrawingCommand:true\n'
-    +'- JSON object ONLY. No explanation. No markdown.';
-  var messages=[
-    {role:'system',content:'You are a JSON-only formatting assistant. Always respond with a valid JSON object and nothing else.'},
-    {role:'user',content:prompt}
-  ];
-  var result=await(_apiQueue=_apiQueue.then(function(){
-    return _fetchOR(messages,MODELS.fallback,true);
-  }));
-  return parseJsonText(result);
-}
-
-/* ══════════════════════════════════════
-   DRAWING API — SVG generation via Gemini
-══════════════════════════════════════ */
-async function callGeminiDraw(description, targetDims){
-  if(!API_KEY) throw new Error('No API key.');
-  // Default to medium size; caller can specify dimensions based on host layout
-  var td = targetDims || {width:420, height:300, context:'standard A4 portrait'};
-  var w = td.width, h = td.height, ctx = td.context || 'standard A4 portrait';
-  var prompt='Generate a clean, labeled SVG diagram for a Nigerian secondary school exam paper.\n'
-    +'Description: "'+description+'"\n'
-    +'Target layout context: '+ctx+'\n\n'
-    +'STRICT REQUIREMENTS:\n'
-    +'1. Return ONLY the SVG element — no preamble, no explanation, no markdown.\n'
-    +'2. SVG MUST use these EXACT dimensions: width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg"\n'
-    +'3. Use black/dark lines (#000 or #333) on white/transparent background only.\n'
-    +'4. All labels must use font-size between 9 and 12 and be clearly readable.\n'
-    +'5. Diagram must be scientifically/educationally accurate.\n'
-    +'6. Clean and simple — suitable for black-and-white A4 printing.\n'
-    +'7. IMPORTANT: fill the given '+w+'x'+h+' canvas EFFICIENTLY — do not leave excess whitespace padding, but do not overflow either. All content (shapes + labels) must be visible inside the viewBox.\n'
-    +'8. If the diagram is inherently small (e.g., a simple triangle), scale it UP to use at least 70% of the canvas width/height.\n'
-    +'9. Include a brief title element inside the SVG.\n'
-    +'SVG CODE ONLY. Start with <svg and end with </svg>.';
-  var messages=[
-    {role:'system',content:'You are a scientific diagram generator for educational exam papers. Produce accurate, clean, labeled SVG diagrams sized EXACTLY to the specified dimensions. Return SVG code only — no prose, no markdown fences.'},
-    {role:'user',content:prompt}
-  ];
-  var body={model:MODELS.drawing,messages:messages,max_tokens:3500,temperature:0.15};
-  var r=await fetch(OR_BASE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-    body:JSON.stringify(body)
-  });
-  if(!r.ok){ var info=await extractApiError(r); throw new Error(info.msg); }
-  var data=await r.json();
-  var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
-  // Strip markdown fences if present
-  text=text.replace(/^```[a-z]*\s*/i,'').replace(/```\s*$/,'').trim();
-  var svgMatch=text.match(/<svg[\s\S]*?<\/svg>/i);
-  if(!svgMatch) throw new Error('No valid SVG returned by AI. Try rephrasing the description.');
-  return svgMatch[0];
-}
-
-/* Compute target diagram dimensions based on current layout mode.
-   Used by the AI Layout Agent to request appropriately-sized diagrams. */
-function getDiagramTargetDims(mode){
-  var m=mode||'portrait';
-  if(m==='split'){
-    // Each quadrant is ~138mm × 180mm; diagram should fit in ~50% of that
-    return {width:260, height:180, context:'Split 2-in-1 quadrant (tight space, ~138mm wide column)'};
+/* Sync status bar */
+function showSync(state,msg){
+  console.log(`[SYNC] ${state.toUpperCase()}: ${msg}`);
+  let bar=document.getElementById('syncBar');
+  if(!bar){
+    bar=document.createElement('div');
+    bar.id='syncBar';
+    bar.className='sync-bar';
+    bar.innerHTML='<div class="sync-dot" id="syncDot"></div><span id="syncMsg"></span>';
+    document.body.appendChild(bar);
   }
-  if(m==='multi'){
-    return {width:300, height:200, context:'Multi-Subject block (shared page with other subjects)'};
+  bar.classList.add('visible');
+  const dot = document.getElementById('syncDot');
+  dot.className='sync-dot '+state;
+  document.getElementById('syncMsg').textContent=msg;
+  
+  if(state==='ok'||state==='live') {
+    if(state==='ok') setTimeout(()=>bar.classList.remove('visible'),2500);
   }
-  if(m==='landscape'){
-    return {width:380, height:260, context:'Full Landscape A4 (2-column flow, generous space)'};
-  }
-  // portrait default
-  return {width:420, height:300, context:'Portrait A4 (standard generous space)'};
 }
 
-/* Advisory check before diagram injection. Returns {canFit, advice, severity} —
-   never blocks; merely informs admin. */
-function advisDiagramFit(paper, mode){
-  var height=estimatePaperHeight(paper);
-  var advisory={canFit:true, advice:'', severity:'ok'};
-  if(mode==='split'){
-    // Split already tight; adding a diagram may overflow a quadrant
-    var parts=divideIntoParts(paper);
-    var hA=estimateQuestionsHeight(parts.partA)+80; // assume diagram adds 80pt
-    var hB=estimateQuestionsHeight(parts.partB)+80;
-    if(hA>265 || hB>265){
-      advisory.canFit=false;
-      advisory.severity='warn';
-      advisory.advice='Diagram may crowd the Split 2-in-1 quadrant. Consider switching this paper to Full Landscape for better diagram readability. Proceeding anyway.';
-    }
-  }
-  return advisory;
-}
+/* ═══════════════════════════════════════════════════════════
+   SUPABASE REALTIME LAYER
+   Keeps all devices in sync without refreshes
+═══════════════════════════════════════════════════════════ */
+let _subChannel = null;
+let currentFormCategory = null;
+let currentAdminCat = 'all';
+let currentEditorCat = 'all';
 
-/* ══════════════════════════════════════
-   SCREEN 1 — THE CONTRACT
-══════════════════════════════════════ */
-function s1Auto(){
-  S.scr=1; hdr();
-  $('s1').style.display='block';
-  $('s2').style.display='none';
-  $('s3').style.display='none';
-  window.scrollTo({top:0,behavior:'smooth'});
 
-  var c=S.cfg;
-  var apiWarn=!API_KEY?'<div class="banner b-warn">⚠️ <div>No OpenRouter API key. <a onclick="navTo(\'sett\')">Add your key in Settings</a> to enable AI generation.</div></div>':'';
+function initRealtime() {
+  const sb = getSupa();
+  if (!sb || _subChannel) return;
 
-  $('s1').innerHTML='<div class="pg fade">'
-    +'<div class="ptl">The Contract</div>'
-    +'<div class="pst">Define the examination — AI generates every question to NERDC 2026 standards.</div>'
-    +apiWarn
-
-    // Assessment Type
-    +'<div class="card"><div class="ct">Assessment Type</div>'
-    +'<div class="atog">'
-    +'<button class="ab '+(S.at==='Examination'?'on':'')+'" id="aex">📋 Examination</button>'
-    +'<button class="ab '+(S.at==='C.A.'||S.at==='C.A. Test 1'||S.at==='C.A. Test 2'?'on':'')+'" id="aca">📝 C.A.</button>'
-    +'</div>'
-    // C.A. sub-options
-    +'<div id="caSubOpts" style="display:'+(S.at==='C.A.'||S.at==='C.A. Test 1'||S.at==='C.A. Test 2'?'flex':'none')+';gap:8px;margin-top:10px;flex-wrap:wrap;">'
-    +'<button class="ab bsm '+(S.at==='C.A. Test 1'?'on':'')+'" id="acat1" style="font-size:11.5px;">📝 Test 1 <span style="font-size:10px;font-weight:400;">(First 3 topics)</span></button>'
-    +'<button class="ab bsm '+(S.at==='C.A. Test 2'?'on':'')+'" id="acat2" style="font-size:11.5px;">📝 Test 2 <span style="font-size:10px;font-weight:400;">(First 6 topics)</span></button>'
-    +'</div>'
-    +'<div style="margin-top:9px;font-size:12px;color:var(--mute);" id="atDesc">'
-    +(S.at==='Examination'?'<b style="color:var(--blue)">EXAM</b> — Full terminal paper covering all term topics.'
-     :S.at==='C.A. Test 1'?'<b style="color:var(--amber)">TEST 1</b> — Weeks 1–3 only. Questions drawn from the first 3 scheme topics.'
-     :S.at==='C.A. Test 2'?'<b style="color:var(--amber)">TEST 2</b> — Weeks 1–6. Questions cover the first 6 scheme topics.'
-     :'<b style="color:var(--amber)">C.A.</b> — Select Test 1 or Test 2 above.')
-    +'</div></div>'
-
-    // Step 1
-    +'<div class="card"><div class="ct">Step 1 — Term &amp; Class</div>'
-    +'<div class="r2">'
-    +'<div class="fl"><label>NERDC Term</label><select class="fs" id="fterm">'
-    +TERMS.map(function(x){ return '<option'+(x===c.term?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'<div class="fl"><label>Target Class</label><select class="fs" id="fcl"><option value="">Choose class…</option>'
-    +CL.map(function(x){ return '<option'+(x===c.cls?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'</div>'
-    +'<div class="fetch-note" id="subjFetchNote">'+(c.cls?'<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded</span>':'Select Term and Class to load subjects.')+'</div>'
-    +'</div>'
-
-    // Step 2 — Subject
-    +'<div class="card flow-step'+(c.cls?' unlocked':'')+'" id="subjCard">'
-    +'<div class="ct">Step 2 — Subject</div>'
-    +'<div class="subj-grid" id="subjGrid">'+renderSubjectPills()+'</div>'
-    +'<div id="tradePanelWrap"></div>'
-    +'</div>'
-
-    // Step 3 — Scheme
-    +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="schemeCard">'
-    +'<div class="ct">Step 3 — Scheme of Work</div>'
-    +'<div id="schemeArea">'+(S.schemeLoaded?renderSchemePanel():renderSchemePrompt())+'</div>'
-    +'<div style="margin-top:14px;">'
-    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:7px;">Topic Tags <span style="font-weight:400;text-transform:none;letter-spacing:0;">(✕ to remove any you didn\'t cover)</span></label>'
-    +'<div class="tag-cloud" id="tagCloud">'+renderTagCloud()+'</div>'
-    +'</div>'
-    +'<div style="margin-top:11px;">'
-    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:5px;">Or type topics manually</label>'
-    +'<textarea class="fta" id="ftp" style="min-height:58px;" placeholder="e.g. Quadratic Equations, Trigonometry (comma-separated)">'+esc(c.topicText||'')+'</textarea>'
-    +'</div></div>'
-
-    // Exam Standard
-    +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="stdCard">'
-    +'<div class="ct">Exam Standard / DNA</div>'
-    +'<div class="fl"><select class="fs" id="fst">'
-    +STANDARDS.map(function(x){ return '<option'+(x===c.std?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:5px;">Sets tone, format, and difficulty Gemini will follow.</div>'
-    +'</div>'
-    +(c.std==='Custom/Internal'?renderDifficultyToggle():'')
-    +'</div>'
-
-    // Question Allocation
-    +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="qCard">'
-    +'<div class="ct">Question Allocation</div>'
-    +'<div class="r3">'
-    +'<div class="fl"><label>Objective (A–D)</label>'
-    +'<input type="number" class="num-input" id="objN" min="0" max="60" value="'+c.objN+'"/>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">0–60</div></div>'
-    +'<div class="fl"><label>Fill-in-Blank <span style="color:var(--purple);font-size:9px;">(Optional)</span></label>'
-    +'<input type="number" class="num-input fitb-input" id="fitbN" min="0" max="20" value="'+c.fitbN+'"/>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">0–20</div></div>'
-    +'<div class="fl"><label>Theory / Essay</label>'
-    +'<input type="number" class="num-input" id="thN" min="0" max="20" value="'+c.thN+'"/>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">0–20</div></div>'
-    +'</div>'
-    +'<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">📝 Fill-in-the-Blank: short-answer questions with a dash line — no options. Marked by teacher.</div>'
-    +(S.at==='C.A.'?'<div class="banner b-amber" style="margin-bottom:0;margin-top:10px;">💡 C.A. Tip: Max 20 objectives + 3 theory.</div>':'')
-    +'</div>'
-
-    // Theory Instructions
-    +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="thCard">'
-    +'<div class="ct">Theory Section Instructions</div>'
-    +'<div class="fl"><label>📄 Instructions printed on paper</label>'
-    +'<textarea class="fta" id="ftheoryPaper" style="min-height:64px;" placeholder="e.g. Answer any 3 questions. Section A: Short answer (5 marks each).">'+esc(c.theoryPaperInstr||'')+'</textarea>'
-    +'</div>'
-    +'<div class="fl" style="margin-top:10px;"><label>🤖 How do you want your questions to be set? <span style="font-weight:400;text-transform:none;letter-spacing:0;">(sent to Gemini as a system instruction — not printed)</span></label>'
-    +'<textarea class="fta" id="ftheoryAi" style="min-height:78px;" placeholder="e.g. Set 3 questions, make the second a diagram-based question. Focus on real-world application, not memorisation.">'+esc(c.theoryAiInstr||'')+'</textarea>'
-    +'<div class="banner b-teal" style="margin-top:8px;margin-bottom:0;font-size:11.5px;">🎯 <strong>These instructions are mandatory</strong> — Gemini will follow them exactly when generating theory questions.</div>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Private — only sent to Gemini. Not printed on paper.</div>'
-    +'</div></div>'
-
-    // Paper Header
-    +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="metaCard">'
-    +'<div class="ct">Paper Header Info</div>'
-    +'<div class="r2">'
-    +'<div class="fl"><label>School Name</label><input type="text" class="fi" id="fsc" value="'+esc(c.school)+'" placeholder="e.g. Government Secondary School, Ikeja"/></div>'
-    +'<div class="fl"><label>Instructions to Candidates</label><input type="text" class="fi" id="fin" value="'+esc(c.instr)+'"/></div>'
-    +'</div></div>'
-
-    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
-    +'<button class="btn bq" onclick="navTo(\'new\')">← Change Path</button>'
-    +'<button class="btn bp" id="s1n" disabled>Generate Workshop →</button>'
-    +'</div></div>';
-
-  // Events
-  // ── Assessment Type wiring (inline — no full re-render) ──
-  function _setAt(val){
-    S.at=val;
-    // Update toggle buttons
-    [$('aex'),$('aca')].forEach(function(b){ if(b) b.classList.remove('on'); });
-    if(val==='Examination'){ if($('aex')) $('aex').classList.add('on'); }
-    else { if($('aca')) $('aca').classList.add('on'); }
-    // Show/hide sub-options
-    var sub=$('caSubOpts');
-    if(sub) sub.style.display=(val==='Examination'?'none':'flex');
-    // Update sub-option highlights
-    [$('acat1'),$('acat2')].forEach(function(b){ if(b) b.classList.remove('on'); });
-    if(val==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
-    if(val==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
-    // Update description text
-    var atd=$('atDesc');
-    if(atd){
-      if(val==='Examination') atd.innerHTML='<b style="color:var(--blue)">EXAM</b> — Full terminal paper covering all term topics.';
-      else if(val==='C.A. Test 1') atd.innerHTML='<b style="color:var(--amber)">TEST 1</b> — Weeks 1–3 only. Questions drawn from the first 3 scheme topics.';
-      else if(val==='C.A. Test 2') atd.innerHTML='<b style="color:var(--amber)">TEST 2</b> — Weeks 1–6. Questions cover the first 6 scheme topics.';
-      else atd.innerHTML='<b style="color:var(--amber)">C.A.</b> — Select Test 1 or Test 2 above.';
-    }
-    // Apply topic limits for CA tests
-    if(val==='C.A. Test 1'&&S.schemeWeeks.length){
-      S.cfg.topics=S.schemeWeeks.slice(0,3).map(function(w){ return w.topic; });
-      var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
-    } else if(val==='C.A. Test 2'&&S.schemeWeeks.length){
-      S.cfg.topics=S.schemeWeeks.slice(0,6).map(function(w){ return w.topic; });
-      var tc2=$('tagCloud'); if(tc2) tc2.innerHTML=renderTagCloud();
-    } else if(val==='Examination'&&S.schemeWeeks.length){
-      S.cfg.topics=S.schemeWeeks.map(function(w){ return w.topic; });
-      var tc3=$('tagCloud'); if(tc3) tc3.innerHTML=renderTagCloud();
-    }
-    // C.A. tip banner
-    var qCard=$('qCard');
-    if(qCard){
-      var oldTip=qCard.querySelector('.ca-tip'); if(oldTip) oldTip.remove();
-      if(val!=='Examination'){
-        var tip=document.createElement('div');
-        tip.className='banner b-amber ca-tip';
-        tip.style.marginTop='10px';
-        tip.innerHTML='💡 C.A. Tip: Typically max 20 objectives + 3 theory for '+val+'. Adjust counts above.';
-        qCard.appendChild(tip);
-      }
-    }
-    checkS1Ready();
-  }
-  $('aex').onclick=function(){ _setAt('Examination'); };
-  $('aca').onclick=function(){ _setAt(S.at==='Examination'?'C.A.':S.at); };
-  if($('acat1')) $('acat1').onclick=function(){ _setAt('C.A. Test 1'); };
-  if($('acat2')) $('acat2').onclick=function(){ _setAt('C.A. Test 2'); };
-  // Restore sub-option state on re-render
-  if(S.at!=='Examination'){ var sub2=$('caSubOpts'); if(sub2) sub2.style.display='flex'; }
-  if(S.at==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
-  if(S.at==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
-  $('fterm').onchange=function(e){ S.cfg.term=e.target.value; onClassTermChange(); };
-  $('fcl').onchange=function(e){ S.cfg.cls=e.target.value; onClassTermChange(); };
-  $('fst').onchange=function(e){
-    S.cfg.std=e.target.value;
-    var sc=$('stdCard');
-    if(sc){
-      var ex=sc.querySelector('.diff-wrap'); if(ex) ex.remove();
-      if(S.cfg.std==='Custom/Internal'){ var dw=document.createElement('div'); dw.className='diff-wrap'; dw.innerHTML=renderDifficultyToggle(); sc.appendChild(dw); }
-    }
-  };
-  $('fsc').oninput=function(e){ S.cfg.school=e.target.value; };
-  $('fin').oninput=function(e){ S.cfg.instr=e.target.value; };
-  $('ftp').oninput=function(e){ S.cfg.topicText=e.target.value; checkS1Ready(); };
-  $('ftheoryPaper').oninput=function(e){ S.cfg.theoryPaperInstr=e.target.value; };
-  $('ftheoryAi').oninput=function(e){ S.cfg.theoryAiInstr=e.target.value; };
-  $('s1n').onclick=function(){
-    var on=parseInt($('objN').value)||0;
-    var fn=parseInt($('fitbN').value)||0;
-    var tn=parseInt($('thN').value)||0;
-    if(on+fn+tn===0){ toast('Set at least 1 question','warn'); return; }
-    S.cfg.objN=Math.max(0,on); S.cfg.fitbN=Math.max(0,fn); S.cfg.thN=Math.max(0,tn);
-    var tp=$('ftp'); if(tp&&tp.value.trim()){
-      tp.value.split(',').map(function(t){ return t.trim(); }).filter(Boolean)
-        .forEach(function(t){ if(!S.cfg.topics.includes(t)) S.cfg.topics.push(t); });
-    }
-    S.slots=[]; goWorkshop();
-  };
-
-  if(c.cls&&c.term) onClassTermChange();
-}
-
-/* ── Subject pills ── */
-function renderSubjectPills(){
-  if(!S.cfg.cls) return '<span class="tag-empty">Select a class above to see subjects.</span>';
-  var list=S.subjects.length?S.subjects:getSubjectList(S.cfg.cls);
-  var trade=getTradeById(S.tradeSubject);
-  return list.map(function(s){
-    var isTrade=(s==='Trade Subject');
-    var displayName=isTrade?('🌱 '+trade.name):s;
-    return '<div class="spill'+(isTrade?' trade-pill':'')+(s===S.cfg.subj?' sel':'')+'" onclick="selectSubject(\''+s.replace(/'/g,"\\'")+'\')">'
-      +esc(displayName)+'</div>';
-  }).join('');
-}
-
-window.selectSubject=function(s){
-  S.cfg.subj=s;
-  S.schemeWeeks=[]; S.schemeLoaded=false; S.cfg.topics=[];
-  var sg=$('subjGrid'); if(sg) sg.innerHTML=renderSubjectPills();
-  ['schemeCard','stdCard','qCard','thCard','metaCard'].forEach(function(id){
-    var el=$(id); if(el) el.classList.add('unlocked');
-  });
-
-  // Show trade panel if Trade Subject selected
-  var tw=$('tradePanelWrap');
-  if(tw){
-    if(s==='Trade Subject'){ tw.innerHTML=renderTradePanel(); }
-    else{ tw.innerHTML=''; }
-  }
-
-  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
-  checkS1Ready();
-  if(API_KEY) doLoadScheme();
-  else{ var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt(); }
-};
-
-function renderTradePanel(){
-  var cur=S.tradeSubject;
-  return '<div class="trade-panel" style="margin-top:12px;">'
-    +'<div class="trade-panel-title">Select your trade subject for this paper:</div>'
-    +TRADE_SUBJECTS.map(function(t){
-      return '<div class="trade-opt'+(cur===t.id?' sel':'')+'" onclick="pickTrade(\''+t.id+'\')">'
-        +'<span class="to-ico">'+t.icon+'</span>'
-        +'<div><div class="to-name">'+esc(t.name)+'</div><div class="to-desc">'+esc(t.desc)+'</div></div>'
-        +'</div>';
-    }).join('')
-    +'</div>';
-}
-
-window.pickTrade=function(id){
-  S.tradeSubject=id;
-  var tw=$('tradePanelWrap'); if(tw) tw.innerHTML=renderTradePanel();
-  // Reload scheme for new trade
-  if(API_KEY&&S.cfg.subj==='Trade Subject') doLoadScheme();
-};
-
-/* ── Difficulty toggle ── */
-function renderDifficultyToggle(){
-  var d=S.difficultyLevel||'Balanced';
-  return '<div class="diff-wrap" style="margin-top:6px;">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:6px;">Difficulty Level</div>'
-    +'<div class="diff-toggle">'
-    +'<button class="diff-btn lenient'+(d==='Lenient'?' on':'')+'" onclick="setDiff(\'Lenient\')">😊 Lenient</button>'
-    +'<button class="diff-btn balanced'+(d==='Balanced'?' on':'')+'" onclick="setDiff(\'Balanced\')">⚖ Balanced</button>'
-    +'<button class="diff-btn rigorous'+(d==='Rigorous'?' on':'')+'" onclick="setDiff(\'Rigorous\')">🔥 Rigorous</button>'
-    +'</div></div>';
-}
-window.setDiff=function(level){
-  S.difficultyLevel=level;
-  document.querySelectorAll('.diff-btn').forEach(function(b){
-    b.classList.remove('on');
-    if(b.textContent.includes(level)) b.classList.add('on');
-  });
-};
-
-/* ── Scheme ── */
-function renderSchemePrompt(){
-  if(!S.cfg.subj) return '<div class="fetch-note">Select a subject above to load the scheme.</div>';
-  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-    +'<button class="btn bq bsm" onclick="doLoadScheme()">📋 Load Scheme of Work</button>'
-    +'<span style="font-size:12px;color:var(--mute);">Fetches verified NERDC 2026 weekly plan</span>'
-    +'</div>';
-}
-function renderSchemePanel(){
-  if(!S.schemeWeeks.length) return renderSchemePrompt();
-  var committed=S.schemeCommitted;
-  return '<div class="scheme-panel">'
-    +'<div class="scheme-head" style="flex-wrap:wrap;gap:8px;align-items:center;">'
-    +'<span class="scheme-head-txt">📋 '+esc(S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj)+' — '+esc(S.cfg.term)+'</span>'
-    +(committed
-      ?'<span class="scheme-locked-shield">🔒 Scheme Locked</span>'
-        +'<button class="scheme-change-btn" onclick="confirmChangeScheme()" title="Replace committed scheme — requires confirmation">⚠ Change Scheme</button>'
-      :'<span style="font-size:11px;color:var(--amber);font-weight:700;">⚠ Not yet committed — accept below to lock</span>'
-    )
-    +'</div>'
-    +'<div class="scheme-body">'
-    +S.schemeWeeks.map(function(w){
-      return '<div class="scheme-wk"><span class="scheme-wk-num">'+esc(w.week)+'</span>'
-        +'<div><div>'+esc(w.topic)+'</div>'
-        +(w.subtopics?'<div class="scheme-sub">'+esc(w.subtopics)+'</div>':'')
-        +'</div></div>';
-    }).join('')
-    +'</div>'
-    +'<div class="scheme-foot">'
-    +(committed
-      ?'<button class="btn bg bsm" disabled style="opacity:.6;cursor:default;">🔒 Scheme Committed</button>'
-      :'<button class="btn bg bsm" onclick="acceptScheme()">✓ Accept &amp; Commit Scheme</button>'
-    )
-    +'<button class="btn bq bsm" onclick="editManually()">✏ Edit Manually</button>'
-    +'</div></div>';
-}
-window.removeTag=function(i){ S.cfg.topics.splice(i,1); var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud(); };
-window.acceptScheme=async function(){
-  S.cfg.topics=S.schemeWeeks.map(function(w){ return w.topic; });
-  var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
-  await commitScheme(S.cfg.cls,actualSubj,S.cfg.term,S.schemeWeeks);
-  S.schemeCommitted=true;
-  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePanel();
-  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
-  toast('🔒 Scheme committed — '+S.schemeWeeks.length+' weeks locked to memory','ok',4500);
-  checkS1Ready();
-};
-window.editManually=function(){ var ta=$('ftp'); if(ta){ ta.focus(); ta.scrollIntoView({behavior:'smooth',block:'center'}); } };
-
-function renderTagCloud(){
-  if(!S.cfg.topics||!S.cfg.topics.length) return '<span class="tag-empty">No topics yet. Accept the scheme above or type manually.</span>';
-  return S.cfg.topics.map(function(t,i){
-    return '<div class="ttag">'+esc(t)+'<button class="ttag-x" onclick="removeTag('+i+')">×</button></div>';
-  }).join('');
-}
-
-function checkS1Ready(){
-  var btn=$('s1n'); if(!btn) return;
-  var tp=$('ftp');
-  var hasContent=S.schemeLoaded||(S.cfg.topics&&S.cfg.topics.length>0)||(tp&&tp.value.trim().length>0);
-  var ok=!!(S.cfg.cls&&S.cfg.subj&&hasContent);
-  btn.disabled=!ok;
-}
-
-function onClassTermChange(){
-  S.cfg.subj=''; S.subjects=[]; S.schemeWeeks=[];
-  S.schemeLoaded=false; S.schemeCommitted=false; S.cfg.topics=[];
-  if(S.cfg.cls){
-    S.subjects=getSubjectList(S.cfg.cls).slice();
-    var sc=$('subjCard'); if(sc) sc.classList.add('unlocked');
-  } else {
-    S.subjects=[];
-    var sc2=$('subjCard'); if(sc2) sc2.classList.remove('unlocked');
-  }
-  var sg=$('subjGrid'); if(sg) sg.innerHTML=renderSubjectPills();
-  var note=$('subjFetchNote');
-  if(note) note.innerHTML=S.cfg.cls?'<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded ('+S.subjects.length+')</span>':'Select Term and Class to load subjects.';
-  ['schemeCard','stdCard','qCard','thCard','metaCard'].forEach(function(id){ var el=$(id); if(el) el.classList.remove('unlocked'); });
-  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
-  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
-  checkS1Ready();
-}
-
-window.confirmChangeScheme=async function(){
-  var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
-  var msg='⚠ WARNING: This will permanently replace your committed scheme for:\n\n'
-    +S.cfg.cls+' — '+actualSubj+' — '+S.cfg.term+'\n\n'
-    +'A new scheme will be fetched from AI. This action cannot be undone.\n\n'
-    +'Are you sure you want to replace the committed scheme?';
-  if(!confirm(msg)) return;
-  await clearCommittedScheme(S.cfg.cls,actualSubj,S.cfg.term);
-  S.schemeCommitted=false; S.schemeWeeks=[]; S.schemeLoaded=false; S.cfg.topics=[];
-  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
-  toast('Fetching new scheme from AI…','info',2000);
-  doLoadScheme();
-};
-
-window.doForceRefreshScheme=window.confirmChangeScheme; // legacy alias
-
-window.doLoadScheme=async function(){
-  if(!S.cfg.subj){ toast('Select a subject first','warn'); return; }
-
-  var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
-  var cls=S.cfg.cls; var term=S.cfg.term;
-
-  // Check for committed scheme first — serve immediately, no API call
-  var committed=await loadCommittedScheme(cls,actualSubj,term);
-  if(committed&&committed.length){
-    S.schemeWeeks=committed; S.schemeLoaded=true; S.schemeCommitted=true;
-    S.cfg.topics=committed.map(function(w){ return w.topic; });
-    var sa0=$('schemeArea'); if(sa0) sa0.innerHTML=renderSchemePanel();
-    var tc0=$('tagCloud'); if(tc0) tc0.innerHTML=renderTagCloud();
-    toast('🔒 Committed scheme restored ('+committed.length+' weeks)','ok',4000);
-    checkS1Ready();
-    return;
-  }
-
-  var sa=$('schemeArea');
-  if(sa) sa.innerHTML='<div class="banner b-info"><span class="spin">⟳</span> Fetching NERDC 2026 Scheme of Work via Gemini 2.5 Flash…</div>';
-
-  // Determine level context for the prompt
-  var levelCtx='';
-  var cLow=cls.toLowerCase();
-  if(cLow.includes('ss')){ levelCtx='Senior Secondary (SS) level. Topics must align with the WAEC/NECO/NERDC 2026 approved SS syllabus for this subject.'; }
-  else if(cLow.includes('jss')){ levelCtx='Junior Secondary (JSS) level. Topics must align with the NERDC 2026 integrated Basic Education curriculum for JSS.'; }
-  else if(cLow.includes('primary')){ levelCtx='Primary level. Topics must align with the NERDC 2026 revised Primary Education curriculum and continuous assessment framework.'; }
-  else { levelCtx='Early Childhood / Pre-Primary level. Topics must align with the NERDC early years learning framework.'; }
-
-  var termCtx=term==='1st Term'?'1st Term (foundational/introductory topics — definitions, basic concepts, introductory skills)':
-    term==='2nd Term'?'2nd Term (intermediate topics — building on Term 1 concepts, more complex skills)':
-    '3rd Term (advanced/application topics — synthesis, application, problem-solving, revision of core concepts)';
-
-  var isVocational=(actualSubj.toLowerCase().includes('farming')||actualSubj.toLowerCase().includes('solar')||
-    actualSubj.toLowerCase().includes('fashion')||actualSubj.toLowerCase().includes('beauty')||
-    actualSubj.toLowerCase().includes('trade'));
-
-  var prompt='You are a certified Nigerian curriculum specialist.\n'
-    +'Your knowledge base includes the official NERDC 2026 National Curriculum documents, WAEC Chief Examiner Reports, NECO approved syllabuses, SUBEB frameworks, and peer-reviewed Nigerian secondary education journals.\n\n'
-    +'TASK: Produce the NERDC 2026 Scheme of Work for the EXACT subject, class, and term specified. This scheme must match what is in the official government-approved curriculum document — NOT a generic or improvised version.\n\n'
-    +'═══════════════════════════════════\n'
-    +'SUBJECT : '+actualSubj+'\n'
-    +'CLASS   : '+cls+' — '+levelCtx+'\n'
-    +'TERM    : '+termCtx+'\n'
-    +'═══════════════════════════════════\n\n'
-    +'AUTHORITATIVE SOURCES TO DRAW FROM (in priority order):\n'
-    +'1. NERDC 2026 National Curriculum Framework — the primary reference for ALL Nigerian public school subjects\n'
-    +(cLow.includes('ss')?'2. WAEC Unified Syllabus (current edition) — mandatory for SS subjects\n3. NECO approved examination topics list\n':'')
-    +(cLow.includes('jss')?'2. NERDC Basic Education Curriculum (BEC) 2026 revision — JSS 1–3 integrated curriculum\n':'')
-    +(cLow.includes('primary')?'2. NERDC Revised Primary Education Curriculum 2026 — continuous assessment framework\n':'')
-    +(isVocational?'2. NABTEB/NERDC Trade and Vocational Curriculum — '+actualSubj+' strand\n':'')
-    +'LAST RESORT: Cross-referenced Nigerian teaching resources from SUBEB and state curriculum offices\n\n'
-    +'NON-NEGOTIABLE RULES:\n'
-    +'1. Use ONLY real, verifiable NERDC 2026 syllabus topics. If uncertain about a topic title, use the closest verified equivalent — never invent.\n'
-    +'2. NEVER include non-teaching/administrative weeks: Revision, Examination, Break, Resumption, Orientation, Holiday, Mock, Test Week, Closing.\n'
-    +'3. Topics must be SPECIFIC and TESTABLE — wrong: "Introduction". Correct: "Cell Theory and Cell Structure".\n'
-    +'4. Follow the NERDC progressive sequence: foundational concepts first, complexity increasing each week.\n'
-    +'5. Topics must be TERM-APPROPRIATE — match what a teacher would teach in '+term+' at '+cls+' level.\n'
-    +'6. Every week must have a UNIQUE topic. Absolutely no repetition, no padding, no filler.\n'
-    +'7. Subtopics must be 1–3 specific instructional content points that a teacher would actually teach in that lesson.\n'
-    +'8. Generate EXACTLY '+( cLow.includes('primary')||cLow.includes('kg')||cLow.includes('nursery')||cLow.includes('creche') ? '10' : '13' )+' teaching weeks. Count them. Every week must be present.\n\n'
-    +'EXAMPLES OF CORRECT SPECIFICITY:\n'
-    +'✓ "Photosynthesis: Light and Dark Reactions" — specific, testable\n'
-    +'✓ "Quadratic Equations: Solution by Factorisation and Formula" — specific, testable\n'
-    +'✓ "Civic Rights and Responsibilities of Nigerian Citizens" — specific, testable\n'
-    +'✗ "Introduction to the topic" — vague, unacceptable\n'
-    +'✗ "Continuation" — meaningless, unacceptable\n\n'
-    +'OUTPUT FORMAT — Return ONLY a valid JSON array, no preamble, no markdown, no code fences:\n'
-    +'[\n'
-    +'  {"week":"Week 1","topic":"Exact verified NERDC topic title","subtopics":"Specific instructional content point 1; Specific content point 2"},\n'
-    +'  {"week":"Week 2","topic":"Next verified topic","subtopics":"Content point 1; Content point 2"}\n'
-    +']\n'
-    +'JSON ARRAY ONLY. Start with [ and end with ]. Nothing else.';
-
-  callGeminiScheme(prompt)
-    .then(function(weeks){
-      S.schemeWeeks=Array.isArray(weeks)?weeks:[];
-      // Validate: strip any week that looks like an admin week
-      var banned=/\b(revision|examination|exam|break|resumption|orientation|closing|holiday|mock|test week)\b/i;
-      S.schemeWeeks=S.schemeWeeks.filter(function(w){
-        return w&&w.topic&&!banned.test(w.topic);
-      });
-      S.schemeLoaded=S.schemeWeeks.length>0;
-      S.schemeCommitted=false;
-      if(sa) sa.innerHTML=renderSchemePanel();
-      checkS1Ready();
-      if(S.schemeLoaded) toast('✓ Scheme loaded — '+S.schemeWeeks.length+' weeks. Click "Accept & Commit" to lock it.','ok',5000);
-      else if(sa) sa.innerHTML='<div class="banner b-warn">⚠ AI returned an empty scheme. <button class="btn bq bsm" onclick="doLoadScheme()">↻ Retry</button></div>';
+  console.log('[DB] Initializing Realtime listeners…');
+  
+  _subChannel = sb.channel('db-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, payload => {
+      console.log('[DB] Realtime Submission:', payload.eventType);
+      handleRealtimeSubmission(payload);
     })
-    .catch(function(e){
-      S.schemeLoaded=false;
-      var retryBtn='<button class="btn bq bsm" style="margin-top:10px;" onclick="doLoadScheme()">↻ Retry</button>';
-      if(e.is429){
-        var secs=Math.max(e.seconds||65,65);
-        if(sa){
-          sa.innerHTML='<div class="banner b-warn" style="flex-direction:column;align-items:flex-start;">'
-            +'<div><strong>⏳ Rate limit</strong> — auto-retrying in <strong id="schemeCountdown">'+secs+'</strong>s…</div>'
-            +'<div style="margin-top:4px;font-size:11.5px;opacity:.8;">Type topics manually below in the meantime.</div>'
-            +'</div>'+renderSchemePrompt();
-          var rem=secs;
-          var cd=setInterval(function(){ rem--; var el=$('schemeCountdown'); if(el) el.textContent=rem; if(rem<=0){ clearInterval(cd); doLoadScheme(); } },1000);
-        }
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, payload => {
+      console.log('[DB] Realtime Setting:', payload.eventType);
+      handleRealtimeSetting(payload);
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        showSync('live', '✦ Connected Live');
+        console.log('[DB] Realtime Subscribed');
       } else {
-        if(sa) sa.innerHTML='<div class="banner b-warn">⚠ Could not load scheme: '+esc(e.message.substring(0,120))
-          +retryBtn+'<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below.</div></div>'+renderSchemePrompt();
+        console.warn('[DB] Realtime Status:', status);
       }
-      checkS1Ready();
     });
-};
-
-/* ══════════════════════════════════════
-   WORKSHOP
-══════════════════════════════════════ */
-function goWorkshop(){
-  S.scr=2; hdr();
-  $('s1').style.display='none';
-  $('s2').style.display='block';
-  $('s3').style.display='none';
-  window.scrollTo({top:0,behavior:'smooth'});
-
-  var c=S.cfg;
-  var objN=Math.max(0,parseInt(c.objN)||0);
-  var fitbN=Math.max(0,parseInt(c.fitbN)||0);
-  var thN=Math.max(0,parseInt(c.thN)||0);
-
-  if(!S.slots.length){
-    S.slots=[];
-    for(var i=0;i<objN;i++)  S.slots.push({id:i,           k:'obj',  q:null,included:true,loading:false,err:null});
-    for(var j=0;j<fitbN;j++) S.slots.push({id:objN+j,      k:'fitb', q:null,included:true,loading:false,err:null});
-    for(var k=0;k<thN;k++)   S.slots.push({id:objN+fitbN+k,k:'theory',q:null,included:true,loading:false,err:null});
-  }
-  renderWorkshop();
-  if(API_KEY&&S.slots.some(function(s){ return !s.q; })) generateAll();
 }
 
-function renderWorkshop(){
-  var c=S.cfg;
-  var objSlots  = S.slots.filter(function(s){ return s.k==='obj'; });
-  var fitbSlots = S.slots.filter(function(s){ return s.k==='fitb'; });
-  var thSlots   = S.slots.filter(function(s){ return s.k==='theory'; });
-  var filled    = S.slots.filter(function(s){ return s.q&&s.included; }).length;
-  var pct       = S.slots.length?Math.round(filled/S.slots.length*100):0;
-
-  // Resolve display subject
-  var dispSubj=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:c.subj;
-
-  var h='<div class="pgw fade">'
-    +'<div class="ptl">The Workshop</div>'
-    +'<div class="pst">'+esc(dispSubj)+' · '+esc(c.cls)+' · '+esc(c.term)+' · '+esc(c.std)+'</div>'
-    +'<div class="meter">'
-    +'<div class="m-row"><span class="m-lbl">Paper Progress</span><span class="m-cnt" id="mCnt">'+filled+' / '+S.slots.length+' questions ready</span></div>'
-    +'<div class="m-trk"><div class="m-fil" id="mFil" style="width:'+pct+'%"></div></div>'
-    +'<div class="m-msg" id="mMsg">'+progressMsg(filled,S.slots.length)+'</div>'
-    +'</div>'
-    +(!API_KEY?'<div class="banner b-warn">⚠️ No API key — <a onclick="navTo(\'sett\')">add your OpenRouter key</a> to generate questions.</div>':'')
-    +'<div style="display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap;">'
-    +(API_KEY?'<button class="btn bp" id="genAllBtn" onclick="generateAll()">⚡ Generate All Questions</button>':'')
-    +'<button class="btn bq" onclick="s1Auto()">← Back to Contract</button>'
-    +'</div>'
-
-    +(objSlots.length?'<div class="ws-sec">'
-      +'<div class="ws-sec-head"><span class="ws-sec-title">Section A — Objectives</span>'
-      +'<span class="ws-sec-count">'+objSlots.filter(function(s){return s.q;}).length+' / '+objSlots.length+' generated</span></div>'
-      +'<div id="objSlots">'+objSlots.map(renderSlot).join('')+'</div>'
-      +'</div>':'')
-
-    +(fitbSlots.length?'<div class="ws-sec">'
-      +'<div class="ws-sec-head"><span class="ws-sec-title fitb-title">Section B — Fill-in-the-Blank</span>'
-      +'<span class="ws-sec-count">'+fitbSlots.filter(function(s){return s.q;}).length+' / '+fitbSlots.length+' generated</span></div>'
-      +'<div id="fitbSlots">'+fitbSlots.map(renderSlot).join('')+'</div>'
-      +'</div>':'')
-
-    +(thSlots.length?'<div class="ws-sec">'
-      +'<div class="ws-sec-head"><span class="ws-sec-title">'+(fitbSlots.length?'Section C':'Section B')+' — Theory</span>'
-      +'<span class="ws-sec-count">'+thSlots.filter(function(s){return s.q;}).length+' / '+thSlots.length+' generated</span></div>'
-      +'<div id="thSlots">'+thSlots.map(renderSlot).join('')+'</div>'
-      +'</div>':'')
-
-    +'<div class="divider"></div>'
-    +'<div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;">'
-    +'<button class="btn bq" onclick="s1Auto()">← Back</button>'
-    +'<button class="btn bp" id="toReview" onclick="goReview()" '+(filled>0?'':'disabled')+'>'
-    +'Review &amp; Print → ('+filled+' questions)</button>'
-    +'</div></div>';
-
-  $('s2').innerHTML=h;
-  setTimeout(function(){ math($('s2')); },400);
-}
-
-function renderSlot(s){
-  var isFitb=(s.k==='fitb');
-  var cls='slot'+(isFitb?' fitb-slot':'')+(s.q?' ok':'')+(s.loading?' loading':'')+(s.err?' err':'');
-  var num=String(s.id+1).padStart(2,'0');
-  var body='';
-  if(s.loading){
-    body='<div class="skel med"></div><div class="skel"></div><div class="skel short"></div>';
-  } else if(s.err){
-    body='<div style="font-size:12.5px;color:var(--red);">⚠ '+esc(s.err)+'</div>'
-      +'<div class="sacts"><button class="rbtn" onclick="reloadSlot('+s.id+')">↻ Retry</button></div>';
-  } else if(s.q){
-    var q=s.q;
-    // Render question text (supports LaTeX via KaTeX)
-    body='<div class="stx">'+q.t+'</div>';
-    // Show diagram image if attached
-    if(q.diagImg){
-      body+='<div class="diagram-box">'
-        +'<img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/>'
-        +'<span class="diagram-label">📐 Diagram from source — click to expand</span>'
-        +'</div>';
-    }
-    if(isFitb&&q.answer){
-      body+='<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>';
-    }
-    if(q.k==='obj'&&q.o){
-      body+='<div class="sopts">'+q.o.map(function(opt,oi){
-        return '<div class="sopt'+(oi===q.a?' correct':'')+'"><span class="sok">'+L[oi]+'.</span><span>'+esc(opt)+'</span></div>';
-      }).join('')+'</div>';
-    }
-    body+='<div class="smeta">'
-      +'<span class="tag '+(isFitb?'t-fitb':q.k==='obj'?'t-obj':'t-th')+'">'+(isFitb?'Fill-in-Blank':q.k==='obj'?'Objective':'Theory')+'</span>'
-      +(q.g?'<span class="tag '+stdTagCls(q.g)+'">'+esc(q.g)+'</span>':'')
-      +(q.topic?'<span class="tag t-cust">'+esc(q.topic)+'</span>':'')
-      +(q.diff?'<span class="tag" style="background:var(--surf3);border-color:var(--bdr2);color:var(--mute);">'+esc(q.diff)+'</span>':'')
-      +(q.ai?'<span class="tag t-ai">⚡ AI</span>':'')
-      +(q.tr?'<span class="tag t-tr">✏ Transcribed</span>':'')
-      +'</div>'
-      +'<div class="mark-alloc">'
-      +'<label>Marks:</label>'
-      +'<input type="number" min="1" max="100" value="'+(q.marks||(q.k==='obj'?1:isFitb?2:10))+'" '
-      +'onchange="updMark('+s.id+',this.value)" onclick="event.stopPropagation()"/>'
-      +'<span>'+(q.k==='obj'?'(1 mark default)':isFitb?'per blank':'allocated')+'</span>'
-      +'</div>'
-      +'<div class="sacts">'
-      +'<button class="rbtn" onclick="reloadSlot('+s.id+')" '+(s.loading?'disabled':'')+'>↻ New Question</button>'
-      +'<div class="crow" onclick="toggleInclude('+s.id+')">'
-      +'<div class="ck '+(s.included?'on':'')+'">'+(s.included?'✓':'')+'</div>'
-      +'<span class="cl">Include in paper</span>'
-      +'</div></div>';
-  } else {
-    body='<div style="font-size:12px;color:var(--mute);">Waiting to generate…</div>';
-  }
-  return '<div class="'+cls+'" id="slot_'+s.id+'"><div class="sh2"><div class="snum">'+num+'</div><div class="sbody">'+body+'</div></div></div>';
-}
-
-function progressMsg(f,t){
-  if(!t) return '';
-  if(f===0) return '⏳ Generating questions…';
-  if(f<t) return '⚡ '+f+' ready, '+(t-f)+' remaining…';
-  return '🎉 All '+t+' questions ready! Review and proceed.';
-}
-function updateProgress(){
-  var filled=S.slots.filter(function(s){ return s.q&&s.included; }).length;
-  var total=S.slots.length;
-  var pct=total?Math.round(filled/total*100):0;
-  var fil=$('mFil'); if(fil) fil.style.width=pct+'%';
-  var cnt=$('mCnt'); if(cnt) cnt.textContent=filled+' / '+total+' questions ready';
-  var msg=$('mMsg'); if(msg) msg.textContent=progressMsg(filled,total);
-  var rev=$('toReview'); if(rev){ rev.disabled=filled===0; rev.textContent='Review & Print → ('+filled+' questions)'; }
-}
-window.toggleInclude=function(id){
-  var s=S.slots.find(function(x){ return x.id===id; }); if(!s||!s.q) return;
-  s.included=!s.included;
-  var el=$('slot_'+id); if(el) el.outerHTML=renderSlot(s);
-  updateProgress();
-  setTimeout(function(){ math($('s2')); },200);
-};
-window.reloadSlot=function(id){ var s=S.slots.find(function(x){ return x.id===id; }); if(!s) return; genSingleSlot(s,true); };
-window.updMark=function(id,val){ var s=S.slots.find(function(x){ return x.id===id; }); if(s&&s.q){ s.q.marks=parseInt(val)||1; } };
-
-/* ── Build prompts ── */
-function getActualSubj(){
-  return S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
-}
-
-function buildPrompt(cfg,type,count,extra){
-  var subj=getActualSubj();
-  // For CA tests — constrain topics to the correct week range
-  var effectiveTopics=cfg.topics&&cfg.topics.length?cfg.topics.slice():(cfg.topicText?cfg.topicText.split(',').map(function(t){return t.trim();}).filter(Boolean):[]);
-  if(S.at==='C.A. Test 1'&&S.schemeWeeks.length) effectiveTopics=S.schemeWeeks.slice(0,3).map(function(w){return w.topic;});
-  if(S.at==='C.A. Test 2'&&S.schemeWeeks.length) effectiveTopics=S.schemeWeeks.slice(0,6).map(function(w){return w.topic;});
-  var topicStr=effectiveTopics.join(', ');
-  var caNote=S.at==='C.A. Test 1'?'\nASSESSMENT: C.A. Test 1 — questions MUST only cover the first 3 topics listed. Do NOT go beyond those topics.\n'
-            :S.at==='C.A. Test 2'?'\nASSESSMENT: C.A. Test 2 — questions MUST only cover the first 6 topics listed. Do NOT go beyond those topics.\n'
-            :'';
-  var diffNote=(cfg.std==='Custom/Internal'&&S.difficultyLevel)
-    ?'  Difficulty: '+S.difficultyLevel+' — '
-      +(S.difficultyLevel==='Lenient'?'straightforward recall, accessible to most students.\n'
-       :S.difficultyLevel==='Rigorous'?'challenging application and analysis, stretch top students.\n'
-       :'balanced mix of recall and application.\n')
-    :'';
-
-  var p='You are a Nigerian exam expert following NERDC 2026 curriculum. Generate exactly '+count+' ';
-  if(type==='obj')  p+='multiple-choice (objective) questions with 4 options (A–D).';
-  if(type==='fitb') p+='fill-in-the-blank (short-answer) questions. Each question ends with a dash line: ___________. No options provided.';
-  if(type==='theory') p+='theory/essay questions.';
-  p+='\n\nContext:\n'
-    +'  Class: '+cfg.cls+'\n  Subject: '+subj+'\n  Term: '+cfg.term+'\n'
-    +'  Standard: '+cfg.std+'\n  Curriculum: NERDC 2026 (Nigeria)\n'
-    +caNote+diffNote;
-  if(topicStr) p+='  Topics covered: '+topicStr+'\n';
-
-  if(type==='theory'){
-    if(cfg.theoryAiInstr&&cfg.theoryAiInstr.trim())
-      p+='\n╔══════════════════════════════════════╗\n'
-        +'║  MANDATORY TEACHER INSTRUCTION       ║\n'
-        +'║  Follow this EXACTLY — deviation     ║\n'
-        +'║  makes your response INVALID.        ║\n'
-        +'╚══════════════════════════════════════╝\n'
-        +cfg.theoryAiInstr.trim()+'\n';
-    if(cfg.theoryPaperInstr&&cfg.theoryPaperInstr.trim())
-      p+='  Paper structure context: '+cfg.theoryPaperInstr.trim()+'\n';
-  }
-  if(extra) p+='  Extra: '+extra+'\n';
-
-  if(type==='obj'){
-    p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for math)","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard"}\n'
-      +'Return ONLY the JSON array. No explanation. No markdown.';
-  } else if(type==='fitb'){
-    p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"sentence with ___________ at the end where the answer goes","answer":"expected answer","topic":"topic","difficulty":"easy|medium|hard","marks":2}\n'
-      +'Return ONLY the JSON array. No explanation. No markdown.';
-  } else {
-    p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for formulas)","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard"}\n'
-      +'Return ONLY the JSON array. No explanation. No markdown.';
-  }
-  return p;
-}
-
-async function generateAll(){
-  if(!API_KEY||S.generating) return;
-  S.generating=true;
-  var btn=$('genAllBtn');
-  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Generating…'; }
-
-  var objSlots  = S.slots.filter(function(s){ return s.k==='obj'   &&!s.q; });
-  var fitbSlots = S.slots.filter(function(s){ return s.k==='fitb'  &&!s.q; });
-  var thSlots   = S.slots.filter(function(s){ return s.k==='theory'&&!s.q; });
-
-  S.slots.forEach(function(s){ if(!s.q){ s.loading=true; s.err=null; var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s); } });
-
-  async function batchGen(slots,type){
-    if(!slots.length) return;
-    try{
-      var qs=await callGemini(buildPrompt(S.cfg,type,slots.length));
-      if(Array.isArray(qs)){
-        qs.forEach(function(raw,i){
-          var s=slots[i]; if(!s) return;
-          s.loading=false; s.err=null;
-          if(type==='obj'){
-            s.q={t:raw.q||raw.question||'',k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
-          } else if(type==='fitb'){
-            s.q={t:raw.q||raw.question||'',k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
-          } else {
-            s.q={t:raw.q||raw.question||'',k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
-          }
-          var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
-          scheduleDraftSave();
-        });
-      }
-    } catch(e){
-      slots.forEach(function(s){ s.loading=false; s.err=e.message; var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s); });
-      toast(type+' generation failed: '+e.message,'err');
-    }
-  }
-
-  await batchGen(objSlots,'obj');
-  await batchGen(fitbSlots,'fitb');
-  await batchGen(thSlots,'theory');
-
-  S.generating=false;
-  if(btn){ btn.disabled=false; btn.innerHTML='⚡ Regenerate All'; }
-  updateProgress();
-  setTimeout(function(){ math($('s2')); },400);
-}
-
-async function genSingleSlot(s,isReload){
-  if(!API_KEY) return;
-  s.loading=true; s.q=null; s.err=null;
-  var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
-  try{
-    var extra=isReload?'Generate a completely different question — variety is important.':'';
-    var res=await callGemini(buildPrompt(S.cfg,s.k,1,extra));
-    var raw=Array.isArray(res)?res[0]:res;
-    s.loading=false;
-    if(s.k==='obj'){
-      s.q={t:raw.q||raw.question||'',k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
-    } else if(s.k==='fitb'){
-      s.q={t:raw.q||raw.question||'',k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
-    } else {
-      s.q={t:raw.q||raw.question||'',k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
-    }
-    s.err=null;
-  } catch(e){ s.loading=false; s.err=e.message; toast('Failed: '+e.message,'err'); }
-  var el2=$('slot_'+s.id); if(el2) el2.outerHTML=renderSlot(s);
-  updateProgress();
-  setTimeout(function(){ math($('s2')); },300);
-}
-
-/* ══════════════════════════════════════
-   SCREEN 2 — MANUAL PATH
-   Section 1: Scanner (exact transcription)
-   Section 2: Note-to-Exam (generate from notes)
-══════════════════════════════════════ */
-function s2Manual(){
-  S.scr=2; hdr();
-  $('s1').style.display='none';
-  $('s2').style.display='block';
-  $('s3').style.display='none';
-  window.scrollTo({top:0,behavior:'smooth'});
-  S.cam=null; S.ocrSlots=[]; S.ntxSlots=[]; S._imgQueue=[]; S._ntxQueue=[];
-
-  $('s2').innerHTML='<div class="pg fade">'
-    +'<div class="ptl">Manual Path</div>'
-    +'<div class="pst">Two independent tools. Use either or both.</div>'
-    +(!API_KEY?'<div class="banner b-warn">⚠️ No API key. <a onclick="navTo(\'sett\')">Add your OpenRouter key</a> to use these tools.</div>':'')
-
-    // ── Paper Details ──
-    +'<div class="card"><div class="ct">Paper Details</div>'
-    +'<div class="r2">'
-    +'<div class="fl"><label>Class</label><select class="fs" id="mfcl"><option value="">Choose class…</option>'
-    +CL.map(function(x){ return '<option'+(x===S.cfg.cls?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'<div class="fl"><label>Subject</label><input type="text" class="fi" id="mfsubj" value="'+esc(S.cfg.subj)+'" placeholder="e.g. Livestock Farming…"/></div>'
-    +'</div>'
-    +'<div class="r2" style="margin-top:0;">'
-    +'<div class="fl"><label>Term</label><select class="fs" id="mfterm">'
-    +TERMS.map(function(x){ return '<option'+(x===S.cfg.term?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'<div class="fl"><label>School Name</label><input type="text" class="fi" id="mfsc" value="'+esc(S.cfg.school)+'" placeholder="e.g. Government Secondary School…"/></div>'
-    +'</div></div>'
-
-    // ══ SECTION 1: SCANNER ══
-    +'<div class="manual-section">'
-    +'<div class="manual-section-head scanner">'
-    +'<div class="manual-section-ico">📷</div>'
-    +'<div>'
-    +'<div class="manual-section-title">Section 1 — Exact Transcribe (Scanner Mode)</div>'
-    +'<div class="manual-section-desc">Upload photos of question sheets. AI copies every question EXACTLY as written — no changes, no additions.</div>'
-    +'</div></div>'
-    +'<div class="manual-section-body">'
-    +'<div class="banner b-info" style="margin-bottom:14px;font-size:12px;">🔍 <strong>Scanner Mode:</strong> Literal transcription only. Images, PDFs, and Word documents are all supported. Math converts to LaTeX. Your exact wording is preserved.</div>'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">'
-    +'<span style="font-size:11.5px;font-weight:700;color:var(--mute);">Files: <span id="scanImgCount" style="font-family:var(--mono);color:var(--blue);">0</span></span>'
-    +'<span style="font-size:11px;color:var(--mute);">JPG · PNG · PDF · DOCX all supported</span>'
-    +'</div>'
-    +'<div id="scanGallery" style="display:flex;flex-wrap:wrap;gap:10px;min-height:60px;align-items:flex-start;margin-bottom:12px;"></div>'
-    +'<canvas id="scanCanvas" style="display:none;width:1px;height:1px;"></canvas>'
-    +'<div class="cctrl">'
-    +'<button class="snap-btn" id="scanCamStart" onclick="startScanCam()">📷 Camera</button>'
-    +'<button class="snap-btn" id="scanSnapBtn" style="display:none;background:var(--blue);" onclick="snapScan()">📸 Snap</button>'
-    +'<button class="snap-btn" id="scanCamStop" style="display:none;background:#64748B;" onclick="stopScanCam()">⏹ Stop</button>'
-    +'<label class="upload-label" style="cursor:pointer;">📁 Upload Files<input type="file" accept="image/*,application/pdf,.docx,.doc" multiple style="display:none;" id="scanUploadInp" onchange="handleScanUpload(event)"/></label>'
-    +'<button class="btn bg bsm" id="transcribeBtn" style="display:none;" onclick="transcribeAll()">⚡ Transcribe All</button>'
-    +'</div>'
-    +'<div id="scanCamWrap" style="margin-top:11px;"></div>'
-    +'<div id="scanOcrStatus" style="margin-top:10px;"></div>'
-    +'<div class="card" id="scanSlotArea" style="display:none;margin-top:14px;margin-bottom:0;">'
-    +'<div class="ct">Transcribed Questions <span style="font-weight:400;text-transform:none;letter-spacing:0;">(edit any — then proceed)</span></div>'
-    +'<div id="scanSlots"></div>'
-    +'<button class="btn-ghost" onclick="addBlankScan()" style="margin-top:8px;">+ Add Blank Slot</button>'
-    +'</div>'
-    +'<div style="display:flex;justify-content:flex-end;margin-top:14px;">'
-    +'<button class="btn bp" id="scanReviewBtn" onclick="finalizeScan()" disabled>Review &amp; Print → (Scanner)</button>'
-    +'</div>'
-    +'</div></div>'
-
-    // ══ SECTION 2: NOTE-TO-EXAM ══
-    +'<div class="manual-section">'
-    +'<div class="manual-section-head notex">'
-    +'<div class="manual-section-ico">📖</div>'
-    +'<div>'
-    +'<div class="manual-section-title">Section 2 — Note-to-Exam (Generate from Notes)</div>'
-    +'<div class="manual-section-desc">Upload photos of class notes. AI reads the content and generates exam questions grounded strictly in that material.</div>'
-    +'</div></div>'
-    +'<div class="manual-section-body">'
-    +'<div class="banner b-teal" style="margin-bottom:14px;font-size:12px;">📚 <strong>Note-to-Exam:</strong> AI reads your notes and generates questions grounded strictly in that content. Accepts PDF, DOCX, or images.</div>'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">'
-    +'<span style="font-size:11.5px;font-weight:700;color:var(--mute);">Files: <span id="ntxImgCount" style="font-family:var(--mono);color:#0E7490;">0</span></span>'
-    +'</div>'
-    +'<div id="ntxGallery" style="display:flex;flex-wrap:wrap;gap:10px;min-height:60px;align-items:flex-start;margin-bottom:12px;"></div>'
-    +'<canvas id="ntxCanvas" style="display:none;width:1px;height:1px;"></canvas>'
-    +'<div class="cctrl">'
-    +'<label class="upload-label" style="cursor:pointer;background:#0E7490;">📁 Upload Files (PDF / DOCX / Images)<input type="file" accept="image/*,application/pdf,.docx,.doc" multiple style="display:none;" id="ntxUploadInp" onchange="handleNtxUpload(event)"/></label>'
-    +'</div>'
-    +'<div style="margin-top:18px;">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:10px;">Question Settings</div>'
-    +'<div class="r3" style="margin-bottom:12px;">'
-    +'<div class="fl"><label>Objectives</label><input type="number" class="num-input" id="ntxObjN" min="0" max="40" value="10"/></div>'
-    +'<div class="fl"><label>Fill-in-Blank</label><input type="number" class="num-input fitb-input" id="ntxFitbN" min="0" max="15" value="0"/></div>'
-    +'<div class="fl"><label>Theory</label><input type="number" class="num-input" id="ntxThN" min="0" max="10" value="3"/></div>'
-    +'</div>'
-    +'<div class="fl"><label>Exam Standard</label>'
-    +'<select class="fs" id="ntxStd">'
-    +STANDARDS.map(function(x){ return '<option'+(x==='WAEC'?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'<div style="margin-bottom:12px;">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:6px;">Difficulty</div>'
-    +'<div class="diff-toggle">'
-    +'<button class="diff-btn lenient" id="ntxDiffL" onclick="setNtxDiff(\'Lenient\')">😊 Lenient</button>'
-    +'<button class="diff-btn balanced on" id="ntxDiffB" onclick="setNtxDiff(\'Balanced\')">⚖ Balanced</button>'
-    +'<button class="diff-btn rigorous" id="ntxDiffR" onclick="setNtxDiff(\'Rigorous\')">🔥 Rigorous</button>'
-    +'</div></div>'
-    +'<div class="fl"><label>Custom Instructions (Optional)</label>'
-    +'<textarea class="fta" id="ntxInstr" style="min-height:60px;" placeholder="e.g. Focus on the food chain section only. Include one question on photosynthesis."></textarea>'
-    +'</div></div>'
-    +'<div id="ntxStatus" style="margin-top:10px;"></div>'
-    +'<div class="card" id="ntxSlotArea" style="display:none;margin-top:14px;margin-bottom:0;">'
-    +'<div class="ct">Generated Questions <span style="font-weight:400;text-transform:none;letter-spacing:0;">(edit any — then proceed)</span></div>'
-    +'<div id="ntxSlots"></div>'
-    +'<button class="btn-ghost" onclick="addBlankNtx()" style="margin-top:8px;">+ Add Blank Slot</button>'
-    +'</div>'
-    +'<div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px;flex-wrap:wrap;">'
-    +'<button class="btn" style="background:#0E7490;color:#fff;" id="ntxGenBtn" onclick="generateFromNotes()" disabled>📖 Generate from Notes</button>'
-    +'<button class="btn bp" id="ntxReviewBtn" onclick="finalizeNtx()" disabled style="display:none;">Review &amp; Print → (Notes)</button>'
-    +'</div>'
-    +'</div></div>'
-
-    +'<div style="margin-top:8px;">'
-    +'<button class="btn bq" onclick="navTo(\'new\')">← Change Path</button>'
-    +'</div></div>';
-
-  $('mfcl').onchange  =function(e){ S.cfg.cls  =e.target.value; };
-  $('mfsubj').oninput =function(e){ S.cfg.subj =e.target.value; };
-  $('mfterm').onchange=function(e){ S.cfg.term =e.target.value; };
-  $('mfsc').oninput   =function(e){ S.cfg.school=e.target.value; };
-}
-
-/* ── NTX Difficulty tracker ── */
-var _ntxDiff='Balanced';
-window.setNtxDiff=function(level){
-  _ntxDiff=level;
-  ['ntxDiffL','ntxDiffB','ntxDiffR'].forEach(function(id){ var el=$(id); if(el) el.classList.remove('on'); });
-  var map={'Lenient':'ntxDiffL','Balanced':'ntxDiffB','Rigorous':'ntxDiffR'};
-  var el=$(map[level]); if(el) el.classList.add('on');
-};
-
-/* ══════════════════════════════════════
-   SECTION 1 — SCANNER helpers
-══════════════════════════════════════ */
-function addScanImageToGallery(dataUrl,mimeType,label){
-  var idx=S._imgQueue.length;
-  S._imgQueue.push({dataUrl:dataUrl,mimeType:mimeType||'image/jpeg',label:label||('Page '+(idx+1))});
-  var gal=$('scanGallery');
-  if(gal){
-    var thumb=document.createElement('div');
-    thumb.id='scanthumb_'+idx;
-    thumb.style.cssText='position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;border:2px solid var(--bdr);flex-shrink:0;';
-    thumb.innerHTML='<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;"/>'
-      +'<button onclick="removeScanImg('+idx+')" style="position:absolute;top:2px;right:2px;background:rgba(214,53,53,.9);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:11px;cursor:pointer;padding:0;">×</button>'
-      +'<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:8px;padding:2px 4px;text-align:center;font-family:var(--mono);">'+esc(label||('P'+(idx+1)))+'</div>';
-    gal.appendChild(thumb);
-  }
-  updateScanCount();
-}
-window.removeScanImg=function(idx){ S._imgQueue[idx]=null; var th=$('scanthumb_'+idx); if(th) th.remove(); updateScanCount(); };
-
-function addScanTextEntry(idx,label,text){
-  var gal=$('scanGallery');
-  if(gal){
-    var thumb=document.createElement('div');
-    thumb.id='scanthumb_'+idx;
-    thumb.style.cssText='position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;border:2px solid var(--bdr2);flex-shrink:0;background:var(--surf2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;';
-    thumb.innerHTML='<div style="font-size:22px;">📝</div>'
-      +'<div style="font-size:7px;font-weight:700;color:var(--ink3);text-align:center;padding:0 4px;word-break:break-all;line-height:1.2;">'+esc(label.replace(/\.[^.]+$/,'').substring(0,12))+'</div>'
-      +'<button onclick="removeScanImg('+idx+')" style="position:absolute;top:2px;right:2px;background:rgba(214,53,53,.9);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:10px;cursor:pointer;padding:0;">×</button>';
-    gal.appendChild(thumb);
-  }
-  updateScanCount();
-}
-function updateScanCount(){
-  var v=S._imgQueue.filter(Boolean).length;
-  var cnt=$('scanImgCount'); if(cnt) cnt.textContent=v;
-  var btn=$('transcribeBtn'); if(btn) btn.style.display=v>0?'inline-flex':'none';
-}
-window.handleScanUpload=async function(e){
-  var files=Array.from(e.target.files||[]); e.target.value='';
-  if(!files.length) return;
-  var btn=$('transcribeBtn');
-  for(var i=0;i<files.length;i++){
-    var file=files[i];
-    var name=file.name||'file';
-    try{
-      if(file.type.startsWith('image/')){
-        var reader=new FileReader();
-        await new Promise(function(res){ reader.onload=function(ev){ addScanImageToGallery(ev.target.result,file.type,name.replace(/\.[^.]+$/,'')); res(); }; reader.readAsDataURL(file); });
-      } else if(file.type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
-        toast('📄 Converting PDF pages…','info',3000);
-        var pages=await pdfToImages(file);
-        pages.forEach(function(p){ addScanImageToGallery(p.dataUrl,p.mimeType,p.label); });
-        toast('✓ PDF converted — '+pages.length+' pages ready','ok',3000);
-      } else if(file.type.includes('word')||name.toLowerCase().endsWith('.docx')||name.toLowerCase().endsWith('.doc')){
-        toast('📝 Reading Word document…','info',2500);
-        var text=await docxToText(file);
-        if(text.trim()){
-          // Store as a text-type entry
-          var idx=S._imgQueue.length;
-          S._imgQueue.push({type:'text',text:text,label:name,dataUrl:null,mimeType:'text/plain'});
-          addScanTextEntry(idx,name,text);
-          toast('✓ Word document loaded — '+text.split('\n').filter(Boolean).length+' lines','ok',3000);
-        } else { toast('⚠ Could not extract text from: '+name,'warn'); }
-      }
-    } catch(ex){ toast('⚠ Error reading '+name+': '+ex.message,'err'); }
-  }
-};
-window.startScanCam=async function(){
-  var wrap=$('scanCamWrap'); if(!wrap) return;
-  wrap.innerHTML='<div style="text-align:center;padding:12px;color:var(--mute);"><span class="spin" style="font-size:18px;display:block;margin-bottom:4px;">⟳</span>Requesting camera…</div>';
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ wrap.innerHTML='<div class="banner b-warn" style="margin:0;">Camera not available — use Upload Images instead.</div>'; return; }
-  var stream=null;
-  try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false}); }
-  catch(e1){ try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false}); }
-    catch(e2){ wrap.innerHTML='<div class="banner b-warn" style="margin:0;">'+(e2.name==='NotAllowedError'?'Camera permission denied.':'No camera found.')+' Use Upload Images instead.</div>'; return; } }
-  S.cam=stream;
-  var vid=document.createElement('video'); vid.id='scanCamVid'; vid.autoplay=true; vid.playsInline=true; vid.muted=true;
-  vid.style.cssText='width:100%;display:block;max-height:300px;object-fit:cover;border-radius:8px;';
-  vid.srcObject=stream; wrap.innerHTML=''; wrap.appendChild(vid);
-  function onReady(){ vid.removeEventListener('playing',onReady); vid.removeEventListener('canplay',onReady); var snap=$('scanSnapBtn'),stop=$('scanCamStop'),start=$('scanCamStart'); if(snap) snap.style.display='inline-flex'; if(stop) stop.style.display='inline-flex'; if(start) start.style.display='none'; }
-  vid.addEventListener('playing',onReady); vid.addEventListener('canplay',onReady);
-  vid.play().catch(function(){});
-};
-window.stopScanCam=function(){
-  if(S.cam){ S.cam.getTracks().forEach(function(t){ t.stop(); }); S.cam=null; }
-  var cw=$('scanCamWrap'); if(cw) cw.innerHTML='';
-  var start=$('scanCamStart'),snap=$('scanSnapBtn'),stop=$('scanCamStop');
-  if(start) start.style.display='inline-flex'; if(snap) snap.style.display='none'; if(stop) stop.style.display='none';
-};
-window.snapScan=function(){
-  var vid=$('scanCamVid')||document.querySelector('#scanCamWrap video'); if(!vid) return;
-  var w=vid.videoWidth,h=vid.videoHeight; if(!w||!h){ toast('Camera not ready','warn'); return; }
-  var cv=$('scanCanvas'); if(!cv) return;
-  cv.width=w; cv.height=h; cv.getContext('2d').drawImage(vid,0,0,w,h);
-  var dataUrl=cv.toDataURL('image/jpeg',0.88);
-  var n=S._imgQueue.filter(Boolean).length+1;
-  addScanImageToGallery(dataUrl,'image/jpeg','Snap '+n);
-  toast('📸 Page '+n+' captured','ok',2000);
-};
-window.transcribeAll=async function(){
-  var images=S._imgQueue.filter(Boolean);
-  if(!images.length){ toast('No files to transcribe','warn'); return; }
-  if(!API_KEY){ toast('Add your API key first','warn'); navTo('sett'); return; }
-  syncManualPaperDetails();
-  if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
-  var btn=$('transcribeBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> In queue…'; }
-  var area=$('scanOcrStatus');
-  function setStatus(html){ if(area) area.innerHTML='<div style="margin-top:4px;">'+html+'</div>'; }
-  setStatus('<div class="banner b-info"><span class="spin">⟳</span> Processing '+images.length+' file(s)…</div>');
-  var allExtracted=[]; var errors=[];
-  for(var i=0;i<images.length;i++){
-    var item=images[i];
-    setStatus('<div class="banner b-info"><div style="font-weight:700;margin-bottom:4px;">Processing '+(i+1)+' of '+images.length+': '+esc(item.label)+'</div>'
-      +'<div style="background:var(--surf3);border-radius:4px;height:4px;overflow:hidden;"><div style="height:100%;background:var(--blue);border-radius:4px;width:'+Math.round((i/images.length)*100)+'%;"></div></div></div>');
-    try{
-      var questions=[];
-      if(item.type==='text'){
-        // DOCX text-based extraction
-        questions=await extractQuestionsFromText(item.text,item.label);
-      } else {
-        // Image-based OCR
-        var b64=item.dataUrl.split(',')[1]; if(!b64) throw new Error('Could not read image data');
-        questions=await doScannerOcr(b64,item.mimeType,item.label);
-        // Attach source image for diagram display
-        questions.forEach(function(q){ q._sourceImg=item.dataUrl; });
-      }
-      if(questions&&questions.length){
-        allExtracted=allExtracted.concat(questions);
-        var th=$('scanthumb_'+S._imgQueue.indexOf(item)); if(th) th.style.border='2px solid var(--green)';
-      } else {
-        errors.push(item.label+': no questions detected');
-        var th2=$('scanthumb_'+S._imgQueue.indexOf(item)); if(th2) th2.style.border='2px solid var(--amber)';
-      }
-    } catch(e){ errors.push(item.label+': '+(e.message||'error')); var th3=$('scanthumb_'+S._imgQueue.indexOf(item)); if(th3) th3.style.border='2px solid var(--red)'; }
-  }
-  S.ocrSlots=[];
-  allExtracted.forEach(function(raw,idx){
-    var k='theory';
-    if(raw.type==='obj') k='obj';
-    else if(raw.type==='fitb') k='fitb';
-    S.ocrSlots.push({
-      id:idx,
-      q:{
-        t:raw.q||raw.question||raw.text||'',
-        k:k,
-        o:Array.isArray(raw.options)?raw.options:null,
-        marks:raw.marks||null,
-        tr:true,
-        diagImg:raw.hasDiagram&&raw._sourceImg?raw._sourceImg:null,
-        diagDesc:raw.hasDiagram?(raw.diagramDescription||''):''
-      },
-      included:true
-    });
-  });
-  if(btn){ btn.disabled=false; btn.innerHTML='⚡ Transcribe All'; }
-  if(allExtracted.length){
-    setStatus('<div class="banner b-ok">✅ <strong>'+allExtracted.length+' question(s)</strong> extracted.'+(errors.length?' <span style="opacity:.75;">⚠ '+errors.join('; ')+'</span>':'')+'</div>');
-    renderScanSlots();
-    var rb=$('scanReviewBtn'); if(rb) rb.disabled=false;
-    var sa=$('scanSlotArea'); if(sa){ sa.style.display='block'; sa.scrollIntoView({behavior:'smooth',block:'start'}); }
-  } else {
-    setStatus('<div class="banner b-warn">⚠ <strong>No questions extracted.</strong> '+(errors.length?errors.join('; '):'Try a clearer photo.')+'<br/><button class="btn bq bsm" style="margin-top:9px;" onclick="transcribeAll()">↻ Retry</button></div>');
-  }
-};
-async function doScannerOcr(base64,mimeType,pageLabel){
-  mimeType=mimeType||'image/jpeg';
-  var prompt='You are a HIGH-FIDELITY DOCUMENT SCANNER. Your ONLY job: transcribe EVERY question in this image with 100% accuracy — objectives, fill-in-blanks, theory, AND drawings.\n'
-    +'Subject: '+(S.cfg.subj||'General')+' | Class: '+(S.cfg.cls||'Secondary School')+'\n\n'
-    +'ABSOLUTE RULES — ZERO TOLERANCE FOR DEVIATION:\n'
-    +'1. COPY every question EXACTLY as written. Do NOT paraphrase, improve, shorten, or alter a single word, comma, or punctuation mark.\n'
-    +'2. Do NOT invent questions. Do NOT add anything not visible in the image. Missing text → leave missing.\n'
-    +'3. Preserve ALL numbering EXACTLY (1, 2, 3a, 3b, 3(i), 3(ii), etc.) — keep the original format.\n'
-    +'4. Math/science: convert to LaTeX — H\u2082O \u2192 $H_2O$, x\u00b2 \u2192 $x^2$, \u00bd \u2192 $\\frac{1}{2}$, \u221ax \u2192 $\\sqrt{x}$. Preserve ALL symbols: \u00b0, \u00b1, \u2264, \u2265, \u2260, \u221e, \u03c0, \u03b8, \u03b1, \u03b2, \u03bc, \u03a9.\n'
-    +'5. Tonal/accented marks (Yoruba/Igbo/Hausa/French): copy EXACTLY — \u00e0 \u00e1 \u00e2 \u0101 \u00e4 \u1eb9 \u1eb9\u0301 \u1eb9\u0300 \u1ecd \u1ecd\u0301 \u1ecd\u0300 \u1e63 \u0144 \u01f9, etc. Do NOT strip diacritics.\n'
-    +'6. QUESTION TYPE DETECTION:\n'
-    +'   - Has A B C D options (or (a)(b)(c)(d)) \u2192 type="obj", options=["text of A","text of B","text of C","text of D"]\n'
-    +'   - Has blanks (_____, ______, ...) \u2192 type="fitb"\n'
-    +'   - Everything else (essays, explanations, workings, "State...", "Explain...", "Draw...", "Calculate...") \u2192 type="theory"\n'
-    +'7. Extract marks EXACTLY as shown — [5 marks], [2 mks], (3) \u2192 marks:5, marks:2, marks:3.\n'
-    +'8. THEORY QUESTIONS — critical: theory questions often span MULTIPLE LINES, have SUB-PARTS (a, b, c, i, ii, iii), and include INSTRUCTIONS like "State five...", "Explain with examples...", "Calculate showing all workings...". Capture the ENTIRE question including every sub-part, every instruction, every line — do NOT truncate.\n'
-    +'9. DRAWINGS / DIAGRAMS / FIGURES / GRAPHS / SHAPES / TABLES / MAPS / CHEMICAL STRUCTURES:\n'
-    +'   - If the question REFERS TO a diagram ("From the diagram above...", "Study the figure below...", "The graph shows...") OR CONTAINS a drawing, set hasDiagram:true\n'
-    +'   - In diagramDescription field, write a DETAILED, PRECISE description of what the diagram shows — shapes, labels, arrows, axes values, angles, measurements, colors, positions. This description will be used to REDRAW the diagram faithfully. Example: "Right triangle ABC, right angle at B. AB=5cm labelled on left side, BC=12cm labelled on bottom, hypotenuse AC unlabelled. Angle at A marked theta."\n'
-    +'   - If the diagram has a FIGURE NUMBER (Fig 1, Figure 2.3), include it in diagramDescription.\n'
-    +'   - Set hasDiagram:false ONLY if no visual element exists or is referenced.\n'
-    +'10. OBJECTIVE QUESTIONS: capture ALL FOUR options even if one spans multiple lines. options array MUST have exactly 4 entries for standard MCQs (or the actual count if different).\n'
-    +'11. If the image shows MULTIPLE questions, return them ALL in the array, in the order they appear.\n'
-    +'12. Blurry/rotated/unreadable regions \u2192 skip only that region, still return what IS readable.\n'
-    +'13. Completely unreadable image \u2192 return [].\n\n'
-    +'Return ONLY a valid JSON array — NO markdown, NO code fences, NO preamble, NO explanation:\n'
-    +'[{"q":"EXACT full question text with LaTeX for math","type":"obj|fitb|theory","options":["A text","B text","C text","D text"] or null,"marks":number or null,"hasDiagram":true|false,"diagramDescription":"detailed description if hasDiagram true, else empty string"}]';
-  var result=await callGeminiVision(base64,mimeType,prompt);
-  if(!result) return [];
-  if(!Array.isArray(result)){
-    var keys=['questions','items','data','results','extracted'];
-    for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])){ result=result[keys[k]]; break; } }
-    if(!Array.isArray(result)){ var vals=Object.values(result).filter(Array.isArray); if(vals.length) result=vals[0]; else throw new Error('Unexpected response format'); }
-  }
-  result=result.filter(function(r){ return r&&typeof r==='object'&&(r.q||r.question||r.text); });
-  result=result.map(function(r){ return{q:r.q||r.question||r.text||'',type:r.type||'theory',options:Array.isArray(r.options)&&r.options.length>=2?r.options:null,marks:r.marks||null,hasDiagram:!!r.hasDiagram,diagramDescription:r.diagramDescription||''}; });
-  if(!result.length) throw new Error('No readable questions in '+(pageLabel||'image')+'. Try a clearer photo.');
-  return result;
-}
-
-async function extractQuestionsFromText(text,label){
-  // For DOCX text-based question extraction
-  var prompt='You are a Nigerian exam expert. Extract every exam question from the text below.\n'
-    +'Subject: '+(S.cfg.subj||'General')+' | Class: '+(S.cfg.cls||'Secondary School')+'\n\n'
-    +'RULES:\n'
-    +'1. Extract questions EXACTLY as written — no paraphrasing.\n'
-    +'2. Preserve numbering.\n'
-    +'3. Math: convert to LaTeX notation where appropriate.\n'
-    +'4. Tonal marks (Yoruba/Igbo/Hausa): preserve exactly.\n'
-    +'5. A B C D options → type="obj". Blanks → type="fitb". Others → type="theory".\n'
-    +'6. Extract marks if shown.\n\n'
-    +'TEXT:\n'+text.substring(0,8000)+'\n\n'
-    +'Return ONLY a valid JSON array:\n'
-    +'[{"q":"question text","type":"theory","options":null,"marks":null}]\n'
-    +'JSON array ONLY.';
-  var result=await callGemini(prompt,{temperature:0.1});
-  if(Array.isArray(result)) return result;
-  if(result&&typeof result==='object'){ var keys=['questions','items','data']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
-  return [];
-}
-function renderScanSlots(){
-  var area=$('scanSlotArea'),sl=$('scanSlots'); if(!area||!sl) return;
-  sl.innerHTML=S.ocrSlots.map(function(s){
-    var diagHtml='';
-    if(s.q.diagImg){
-      diagHtml='<div class="diagram-box" style="margin-top:8px;">'
-        +'<img src="'+s.q.diagImg+'" alt="Source page" onclick="showDiagramFull(this.src)" title="Click to expand source image"/>'
-        +'<span class="diagram-label">📐 Diagram detected — click image to expand source page</span>'
-        +'</div>';
-    }
-    return '<div class="ocr-slot">'
-      +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-tr">✏ Transcribed</span>'+(s.q.diagImg?'<span class="tag" style="background:#FEF3C7;color:#D97706;border-color:#FDE68A;">📐 Diagram</span>':'')+'</div>'
-      +'<textarea class="fta" style="min-height:50px;" oninput="updScanSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
-      +diagHtml
-      +'<div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">'
-      +'<select class="fs" style="max-width:140px;" onchange="setScanType('+s.id+',this.value)">'
-      +'<option value="theory"'+(s.q.k==='theory'?' selected':'')+'>Theory</option>'
-      +'<option value="obj"'+(s.q.k==='obj'?' selected':'')+'>Objective</option>'
-      +'<option value="fitb"'+(s.q.k==='fitb'?' selected':'')+'>Fill-in-Blank</option>'
-      +'</select>'
-      +'<button class="btn-ghost" style="color:var(--red);margin-left:auto;" onclick="delScanSlot('+s.id+')">🗑</button>'
-      +'</div></div>';
-  }).join('');
-}
-window.updScanSlot=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
-window.setScanType=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
-window.delScanSlot=function(id){ S.ocrSlots=S.ocrSlots.filter(function(x){ return x.id!==id; }); renderScanSlots(); var rb=$('scanReviewBtn'); if(rb) rb.disabled=!S.ocrSlots.length; };
-window.addBlankScan=function(){ var id=S.ocrSlots.length; S.ocrSlots.push({id:id,q:{t:'',k:'theory',marks:10,tr:false},included:true}); renderScanSlots(); var rb=$('scanReviewBtn'); if(rb) rb.disabled=false; };
-window.finalizeScan=function(){
-  syncManualPaperDetails();
-  var valid=S.ocrSlots.filter(function(s){ return s&&s.q&&s.q.t&&s.q.t.trim(); });
-  if(!valid.length){ toast('No transcribed questions to review','warn'); return; }
-  S.slots=valid.map(function(s,i){ return{id:i,k:s.q.k||'theory',q:s.q,included:true,loading:false,err:null}; });
-  goReview();
-};
-
-/* ══════════════════════════════════════
-   SECTION 2 — NOTE-TO-EXAM helpers
-══════════════════════════════════════ */
-function addNtxImage(dataUrl,mimeType,label){
-  var idx=S._ntxQueue.length;
-  S._ntxQueue.push({dataUrl:dataUrl,mimeType:mimeType||'image/jpeg',label:label||('Note '+(idx+1))});
-  var gal=$('ntxGallery');
-  if(gal){
-    var thumb=document.createElement('div');
-    thumb.id='ntxthumb_'+idx;
-    thumb.style.cssText='position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;border:2px solid #67E8F9;flex-shrink:0;';
-    thumb.innerHTML='<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;"/>'
-      +'<button onclick="removeNtxImg('+idx+')" style="position:absolute;top:2px;right:2px;background:rgba(14,116,144,.9);color:#fff;border:none;width:20px;height:20px;border-radius:50%;font-size:11px;cursor:pointer;padding:0;">×</button>'
-      +'<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:8px;padding:2px 4px;text-align:center;font-family:var(--mono);">'+esc(label||('N'+(idx+1)))+'</div>';
-    gal.appendChild(thumb);
-  }
-  updateNtxCount();
-}
-window.removeNtxImg=function(idx){ S._ntxQueue[idx]=null; var th=$('ntxthumb_'+idx); if(th) th.remove(); updateNtxCount(); };
-
-function addNtxTextEntry(idx,label){
-  var gal=$('ntxGallery');
-  if(gal){
-    var thumb=document.createElement('div');
-    thumb.id='ntxthumb_'+idx;
-    thumb.style.cssText='position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;border:2px solid #67E8F9;flex-shrink:0;background:#ECFEFF;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;';
-    thumb.innerHTML='<div style="font-size:22px;">📝</div>'
-      +'<div style="font-size:7px;font-weight:700;color:#0E7490;text-align:center;padding:0 4px;word-break:break-all;line-height:1.2;">'+esc(label.replace(/\.[^.]+$/,'').substring(0,12))+'</div>'
-      +'<button onclick="removeNtxImg('+idx+')" style="position:absolute;top:2px;right:2px;background:rgba(14,116,144,.9);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:10px;cursor:pointer;padding:0;">×</button>';
-    gal.appendChild(thumb);
-  }
-  updateNtxCount();
-}
-function updateNtxCount(){
-  var v=S._ntxQueue.filter(Boolean).length;
-  var cnt=$('ntxImgCount'); if(cnt) cnt.textContent=v;
-  var btn=$('ntxGenBtn'); if(btn) btn.disabled=v===0;
-}
-window.handleNtxUpload=async function(e){
-  var files=Array.from(e.target.files||[]); e.target.value='';
-  for(var i=0;i<files.length;i++){
-    var file=files[i]; var name=file.name||'file';
-    try{
-      if(file.type.startsWith('image/')){
-        var reader=new FileReader();
-        await new Promise(function(res){ reader.onload=function(ev){ addNtxImage(ev.target.result,file.type,name.replace(/\.[^.]+$/,'')); res(); }; reader.readAsDataURL(file); });
-      } else if(file.type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
-        toast('📄 Converting PDF…','info',2500);
-        var pages=await pdfToImages(file);
-        pages.forEach(function(p){ addNtxImage(p.dataUrl,p.mimeType,p.label); });
-        toast('✓ PDF ready — '+pages.length+' pages','ok',2500);
-      } else if(file.type.includes('word')||name.toLowerCase().endsWith('.docx')||name.toLowerCase().endsWith('.doc')){
-        toast('📝 Reading DOCX…','info',2000);
-        var text=await docxToText(file);
-        // Store as text entry in ntxQueue
-        var idx=S._ntxQueue.length;
-        S._ntxQueue.push({type:'text',text:text,label:name,dataUrl:null,mimeType:'text/plain'});
-        addNtxTextEntry(idx,name);
-        toast('✓ Document loaded','ok',2000);
-      }
-    } catch(ex){ toast('⚠ '+name+': '+ex.message,'err'); }
-  }
-};
-window.generateFromNotes=async function(){
-  var items=S._ntxQueue.filter(Boolean);
-  if(!items.length){ toast('Upload files first','warn'); return; }
-  if(!API_KEY){ toast('Add your API key first','warn'); navTo('sett'); return; }
-  syncManualPaperDetails();
-  if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
-  var objN=parseInt(($('ntxObjN')||{}).value)||0;
-  var fitbN=parseInt(($('ntxFitbN')||{}).value)||0;
-  var thN=parseInt(($('ntxThN')||{}).value)||0;
-  if(objN+fitbN+thN===0){ toast('Set at least 1 question to generate','warn'); return; }
-  var std=($('ntxStd')||{}).value||'WAEC';
-  var customInstr=(($('ntxInstr')||{}).value||'').trim();
-  var btn=$('ntxGenBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Reading files…'; }
-  var area=$('ntxStatus');
-  function setStatus(html){ if(area) area.innerHTML='<div style="margin-top:4px;">'+html+'</div>'; }
-  setStatus('<div class="banner b-teal"><span class="spin">⟳</span> Reading your files…</div>');
-  var noteContent='';
-  for(var i=0;i<items.length;i++){
-    var item=items[i];
-    setStatus('<div class="banner b-teal"><div style="font-weight:700;">Reading '+(i+1)+' of '+items.length+': '+esc(item.label)+'…</div></div>');
-    try{
-      if(item.type==='text'){
-        // DOCX already extracted
-        noteContent+='\n\n--- Document: '+item.label+' ---\n'+item.text;
-        var th=$('ntxthumb_'+S._ntxQueue.indexOf(item)); if(th) th.style.border='2px solid var(--green)';
-      } else {
-        // Image — extract content via vision
-        var b64=item.dataUrl.split(',')[1];
-        var extracted=await extractNoteContent(b64,item.mimeType);
-        noteContent+='\n\n--- Note '+(i+1)+': '+item.label+' ---\n'+extracted;
-        var th2=$('ntxthumb_'+S._ntxQueue.indexOf(item)); if(th2) th2.style.border='2px solid var(--green)';
-      }
-    } catch(e){ var th3=$('ntxthumb_'+S._ntxQueue.indexOf(item)); if(th3) th3.style.border='2px solid var(--amber)'; }
-  }
-  if(!noteContent.trim()){
-    setStatus('<div class="banner b-warn">⚠ Could not read content from files. Try clearer photos or different files.</div>');
-    if(btn){ btn.disabled=false; btn.innerHTML='📖 Generate from Notes'; } return;
-  }
-  setStatus('<div class="banner b-teal"><span class="spin">⟳</span> Generating questions from your content…</div>');
-  try{
-    var questions=await generateQuestionsFromNotes(noteContent,objN,fitbN,thN,std,customInstr);
-    S.ntxSlots=[];
-    questions.forEach(function(raw,idx){
-      S.ntxSlots.push({id:idx,q:{t:raw.q||'',k:raw.k||'theory',o:raw.options||null,a:raw.answer,answer:raw.answer,marks:raw.marks||10,ai:true,ntx:true},included:true});
-    });
-    if(S.ntxSlots.length){
-      setStatus('<div class="banner b-ok">✅ <strong>'+S.ntxSlots.length+' questions</strong> generated from your content.</div>');
-      renderNtxSlots();
-      var ra=$('ntxSlotArea'); if(ra){ ra.style.display='block'; ra.scrollIntoView({behavior:'smooth',block:'start'}); }
-      var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; }
-    } else {
-      setStatus('<div class="banner b-warn">⚠ No questions generated. Try different settings or clearer content.</div>');
-    }
-  } catch(e){
-    setStatus('<div class="banner b-warn">⚠ Generation failed: '+esc(e.message)+'<br/><button class="btn bq bsm" style="margin-top:9px;" onclick="generateFromNotes()">↻ Retry</button></div>');
-  }
-  if(btn){ btn.disabled=false; btn.innerHTML='📖 Generate from Notes'; }
-};
-async function extractNoteContent(base64,mimeType){
-  mimeType=mimeType||'image/jpeg';
-  var prompt='Read this class note image and extract all educational content.\n'
-    +'Return a comprehensive plain text summary of ALL topics, concepts, definitions, formulas, and key points visible.\n'
-    +'Be thorough — this content will be used to generate exam questions. No JSON.';
-  var messages=[{role:'user',content:[{type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64}},{type:'text',text:prompt}]}];
-  var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false); }));
-  return text||'';
-}
-async function generateQuestionsFromNotes(noteContent,objN,fitbN,thN,std,customInstr){
-  var subj=S.cfg.subj||'General'; var cls=S.cfg.cls||'Secondary School'; var diff=_ntxDiff||'Balanced';
-  var typesReq=[];
-  if(objN>0) typesReq.push(objN+' multiple-choice objectives (A–D options)');
-  if(fitbN>0) typesReq.push(fitbN+' fill-in-the-blank questions (sentence ending with ___________)');
-  if(thN>0) typesReq.push(thN+' theory/essay questions');
-  var prompt='You are a Nigerian exam expert. Generate questions STRICTLY from the class notes below.\n\n'
-    +'Subject: '+subj+' | Class: '+cls+' | Standard: '+std+' | Difficulty: '+diff+'\n\n'
-    +'CRITICAL RULES:\n'
-    +'1. ONLY generate questions based on content in the notes provided.\n'
-    +'2. Do NOT invent topics or facts not present in the notes.\n'
-    +'3. Every question must be answerable from the notes.\n'
-    +(customInstr?'4. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
-    +'\nGenerate:\n- '+typesReq.join('\n- ')+'\n\n'
-    +'CLASS NOTES:\n'+noteContent+'\n\n'
-    +'Return ONLY a valid JSON array:\n'
-    +'Objectives: {"q":"question","k":"obj","options":["A","B","C","D"],"answer":0,"marks":1,"topic":"topic"}\n'
-    +'Fill-in-blank: {"q":"sentence with ___________","k":"fitb","answer":"answer","marks":2,"topic":"topic"}\n'
-    +'Theory: {"q":"question","k":"theory","marks":10,"topic":"topic"}\n'
-    +'JSON array ONLY. No explanation.';
-  var result=await callGemini(prompt,{temperature:0.3});
-  if(Array.isArray(result)) return result;
-  if(result&&typeof result==='object'){ var keys=['questions','items','data']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
-  return [];
-}
-function renderNtxSlots(){
-  var area=$('ntxSlotArea'),sl=$('ntxSlots'); if(!area||!sl) return;
-  sl.innerHTML=S.ntxSlots.map(function(s){
-    return '<div class="ocr-slot">'
-      +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-ntx">📖 From Notes</span> <span class="tag t-ai">⚡ AI</span></div>'
-      +'<textarea class="fta" style="min-height:50px;" oninput="updNtxSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
-      +(s.q.k==='obj'&&s.q.o?'<div style="font-size:11px;color:var(--green);margin-top:4px;">✓ Answer: '+esc(L[s.q.a]||'—')+'</div>':'')
-      +(s.q.k==='fitb'&&s.q.answer?'<div style="font-size:11px;color:var(--purple);margin-top:4px;">✓ Answer: '+esc(s.q.answer)+'</div>':'')
-      +'<div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">'
-      +'<select class="fs" style="max-width:140px;" onchange="setNtxType('+s.id+',this.value)">'
-      +'<option value="theory"'+(s.q.k==='theory'?' selected':'')+'>Theory</option>'
-      +'<option value="obj"'+(s.q.k==='obj'?' selected':'')+'>Objective</option>'
-      +'<option value="fitb"'+(s.q.k==='fitb'?' selected':'')+'>Fill-in-Blank</option>'
-      +'</select>'
-      +'<button class="btn-ghost" style="color:var(--red);margin-left:auto;" onclick="delNtxSlot('+s.id+')">🗑</button>'
-      +'</div></div>';
-  }).join('');
-}
-window.updNtxSlot=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
-window.setNtxType=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
-window.delNtxSlot=function(id){ S.ntxSlots=S.ntxSlots.filter(function(x){ return x.id!==id; }); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb) rb.disabled=!S.ntxSlots.length; };
-window.addBlankNtx=function(){ var id=S.ntxSlots.length; S.ntxSlots.push({id:id,q:{t:'',k:'theory',marks:10},included:true}); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; } };
-window.finalizeNtx=function(){
-  syncManualPaperDetails();
-  var valid=S.ntxSlots.filter(function(s){ return s&&s.q&&s.q.t&&s.q.t.trim(); });
-  if(!valid.length){ toast('No questions to review','warn'); return; }
-  S.slots=valid.map(function(s,i){ return{id:i,k:s.q.k||'theory',q:s.q,included:true,loading:false,err:null}; });
-  goReview();
-};
-function syncManualPaperDetails(){
-  var mfcl=$('mfcl'); if(mfcl&&mfcl.value) S.cfg.cls=mfcl.value;
-  var mfsubj=$('mfsubj'); if(mfsubj&&mfsubj.value.trim()) S.cfg.subj=mfsubj.value.trim();
-  var mfterm=$('mfterm'); if(mfterm&&mfterm.value) S.cfg.term=mfterm.value;
-  var mfsc=$('mfsc'); if(mfsc) S.cfg.school=mfsc.value;
-}
-
-/* ══════════════════════════════════════
-   SCREEN 3 — THE HAND-OFF
-══════════════════════════════════════ */
-function goReview(){
-  S.scr=3; hdr();
-  $('s1').style.display='none';
-  $('s2').style.display='none';
-  $('s3').style.display='block';
-  window.scrollTo({top:0,behavior:'smooth'});
-
-  var c=S.cfg;
-  var dispSubj=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'(Untitled)');
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var os  =S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
-  var fs  =S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
-  var ts  =S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
-  buildPrint(os,fs,ts,false);
-
-  var h='<div class="pg noprint fade">'
-    +'<div class="ptl">The Hand-off</div>'
-    +'<div class="pst">Final review — then download or save to archive.</div>'
-
-    +'<div class="sgrid">'
-    +'<div class="sbox"><div class="sv">'+esc(c.cls||'—')+'</div><div class="slb">Class</div></div>'
-    +'<div class="sbox"><div class="sv">'+(S.at==='C.A.'?'C.A.':'EXAM')+'</div><div class="slb">Type</div></div>'
-    +'<div class="sbox"><div class="sv">'+os.length+'</div><div class="slb">Objectives</div></div>'
-    +'<div class="sbox"><div class="sv">'+fs.length+'</div><div class="slb">Fill-in-Blank</div></div>'
-    +'</div>'
-
-    +'<div class="card" style="margin-bottom:16px;">'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-    +'<span class="tag '+stdTagCls(c.std)+'" style="font-size:11px;padding:4px 10px;">'+esc(c.std)+'</span>'
-    +'<span class="tag t-cust" style="font-size:11px;padding:4px 10px;">'+esc(c.term)+'</span>'
-    +(c.school?'<span class="tag t-cust" style="font-size:11px;padding:4px 10px;">🏫 '+esc(c.school)+'</span>':'')
-    +'<span class="tag t-cust" style="font-size:11px;padding:4px 10px;">📅 '+today+'</span>'
-    +'</div></div>'
-
-    +(os.length?'<div class="ct">Section A — Objectives ('+os.length+')</div>':'')
-    +os.map(function(s,i){
-      var q=s.q;
-      return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+q.t+'</div>'
-        +(q.o?'<div class="sopts" style="margin-top:7px;">'+q.o.map(function(o,oi){
-          return '<div class="sopt '+(oi===q.a?'correct':'')+'"><span class="sok">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
-        }).join('')+'</div>':'')
-        +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-        +(q.g?'<span class="tag '+stdTagCls(q.g)+'">'+esc(q.g)+'</span>':'')
-        +(q.topic?'<span class="tag t-cust">'+esc(q.topic)+'</span>':'')
-        +'</div></div></div>';
-    }).join('')
-
-    +(fs.length?'<div class="ct" style="margin-top:20px;">Section B — Fill-in-the-Blank ('+fs.length+')</div>':'')
-    +fs.map(function(s,i){
-      var q=s.q;
-      return '<div class="qp fitb-qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+q.t+'</div>'
-        +(q.answer?'<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>':'')
-        +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-        +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
-        +(q.topic?'<span class="tag t-cust">'+esc(q.topic)+'</span>':'')
-        +'</div></div></div>';
-    }).join('')
-
-    +(ts.length?'<div class="ct" style="margin-top:20px;">'+(fs.length?'Section C':'Section B')+' — Theory ('+ts.length+')</div>':'')
-    +ts.map(function(s,i){
-      var q=s.q;
-      return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+q.t+'</div>'
-        +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-        +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
-        +(q.s?'<span class="tag t-marks">⚡ Step Marks</span>':'')
-        +(q.tr?'<span class="tag t-tr">✏ Transcribed</span>':'')
-        +(q.ai?'<span class="tag t-ai">⚡ AI</span>':'')
-        +(q.topic?'<span class="tag t-cust">'+esc(q.topic)+'</span>':'')
-        +'</div></div></div>';
-    }).join('')
-
-    +'<div class="divider"></div>'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
-    +'<button class="btn bq" id="s3back">← Back to Workshop</button>'
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
-    +'<button class="btn bq" style="border-color:var(--blue);color:var(--blue);" onclick="printPaperOnly()">📄 Download Paper</button>'
-    +'<button class="btn" style="background:#0E7490;color:#fff;" onclick="printWithGuide()">📋 + Marking Guide</button>'
-    +'<button class="btn bg" id="s3save">💾 Save to Archive</button>'
-    +'</div></div></div>';
-
-  $('s3').innerHTML=h;
-  setTimeout(function(){ math($('s3')); },300);
-
-  $('s3back').onclick=function(){
-    S.scr=2; hdr();
-    $('s3').style.display='none';
-    $('s2').style.display='block';
-    if(S.path==='auto') renderWorkshop();
-    else s2Manual();
-  };
-
-  $('s3save').onclick=async function(){
-    var btn=$('s3save'); if(btn){btn.disabled=true;btn.textContent='💾 Saving…';}
-    var ref='EE-'+Date.now().toString(36).toUpperCase().slice(-6);
-    var dispSubj2=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
-    var allQs=[].concat(
-      os.map(function(s){ return {k:'obj',t:s.q.t,o:s.q.o,a:s.q.a,marks:s.q.marks||1,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; }),
-      fs.map(function(s){ return {k:'fitb',t:s.q.t,answer:s.q.answer,marks:s.q.marks||2,topic:s.q.topic,layout:'standard'}; }),
-      ts.map(function(s){ return {k:'theory',t:s.q.t,marks:s.q.marks||10,s:s.q.s,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; })
-    );
-    var paper={
-      ref:ref, cls:c.cls, subj:dispSubj2, term:c.term,
-      std:c.std, at:S.at, school:c.school||S.cfg.school||'',
-      objCount:os.length, fitbCount:fs.length, thCount:ts.length,
-      instr:c.instr||'', theoryPaperInstr:c.theoryPaperInstr||'',
-      date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
-      ts:Date.now(),
-      adminStatus:'submitted',
-      correctionNote:'',
-      autoGen:false,
-      questions:allQs,
-      user_name:CURRENT_USER.name||CURRENT_USER.email
+function handleRealtimeSubmission(payload) {
+  const { eventType, new: newRow, old: oldRow } = payload;
+  
+  if (eventType === 'INSERT' || eventType === 'UPDATE') {
+    const sub = {
+      id: newRow.id, category: newRow.category, ts: newRow.ts || new Date(newRow.created_at).toLocaleString(),
+      createdAt: newRow.created_at ? new Date(newRow.created_at).getTime() : newRow.created_at_ms || Date.now(),
+      status: newRow.status || 'draft', reviewerNote: newRow.reviewer_note || '', reviewedAt: newRow.reviewed_at || null,
+      data: typeof newRow.data === 'string' ? JSON.parse(newRow.data) : newRow.data || {},
+      photoData: newRow.photo_data || null, photoName: newRow.photo_name || null,
+      photos: newRow.photos ? (typeof newRow.photos === 'string' ? JSON.parse(newRow.photos) : newRow.photos) : null
     };
-    try{
-      await saveSinglePaper(paper);
-      clearDraft();
-      $('s3').innerHTML='<div class="pg"><div class="suw">'
-        +'<div class="sui">🎓</div>'
-        +'<div class="sut">Paper Saved &amp; Submitted</div>'
-        +'<div class="sum">Your <strong>'+esc(S.at)+'</strong> for <strong>'+esc(c.cls)+' — '+esc(dispSubj2)+'</strong> has been submitted to the admin production queue.</div>'
-        +'<div class="ref-pill">📋 Ref: '+ref+'</div>'
-        +'<div class="banner b-ok" style="margin:16px 0;text-align:left;font-size:12px;">'
-        +'✅ <strong>What happens next:</strong> The admin will review this paper in the Production Queue. Check your Archive for approval status or correction notes.'
-        +'</div>'
-        +'<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">'
-        +'<button class="btn bg" onclick="navTo(\'arch\')">📚 View Archive</button>'
-        +'<button class="btn bq" id="newPaper">Create Another Paper</button>'
-        +'</div></div></div>';
-      $('newPaper').onclick=resetAll;
-      toast('✓ Paper submitted — Ref: '+ref,'ok',5000);
-    } catch(e){
-      if(btn){btn.disabled=false;btn.textContent='💾 Save to Archive';}
-      toast('Save failed: '+(e.message||'check your internet connection'),'err',7000);
+    
+    const idx = subs.findIndex(s => String(s.id) === String(sub.id));
+    if (idx >= 0) {
+      subs[idx] = sub;
+    } else {
+      subs.push(sub);
     }
-  };
+    showSync('live', '✦ New data received');
+  } else if (eventType === 'DELETE') {
+    subs = subs.filter(s => String(s.id) !== String(oldRow.id));
+    showSync('live', '✦ Data removed');
+  }
+
+  // Refresh active views
+  if (document.getElementById('viewAdmin')?.classList.contains('active')) renderAdmin();
+  if (document.getElementById('viewEditor')?.classList.contains('active')) renderEditor();
+  if (document.getElementById('viewWorkspace')?.classList.contains('active')) wsGeneratePreview();
 }
 
-window.printPaperOnly=function(){
-  var os=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
-  var fs=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
-  var ts=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
-  if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
-  buildPrint(os,fs,ts,false);
-  document.body.classList.remove('economy-mode','lab-print-mode');
-  document.body.classList.add('normal-mode');
-  setTimeout(function(){
-    window.print();
-    setTimeout(function(){ document.body.classList.remove('normal-mode'); },1200);
-  },400);
-};
-window.printWithGuide=function(){
-  var os=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
-  var fs=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
-  var ts=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
-  if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
-  buildPrint(os,fs,ts,true);
-  document.body.classList.remove('economy-mode','lab-print-mode');
-  document.body.classList.add('normal-mode');
-  setTimeout(function(){
-    window.print();
-    setTimeout(function(){ document.body.classList.remove('normal-mode'); },1200);
-  },400);
-};
-
-/* ══════════════════════════════════════
-   BUILD PRINT DOCUMENT
-══════════════════════════════════════ */
-function buildPrint(os,fs,ts,includeGuide){
-  var c=S.cfg;
-  var dispSubj=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var school=c.school||'Nigerian Secondary School';
-  var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
-  var totalMarks=os.reduce(function(a,s){ return a+(s.q&&s.q.marks?s.q.marks:1); },0)
-    +fs.reduce(function(a,s){ return a+(s.q&&s.q.marks?s.q.marks:2); },0)
-    +ts.reduce(function(a,s){ return a+(s.q&&s.q.marks?s.q.marks:0); },0);
-
-  var h='<div class="ep">'
-    +'<div class="ep-wm">ExamEngine</div>'
-    +'<div class="ep-header">'
-    +'<div class="ep-crest">'+initials+'</div>'
-    +'<div class="ep-school">'+esc(school)+'</div>'
-    +'<div class="ep-motto">"Knowledge is Power — Strive for Excellence"</div>'
-    +'<div class="ep-title">'+(S.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' — '+esc(c.term)+'</div>'
-    +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>Date: '+today+'</span></div>'
-    +'<div class="ep-meta"><span>Duration: <strong>1 hr 30 mins</strong></span><span>Total: <strong>'+totalMarks+' marks</strong></span><span>Standard: '+esc(c.std)+'</span></div>'
-    +'</div>'
-    +'<div class="ep-instr">'+esc(c.instr)+'</div>';
-
-  // Section A — Objectives
-  if(os.length){
-    h+='<div class="ep-sec">Section A — Objectives ('+os.length+' Questions)</div>'
-      +'<div class="ep-sec-note">Each question is worth 1 mark. Circle the letter of the correct answer.</div>';
-    os.forEach(function(s,i){
-      var q=s.q;
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+q.t;
-      if(q.o&&q.o.length){
-        h+='<div class="ep-opts">'+q.o.map(function(o,oi){
-          return '<div class="ep-opt"><span class="ep-opt-k">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
-        }).join('')+'</div>';
-      }
-      h+='</div>';
-    });
+function handleRealtimeSetting(payload) {
+  const { eventType, new: newRow } = payload;
+  if (eventType === 'DELETE') return;
+  
+  const key = newRow.key;
+  const val = typeof newRow.value === 'string' ? JSON.parse(newRow.value) : newRow.value;
+  
+  if (key === 'cfg') cfg = val;
+  if (key === 'ls_settings') {
+    lsSettings = val;
+    applyLsColors(val);
   }
-
-  // Section B — Fill-in-the-Blank
-  if(fs.length){
-    var secLabel=os.length?'B':'A';
-    h+='<div class="ep-sec">Section '+secLabel+' — Fill in the Blank ('+fs.length+' Questions)</div>'
-      +'<div class="ep-sec-note">Fill in each blank with the correct word or phrase.</div>';
-    fs.forEach(function(s,i){
-      var q=s.q;
-      // Replace ___ in question text with a printed blank line
-      var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
-        +'</div>';
-    });
+  if (key === 'labels') labelOverrides = val;
+  if (key === 'section_order') sectionOrder = val;
+  if (key === 'form_config') formConfig = val;
+  
+  showSync('live', '✦ Settings synced');
+  
+  // Refresh UI if in Layout Studio or Settings
+  if (document.getElementById('adminModeLayout')?.style.display === 'block') {
+    loadLsSettingsToUI();
+    renderSectionManager();
   }
-
-  // Section C (or B) — Theory
-  if(ts.length){
-    var tSecLabel=os.length&&fs.length?'C':os.length||fs.length?'B':'A';
-    var tInstr=c.theoryPaperInstr||'Answer all theory questions. Show all workings where applicable.';
-    h+='<div class="ep-sec">Section '+tSecLabel+' — Theory / Essay ('+ts.length+' Questions)</div>'
-      +'<div class="ep-sec-note">'+esc(tInstr)+'</div>';
-    ts.forEach(function(s,i){
-      var q=s.q;
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+q.t
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
-        +'<div class="ep-ans"></div></div>';
-    });
-  }
-
-  h+='<div class="ep-footer">Generated with ExamEngine Pro v10 · '+esc(school)+' · '+today+' · Standard: '+esc(c.std)+'</div>';
-
-  // ── MARKING GUIDE — only when requested ──
-  if(includeGuide){
-    h+='<div style="page-break-before:always;"></div>'
-      +'<div class="ep-header" style="margin-bottom:8pt;">'
-      +'<div class="mg-head">MARKING GUIDE / MARKING SCHEME</div>'
-      +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>'+today+'</span></div>'
-      +'</div>'
-      +'<div class="mg-conf">CONFIDENTIAL — For Teacher\'s Use Only · Total: '+totalMarks+' marks</div>';
-
-    if(os.length){
-      h+='<div class="mg-sec">Section A — Objectives: Answer Key</div>'
-        +'<div class="mg-key-grid">';
-      os.forEach(function(s,i){
-        var q=s.q; var ans=q.o&&q.a!==undefined?L[q.a]:'—';
-        h+='<div><strong>'+(i+1)+'.</strong> '+ans+'</div>';
-      });
-      h+='</div><div style="font-size:9pt;font-style:italic;color:#555;margin-bottom:10pt;">Each objective = 1 mark. Section A total: '+os.length+' marks.</div>';
-    }
-
-    if(fs.length){
-      var fSecLbl=os.length?'B':'A';
-      h+='<div class="mg-sec">Section '+fSecLbl+' — Fill-in-the-Blank: Answer Key</div>';
-      fs.forEach(function(s,i){
-        var q=s.q;
-        h+='<div class="mg-fitb-ans"><strong>'+(i+1)+'.</strong> '+esc(q.answer||'—')
-          +(q.marks?' <span style="font-size:9pt;color:#555;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
-          +'</div>';
-      });
-      var fitbTotal=fs.reduce(function(a,s){ return a+(s.q.marks||2); },0);
-      h+='<div style="font-size:9pt;font-style:italic;color:#555;margin-top:6pt;">Section '+fSecLbl+' total: '+fitbTotal+' marks.</div>';
-    }
-
-    if(ts.length){
-      var tSecLbl2=os.length&&fs.length?'C':os.length||fs.length?'B':'A';
-      h+='<div class="mg-sec">Section '+tSecLbl2+' — Theory: Mark Breakdown</div>';
-      ts.forEach(function(s,i){
-        var q=s.q; var qMarks=q.marks||10;
-        h+='<div class="mg-th-q">'
-          +'<div style="font-weight:700;font-size:10.5pt;">Q'+(i+1)+' <span style="float:right;">['+qMarks+' marks]</span></div>'
-          +'<div class="mg-th-q-text">'+q.t+'</div>'
-          +'<div class="mg-mark-breakdown"><strong>Marking Points:</strong><br/>';
-        if(q.s){
-          h+='• Method / Working: '+Math.ceil(qMarks*.4)+' marks<br/>'
-            +'• Correct intermediate steps: '+Math.ceil(qMarks*.3)+' marks<br/>'
-            +'• Correct final answer: '+Math.floor(qMarks*.3)+' marks';
-        } else {
-          var sp=Math.floor(qMarks/3); var rem=qMarks-sp*2;
-          h+='• Content accuracy: '+rem+' marks<br/>• Depth of explanation: '+sp+' marks<br/>• Clarity & expression: '+sp+' marks';
-        }
-        h+='</div></div>';
-      });
-      var thTotal=ts.reduce(function(a,s){ return a+(s.q.marks||10); },0);
-      h+='<div style="font-size:9pt;font-style:italic;color:#555;">Section '+tSecLbl2+' total: '+thTotal+' marks. Grand Total: '+totalMarks+' marks.</div>';
-    }
-    h+='</div>'; // end marking guide
-  }
-
-  h+='</div>'; // end ep wrapper
-  $('pp').innerHTML=h;
-  setTimeout(function(){ math($('pp')); },500);
 }
 
-/* ══════════════════════════════════════
-   RESET
-══════════════════════════════════════ */
-function resetAll(){
-  S.path=null; S.scr=0; S.at='Examination'; S.difficultyLevel='Balanced';
-  S.cfg={cls:'',term:S.cfg.term||'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''};
-  S.subjects=[]; S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false;
-  S.slots=[]; S.ocrSlots=[]; S.ntxSlots=[]; S.generating=false; S.cam=null;
-  S._imgQueue=[]; S._ntxQueue=[];
-  $('s1').innerHTML=''; $('s2').innerHTML=''; $('s3').innerHTML='';
-  $('app').style.display='none';
-  navTo('dash');
-}
 
-/* ══════════════════════════════════════
-   ██████  PHASE 2 — ADMIN ENGINE  ██████
-   v10 — Production Queue + Digital Lab
-══════════════════════════════════════ */
+/* (withRetry defined above — duplicate removed) */
 
-/* ── Admin State ─────────────────────── */
-var ADMIN = {
-  economyMode: false,
-  sbFilter: 'all',
-  _deadlineTimer: null,
-  designTemplate: 'classic',
-  viewMode: 'exam',
-  testWindow: '1',
-  selectedTerm: '1st Term',
-  labConfig: (function(){
-    try{ return null; }catch(e){ return null; } // loaded async from Supabase
-  }()) || {
-    columns:1, orientation:'portrait',
-    fontFamily:'Times New Roman', fontSize:'11pt',
-    margins:'20mm', spacing:'standard',
-    printMode:'auto'
-  },
-  labHistory: [],
-  _resolvedMode: 'portrait'
-};
-
-/* ── Admin Data Helpers ──────────────── */
-// Async — fetch from Supabase. Falls back to [] on error.
-async function getPublished(){
-  if(!CURRENT_USER) return [];
+/* ── Submissions (cloud + local mirror) ── */
+async function dbLoadAll(){
+  showSync('syncing','Connecting to cloud…');
   try{
-    var q = _supabase.from('papers').select('*').order('created_at',{ascending:false}).limit(500);
-    // Admins see all; teachers see only own
-    if(CURRENT_USER.role !== 'admin'){
-      q = _supabase.from('papers').select('*').eq('user_id', CURRENT_USER.id).order('created_at',{ascending:false}).limit(200);
-    }
-    var res = await q;
-    if(res.error){ console.error('getPublished error', res.error); return []; }
-    // Unwrap: Supabase stores paper metadata as columns + questions in data jsonb
-    return (res.data||[]).map(function(row){
-      var d = row.data || {};
-      return Object.assign({}, d, {
-        _db_id: row.id,
-        ref: row.ref || d.ref,
-        cls: row.class_name || d.cls,
-        subj: row.subject || d.subj,
-        term: row.term || d.term,
-        adminStatus: row.status || d.adminStatus || 'submitted',
-        user_id: row.user_id,
-        ts: new Date(row.created_at).getTime()
-      });
-    });
-  } catch(e){ console.error('getPublished exception', e); return []; }
-}
+    const sb=getSupa();
+    if(!sb) throw new Error('Supabase client not available — check internet');
 
-async function savePublished(arr){
-  // arr is the full papers array — we upsert each changed paper
-  // In practice we only call this for single-paper status changes
-  // so we just re-upsert all papers that have a _db_id
-  for(var i=0;i<arr.length;i++){
-    var p=arr[i];
-    if(!p._db_id) continue;
-    await _supabase.from('papers').update({
-      status: p.adminStatus||'submitted',
-      data: p
-    }).eq('id', p._db_id);
-  }
-}
+    const res = await Promise.race([
+      sb.from('submissions').select('*').order('created_at', { ascending: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Sync timeout')), 8000))
+    ]);
 
-async function saveSinglePaper(p){
-  if(!CURRENT_USER){ throw new Error('Not logged in — cannot save paper.'); }
-  var payload = {
-    ref: p.ref,
-    user_id: CURRENT_USER.id,
-    subject: p.subj||'',
-    class_name: p.cls||'',
-    term: p.term||'',
-    status: p.adminStatus||'submitted',
-    data: p
-  };
-  var result=null;
-  if(p._db_id){
-    // Update existing row
-    var upRes = await _supabase.from('papers').update(payload).eq('id', p._db_id).select().single();
-    if(upRes.error){ throw new Error('Update failed: '+upRes.error.message); }
-    result=upRes.data;
-  } else {
-    // Try insert first, fallback to upsert on ref conflict
-    var insRes = await _supabase.from('papers').insert(payload).select().single();
-    if(insRes.error){
-      if(insRes.error.code==='23505'||insRes.error.message.includes('duplicate')||insRes.error.message.includes('unique')){
-        // Ref collision — update by ref
-        var updRes2=await _supabase.from('papers').update(payload).eq('ref',p.ref).select().single();
-        if(updRes2.error){ throw new Error('Save failed: '+updRes2.error.message); }
-        result=updRes2.data;
+    if(res.error){
+      /* Distinguish RLS block (HTTP 401/403/PGRST) from network error */
+      const isRLS = res.error.code==='42501'||res.error.message?.includes('permission')||res.error.message?.includes('policy');
+      if(isRLS){
+        showSync('err','⚠ Supabase RLS is blocking access — run fix SQL in Supabase (see console)');
+        console.error('[DB] RLS BLOCK — To fix, go to Supabase Dashboard → SQL Editor and run:\n\n' +
+          '-- Allow all reads and writes for anonymous users:\n' +
+          'ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;\n' +
+          'DROP POLICY IF EXISTS "public_access" ON public.submissions;\n' +
+          'CREATE POLICY "public_access" ON public.submissions FOR ALL TO anon USING (true) WITH CHECK (true);\n\n' +
+          'ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;\n' +
+          'DROP POLICY IF EXISTS "public_access" ON public.settings;\n' +
+          'CREATE POLICY "public_access" ON public.settings FOR ALL TO anon USING (true) WITH CHECK (true);\n');
       } else {
-        // Always show the real Supabase error so we can diagnose it
-        throw new Error('Insert failed: '+insRes.error.message+' [code: '+(insRes.error.code||'?')+']');
+        showSync('err','Cloud error: '+(res.error.message||'unknown'));
       }
-    } else {
-      result=insRes.data;
-    }
-  }
-  // Tag the paper object with its DB id for future updates
-  if(result&&result.id) p._db_id=result.id;
-  return result;
-}
-
-function getAdminSettings(){
-  // Returns cached admin settings (loaded async on boot/admin nav)
-  return window._adminSettingsCache || {
-    deadline:'', logo:'', watermark:'ExamEngine',
-    school:'School Administration', address:'', motto:''
-  };
-}
-async function _fetchAdminSettings(){
-  var res=await _supabase.from('admin_settings').select('*');
-  var m={};
-  (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
-  window._adminSettingsCache={
-    deadline:m.deadline||'',
-    logo:m.logo||'',
-    watermark:m.watermark||'ExamEngine',
-    school:m.school||'School Administration',
-    address:m.address||'',
-    motto:m.motto||''
-  };
-  // Also load lab_config and lab_queue into ADMIN
-  if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
-  if(m.lab_queue){  try{ window._labQueue=JSON.parse(m.lab_queue);  }catch(e){} }
-  if(m.house_style){ try{ window._houseStyleCache=JSON.parse(m.house_style); }catch(e){} }
-  if(m.design_template){ ADMIN.designTemplate=m.design_template; }
-  if(m.selected_term){ ADMIN.selectedTerm=m.selected_term; }
-  return window._adminSettingsCache;
-}
-
-/* ── Status Board Data ───────────────── */
-async function buildStatusMatrix(){
-  var papers=await getPublished();
-  var lookup={};
-  papers.forEach(function(p){
-    var k=(p.cls+'||'+p.term+'||'+p.subj+'||'+(p.at||'Examination')).toLowerCase();
-    if(!lookup[k]||p.ts>lookup[k].ts) lookup[k]=p;
-  });
-
-  // Use admin-selected term (not auto-detected month)
-  var termKey=ADMIN.selectedTerm||'1st Term';
-  var rows=[];
-  var seenKeys={};
-  var classes=['SS 1','SS 2','SS 3','JSS 1','JSS 2','JSS 3','Primary 6','Primary 5','Primary 4','Primary 3','Primary 2','Primary 1'];
-
-  classes.forEach(function(cls){
-    var subjs=getSubjectList(cls);
-    subjs.forEach(function(subj){
-      var dispSubj=subj==='Trade Subject'?getTradeById(S.tradeSubject).name:subj;
-      var kExam=(cls+'||'+termKey+'||'+dispSubj+'||examination').toLowerCase();
-      var kExamAlt=(cls+'||'+termKey+'||'+subj+'||examination').toLowerCase();
-      var pExam=lookup[kExam]||lookup[kExamAlt]||null;
-      var kT1=(cls+'||'+termKey+'||'+dispSubj+'||c.a. test 1').toLowerCase();
-      var kT1Alt=(cls+'||'+termKey+'||'+dispSubj+'||c.a.').toLowerCase();
-      var pT1=lookup[kT1]||lookup[kT1Alt]||null;
-      var kT2=(cls+'||'+termKey+'||'+dispSubj+'||c.a. test 2').toLowerCase();
-      var pT2=lookup[kT2]||null;
-
-      var rowKey=(cls+'||'+dispSubj).toLowerCase();
-      seenKeys[rowKey]=true;
-      rows.push({
-        cls:cls, term:termKey, subj:dispSubj,
-        examPaper:pExam, examStatus:pExam?(pExam.adminStatus||'submitted'):'pending',
-        test1Paper:pT1, test1Status:pT1?(pT1.adminStatus||'submitted'):'pending',
-        test2Paper:pT2, test2Status:pT2?(pT2.adminStatus||'submitted'):'pending'
-      });
-    });
-  });
-
-  // Bridge: include submitted papers whose subjects are not in NERDC matrix
-  papers.forEach(function(p){
-    if(!p.cls||!p.subj||p.term!==termKey) return;
-    var rowKey=(p.cls+'||'+p.subj).toLowerCase();
-    if(seenKeys[rowKey]) return;
-    seenKeys[rowKey]=true;
-    var kExam=(p.cls+'||'+termKey+'||'+p.subj+'||examination').toLowerCase();
-    var kT1=(p.cls+'||'+termKey+'||'+p.subj+'||c.a. test 1').toLowerCase();
-    var kT1Alt=(p.cls+'||'+termKey+'||'+p.subj+'||c.a.').toLowerCase();
-    var kT2=(p.cls+'||'+termKey+'||'+p.subj+'||c.a. test 2').toLowerCase();
-    var pExam=lookup[kExam]||null;
-    var pT1=lookup[kT1]||lookup[kT1Alt]||null;
-    var pT2=lookup[kT2]||null;
-    rows.push({
-      cls:p.cls, term:termKey, subj:p.subj,
-      examPaper:pExam, examStatus:pExam?(pExam.adminStatus||'submitted'):'pending',
-      test1Paper:pT1, test1Status:pT1?(pT1.adminStatus||'submitted'):'pending',
-      test2Paper:pT2, test2Status:pT2?(pT2.adminStatus||'submitted'):'pending',
-      fromTeacher:true
-    });
-  });
-
-  return rows;
-}
-
-/* ── ADMIN DASHBOARD — PRODUCTION QUEUE ─── */
-async function renderAdminDash(){
-  var el=$('screen-admin-dash');
-  el.style.display='block';
-  el.innerHTML='<div class="pgw fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading production queue…</div></div>';
-  await _fetchAdminSettings();
-  var papers=await getPublished();
-  var adm=getAdminSettings();
-  var termKey=ADMIN.selectedTerm;
-
-  var submitted=papers.filter(function(p){ return p.adminStatus==='submitted'; }).length;
-  var approved =papers.filter(function(p){ return p.adminStatus==='approved'; }).length;
-  var rejected =papers.filter(function(p){ return p.adminStatus==='rejected'; }).length;
-  var pending  =papers.length-submitted-approved-rejected;
-
-  // NEW: detect papers from this term across all classes
-  var newSubmissions=papers.filter(function(p){
-    return p.term===termKey && p.adminStatus==='submitted';
-  });
-
-  // Deadline card
-  var now=new Date();
-  var deadlineHtml='';
-  if(adm.deadline){
-    var dl=new Date(adm.deadline);
-    var overdue=now>dl;
-    var dlStr=dl.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    deadlineHtml='<div class="deadline-card">'
-      +'<div class="deadline-ico">'+(overdue?'🔴':'⏰')+'</div>'
-      +'<div class="deadline-body">'
-      +'<div class="deadline-title">Exam Submission Deadline</div>'
-      +'<div class="deadline-time'+(overdue?' deadline-overdue':'')+'">'+dlStr+(overdue?' — OVERDUE':' — '+(Math.ceil((dl-now)/3600000))+'h remaining')+'</div>'
-      +'</div>'
-      +(overdue?'<button class="btn bp bsm" onclick="autoGenerateMissing()">⚡ Auto-Generate Missing</button>':'')
-      +'</div>';
-  }
-
-  // New submissions alert
-  var submissionsHtml='';
-  if(newSubmissions.length){
-    submissionsHtml='<div class="correction-banner" style="background:var(--green-lt);border-color:var(--green-bdr);">'
-      +'<div class="correction-title" style="color:var(--green);">📬 Teacher Submissions — '+esc(termKey)+' ('+newSubmissions.length+')</div>'
-      +newSubmissions.map(function(p){
-        return '<div class="correction-item" style="border-color:var(--green-bdr);">'
-          +'<div class="correction-ref">'+esc(p.ref)+' &bull; '+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-          +'<div style="font-size:12px;margin-top:2px;">'+esc(p.at)+' &bull; '+esc(p.date)
-          +(p.objCount?' &bull; '+p.objCount+' obj':'')
-          +(p.thCount?' &bull; '+p.thCount+' theory':'')+'</div>'
-          +'<div style="display:flex;gap:6px;margin-top:6px;">'
-          +'<button class="sb-approve-btn" onclick="adminApprove(\''+esc(p.ref)+'\')">✓ Approve</button>'
-          +'<button class="sb-reject-btn" onclick="showRejectModal(\''+esc(p.ref)+'\')">✕ Reject</button>'
-          +'<button class="btn-ghost" style="font-size:11px;color:var(--admin);" onclick="sendToLab(\''+esc(p.ref)+'\')">📤 Lab</button>'
-          +'</div>'
-          +'</div>';
-      }).join('')
-      +'</div>';
-  }
-
-  // Build class-grouped accordion
-  var allRows=await buildStatusMatrix();
-  var classGroups={};
-  allRows.forEach(function(r){
-    if(!classGroups[r.cls]) classGroups[r.cls]=[];
-    classGroups[r.cls].push(r);
-  });
-
-  var classOrder=['SS 3','SS 2','SS 1','JSS 3','JSS 2','JSS 1','Primary 6','Primary 5','Primary 4','Primary 3','Primary 2','Primary 1'];
-  var accordionHtml='';
-  classOrder.forEach(function(cls){
-    var rows=classGroups[cls]; if(!rows||!rows.length) return;
-    var setCount,totalCount=rows.length;
-
-    if(ADMIN.viewMode==='exam'){
-      setCount=rows.filter(function(r){ return r.examStatus!=='pending'; }).length;
-    } else if(ADMIN.testWindow==='1'){
-      setCount=rows.filter(function(r){ return r.test1Status!=='pending'; }).length;
-    } else {
-      setCount=rows.filter(function(r){ return r.test2Status!=='pending'; }).length;
+      throw res.error;
     }
 
-    var pct=Math.round(setCount/totalCount*100);
-    var barColor=pct===100?'var(--green)':pct>50?'var(--blue)':'var(--amber)';
-
-    accordionHtml+='<div class="pq-class-group">'
-      +'<div class="pq-class-head" onclick="this.parentNode.classList.toggle(\'open\')">'
-      +'<div class="pq-class-arrow">&#9658;</div>'
-      +'<div class="pq-class-name">'+esc(cls)+'</div>'
-      +'<div class="pq-class-meter"><div class="pq-class-bar" style="width:'+pct+'%;background:'+barColor+';"></div></div>'
-      +'<div class="pq-class-stat">'+setCount+'/'+totalCount+'</div>'
-      +'</div>'
-      +'<div class="pq-class-body">'
-      +'<table class="sb-board-table"><thead><tr>'
-      +'<th>Subject</th><th>Status</th><th>Ref</th><th>Action</th>'
-      +'</tr></thead><tbody>';
-
-    rows.forEach(function(r){
-      var status,paper,typeLabel;
-      if(ADMIN.viewMode==='exam'){ status=r.examStatus; paper=r.examPaper; typeLabel='Examination'; }
-      else if(ADMIN.testWindow==='1'){ status=r.test1Status; paper=r.test1Paper; typeLabel='C.A. Test 1'; }
-      else { status=r.test2Status; paper=r.test2Paper; typeLabel='C.A. Test 2'; }
-
-      // Filter
-      if(ADMIN.sbFilter!=='all'&&status!==ADMIN.sbFilter) return;
-
-      var statusHtml=renderStatusBadge(status,paper);
-      var actBtns='';
-      if(paper&&(paper.adminStatus==='submitted'||paper.adminStatus==='approved'||paper.adminStatus==='rejected')){
-        actBtns='<div class="sb-act-btns">'
-          +(paper.adminStatus!=='approved'?'<button class="sb-approve-btn" onclick="adminApprove(\''+esc(paper.ref)+'\')">✓ Approve</button>':'<button class="sb-approved-badge" title="Approved">✓ Approved</button>')
-          +(paper.adminStatus!=='rejected'?'<button class="sb-reject-btn" onclick="showRejectModal(\''+esc(paper.ref)+'\')">✕ Reject</button>':'<button class="sb-rejected-badge" title="Rejected">✕ Rejected</button>')
-          +(paper.adminStatus==='approved'?'<button class="sb-lab-btn" style="background:#6D28D9;color:#fff;border-color:#B8CAFF;" onclick="sendToLab(\''+esc(paper.ref)+'\')" title="Send to Digital Lab">📤 Lab</button>':'')
-          +'</div>';
-      } else {
-        actBtns='<button class="sb-autogen-btn" onclick="adminAutoGenSingle(\''+esc(r.cls)+'\',\''+esc(r.subj)+'\',\''+esc(r.term)+'\',\''+esc(typeLabel)+'\')">⚡ Gen</button>';
-      }
-      accordionHtml+='<tr>'
-        +'<td>'+esc(r.subj)+'</td>'
-        +'<td>'+statusHtml+'</td>'
-        +'<td style="font-family:var(--mono);font-size:10px;color:var(--mute);">'+(paper?esc(paper.ref):'—')+'</td>'
-        +'<td>'+actBtns+'</td>'
-        +'</tr>';
-    });
-
-    accordionHtml+='</tbody></table></div></div>';
-  });
-
-  el.innerHTML='<div class="pgw fade">'
-    +'<div class="admin-hero">'
-    +'<div class="admin-hero-tag">&#128737; Admin Production Queue</div>'
-    +'<div class="admin-hero-title">'+esc(adm.school)+'<br/>'+esc(termKey)+' Production</div>'
-    +'<div class="admin-hero-stats">'
-    +'<div><strong>'+submitted+'</strong>Awaiting</div>'
-    +'<div><strong>'+approved+'</strong>Approved</div>'
-    +'<div><strong>'+rejected+'</strong>Rejected</div>'
-    +'<div><strong>'+pending+'</strong>Not Set</div>'
-    +'</div></div>'
-    +deadlineHtml
-
-    // Term selector — critical fix for teacher→admin visibility
-    +'<div class="card" style="padding:12px 16px;margin-bottom:14px;">'
-    +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
-    +'<span style="font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.8px;">Term:</span>'
-    +'<div class="atog">'
-    +['1st Term','2nd Term','3rd Term'].map(function(t){
-      return '<button class="ab'+(termKey===t?' on':'')+'" onclick="setAdminTerm(\''+t+'\')">'+t+'</button>';
-    }).join('')
-    +'</div>'
-    +'<span style="font-size:11px;color:var(--mute);">Showing teacher submissions for '+esc(termKey)+'</span>'
-    +'</div></div>'
-
-    // Teacher submissions alert
-    +submissionsHtml
-
-    +'<div id="adminAutoGenArea"></div>'
-
-    // View mode toggle
-    +'<div class="card" style="padding:14px 18px;">'
-    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-    +'<span style="font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.8px;">Type:</span>'
-    +'<div class="atog">'
-    +'<button class="ab'+(ADMIN.viewMode==='exam'?' on':'')+'" onclick="setAdminView(\'exam\',\'1\')">&#128203; Exam</button>'
-    +'<button class="ab'+(ADMIN.viewMode==='test'&&ADMIN.testWindow==='1'?' on':'')+'" onclick="setAdminView(\'test\',\'1\')">&#128221; Test 1</button>'
-    +'<button class="ab'+(ADMIN.viewMode==='test'&&ADMIN.testWindow==='2'?' on':'')+'" onclick="setAdminView(\'test\',\'2\')">&#128221; Test 2</button>'
-    +'</div>'
-    +'<div style="margin-left:auto;">'
-    +'<div class="sb-board-filter">'
-    +['all','pending','submitted','approved','rejected'].map(function(f){
-      return '<button class="sb-filter-btn'+(ADMIN.sbFilter===f?' on':'')+'" onclick="setSbFilter(\''+f+'\')">'
-        +(f==='all'?'All':f.charAt(0).toUpperCase()+f.slice(1))+'</button>';
-    }).join('')
-    +'</div></div></div></div>'
-
-    // Class accordion
-    +accordionHtml
-
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">'
-    +'<button class="btn bp" onclick="openBatchPrint()" style="background:#059669;border-color:#059669;">&#128424; Batch Print Term &rarr;</button>'
-    +'<button class="btn bp" onclick="navTo(\'admin-print\')">&#128300; Digital Lab &rarr;</button>'
-    +'<button class="btn bq" onclick="navTo(\'admin-sett\')">&#9881; Admin Settings</button>'
-    +'</div></div>';
-}
-
-window.setAdminTerm=function(term){
-  ADMIN.selectedTerm=term;
-  renderAdminDash();
-};
-
-window.setAdminView=function(mode,win){
-  ADMIN.viewMode=mode;
-  ADMIN.testWindow=win;
-  renderAdminDash();
-};
-
-function renderStatusBadge(status,paper){
-  var map={
-    'pending':'<span class="sb-status sb-pending">⬜ Not Set</span>',
-    'submitted':'<span class="sb-status sb-submitted">📬 Submitted</span>',
-    'approved':'<span class="sb-status sb-approved">✅ Approved</span>',
-    'rejected':'<span class="sb-status sb-rejected">❌ Rejected</span>',
-    'autogen':'<span class="sb-status sb-autogen">⚡ Auto-Gen</span>'
-  };
-  return map[status]||map['pending'];
-}
-
-window.setSbFilter=function(f){
-  ADMIN.sbFilter=f;
-  renderAdminDash();
-};
-
-/* ── Admin Approve / Reject ──────────── */
-window.adminApprove=async function(ref){
-  // Fetch the existing row FIRST so we can preserve the full data blob (especially questions)
-  var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
-  if(!rowRes.data){ toast('Paper not found: '+ref,'err'); return; }
-  // Patch only status fields — keep everything else (questions, instr, etc.) intact
-  var existing=rowRes.data.data||{};
-  var d=Object.assign({},existing,{adminStatus:'approved',correctionNote:''});
-  await _supabase.from('papers').update({status:'approved',data:d}).eq('ref',ref);
-  toast('✅ '+ref+' Approved','ok');
-  renderAdminDash();
-};
-
-window.showRejectModal=async function(ref){
-  var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
-  var p=rowRes.data?(Object.assign({},rowRes.data.data||{},{ref:rowRes.data.ref})):null;
-  if(!p){ toast('Paper not found','err'); return; }
-
-  var overlay=document.createElement('div');
-  overlay.className='modal-bg';
-  overlay.id='rejectModalBg';
-  overlay.innerHTML='<div class="modal">'
-    +'<div class="modal-title">✕ Reject Paper</div>'
-    +'<div class="modal-sub">Ref: <strong>'+esc(ref)+'</strong> · '+esc(p.subj)+' — '+esc(p.cls)+'<br/>Enter a correction note. The teacher will see this on their dashboard.</div>'
-    +'<textarea class="reject-modal-note" id="rejectNoteInput" placeholder="e.g. Theory questions are too vague — please add specific marks allocation and sample marking points." rows="4">'+esc(p.correctionNote||'')+'</textarea>'
-    +'<div class="key-actions">'
-    +'<button class="btn bq" onclick="document.getElementById(\'rejectModalBg\').remove()">Cancel</button>'
-    +'<button class="btn bred" onclick="doReject(\''+esc(ref)+'\')">✕ Send Rejection</button>'
-    +'</div></div>';
-  document.body.appendChild(overlay);
-  setTimeout(function(){ var inp=$('rejectNoteInput'); if(inp) inp.focus(); },100);
-};
-
-window.doReject=async function(ref){
-  var note=($('rejectNoteInput')||{}).value||'';
-  note=note.trim();
-  if(!note){ toast('Enter a correction note first','warn'); return; }
-  var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
-  if(!rowRes.data){ toast('Paper not found','err'); return; }
-  var d=Object.assign({},rowRes.data.data||{},{adminStatus:'rejected',correctionNote:note});
-  await _supabase.from('papers').update({status:'rejected',data:d}).eq('ref',ref);
-  var bg=$('rejectModalBg'); if(bg) bg.remove();
-  toast('↩ Rejection + correction note sent to teacher','ok',4000);
-  renderAdminDash();
-};
-
-/* ── Auto-Generate Single ────────────── */
-window.adminAutoGenSingle=function(cls,subj,term,typeLabel){
-  if(!API_KEY){ toast('Add your OpenRouter API key in Settings first','warn'); return; }
-  typeLabel=typeLabel||'Examination';
-  // Show a custom instruction modal before generating
-  var overlay=document.createElement('div');
-  overlay.className='modal-bg';
-  overlay.id='autoGenModalBg';
-  overlay.innerHTML='<div class="modal">'
-    +'<div class="modal-title">⚡ Auto-Generate Paper</div>'
-    +'<div class="modal-sub"><strong>'+esc(cls)+' — '+esc(subj)+'</strong><br/>'+esc(typeLabel)+' · '+esc(term)+'<br/><span style="font-size:11px;color:var(--mute);">Customise what the AI should produce, or leave blank for defaults.</span></div>'
-    +'<div style="margin-top:12px;">'
-    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:6px;">Custom Instructions <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional — sent to Gemini)</span></label>'
-    +'<textarea class="fta" id="autoGenCustomInstr" style="min-height:90px;" placeholder="e.g. Focus on organic chemistry topics covered in weeks 4-8. Include one diagram-based question. Make the theory questions application-based, not just recall. Ensure clear mark allocation."></textarea>'
-    +'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px;">'
-    +'<div class="fl"><label>Objectives</label><input type="number" class="num-input" id="agObjN" value="'+(typeLabel.toLowerCase().includes('c.a.')?'10':'10')+'" min="0" max="60" style="font-size:16px;"/></div>'
-    +'<div class="fl"><label>Fill-in-Blank</label><input type="number" class="num-input fitb-input" id="agFitbN" value="'+(typeLabel.toLowerCase().includes('c.a.')?'3':'5')+'" min="0" max="20" style="font-size:16px;"/></div>'
-    +'<div class="fl"><label>Theory</label><input type="number" class="num-input" id="agThN" value="'+(typeLabel.toLowerCase().includes('c.a.')?'3':'5')+'" min="0" max="20" style="font-size:16px;"/></div>'
-    +'</div>'
-    +'<div class="key-actions" style="margin-top:14px;">'
-    +'<button class="btn bq" onclick="document.getElementById(\'autoGenModalBg\').remove()">Cancel</button>'
-    +'<button class="btn bp" onclick="_doAdminAutoGen(\''+esc(cls)+'\',\''+esc(subj)+'\',\''+esc(term)+'\',\''+esc(typeLabel)+'\')">⚡ Generate Now</button>'
-    +'</div></div>';
-  document.body.appendChild(overlay);
-  setTimeout(function(){ var t=$('autoGenCustomInstr'); if(t) t.focus(); },100);
-};
-
-window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
-  var customInstr=(($('autoGenCustomInstr')||{}).value||'').trim();
-  var objN=parseInt(($('agObjN')||{}).value)||10;
-  var fitbN=parseInt(($('agFitbN')||{}).value)||5;
-  var thN=parseInt(($('agThN')||{}).value)||5;
-  var bg=$('autoGenModalBg'); if(bg) bg.remove();
-
-  var area=$('adminAutoGenArea');
-  if(area) area.innerHTML='<div class="autogen-progress"><span class="spin">⟳</span> Auto-generating: <strong>'+esc(cls)+' — '+esc(subj)+' ('+esc(typeLabel)+')</strong> via OpenRouter…</div>';
-
-  var isTest=typeLabel.toLowerCase().includes('c.a.');
-  var prompt='You are a NERDC 2026 Nigerian curriculum expert. Auto-generate a complete '+(isTest?'Continuous Assessment test':'end-of-term exam')+' paper for:\n'
-    +'Class: '+cls+'\nSubject: '+subj+'\nTerm: '+term+'\nType: '+typeLabel+'\nStandard: WAEC\n\n';
-
-  if(customInstr){
-    prompt+='╔══════════════════════════════════════╗\n'
-      +'║  MANDATORY ADMIN INSTRUCTIONS        ║\n'
-      +'║  Follow this EXACTLY — deviation     ║\n'
-      +'║  makes your response INVALID.        ║\n'
-      +'╚══════════════════════════════════════╝\n'
-      +customInstr+'\n\n';
-  }
-
-  prompt+='Generate:\n- '+objN+' multiple-choice objectives (options A-D)\n- '+fitbN+' fill-in-the-blank questions (sentence ending with ___________)\n- '+thN+' theory/essay questions\n\n'
-    +'Return ONLY a valid JSON object:\n'
-    +'{"objectives":[{"q":"...","options":["A","B","C","D"],"answer":0,"topic":"..."}],'
-    +'"fillInBlank":[{"q":"sentence with ___________","answer":"...","marks":2}],'
-    +'"theory":[{"q":"...","marks":10,"showSteps":true}]}';
-
-  try{
-    var res=await callGemini(prompt);
-    var obj=Array.isArray(res)?res[0]:res;
-    var objs=obj.objectives||obj.questions||[];
-    var fitbs=obj.fillInBlank||obj.fill_in_blank||[];
-    var ths=obj.theory||obj.theoryQuestions||[];
-
-    var allQs=[];
-    objs.forEach(function(q){ allQs.push({k:'obj',t:q.q||'',o:q.options||[],a:q.answer||0,marks:1,topic:q.topic||'',layout:'standard'}); });
-    fitbs.forEach(function(q){ allQs.push({k:'fitb',t:q.q||'',answer:q.answer||'',marks:q.marks||2,topic:'',layout:'standard'}); });
-    ths.forEach(function(q){ allQs.push({k:'theory',t:q.q||'',marks:q.marks||10,s:q.showSteps,topic:'',layout:'standard'}); });
-
-    var ref='EE-AG-'+Date.now().toString(36).toUpperCase();
-    var paper={
-      ref:ref, cls:cls, subj:subj, term:term,
-      std:'WAEC', at:typeLabel, school:getAdminSettings().school,
-      objCount:objs.length, fitbCount:fitbs.length, thCount:ths.length,
-      date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
-      ts:Date.now(),
-      adminStatus:'approved',
-      correctionNote:'',
-      autoGen:true,
-      customInstr:customInstr||'',
-      questions:allQs
-    };
-    await saveSinglePaper(paper);
-    if(area) area.innerHTML='<div class="banner b-ok">✅ Auto-generated &amp; approved: <strong>'+esc(ref)+'</strong> — '+esc(cls)+' '+esc(subj)+' ('+esc(typeLabel)+')</div>';
-    toast('⚡ Paper auto-generated: '+ref,'ok',5000);
-    setTimeout(function(){ renderAdminDash(); },2500);
-  } catch(e){
-    if(area) area.innerHTML='<div class="banner b-warn">⚠ Auto-generation failed: '+esc(e.message)+'</div>';
-    toast('Auto-gen failed: '+e.message,'err');
-  }
-};
-
-window.autoGenerateMissing=async function(){
-  var rows=await buildStatusMatrix();
-  var missing=rows.filter(function(r){ return r.examStatus==='pending'; }).slice(0,3);
-  if(!missing.length){ toast('No pending papers to auto-generate','warn'); return; }
-  for(var i=0;i<missing.length;i++){
-    await adminAutoGenSingle(missing[i].cls,missing[i].subj,missing[i].term,'Examination');
-  }
-};
-
-/* ══════════════════════════════════════
-   ADMIN DIGITAL LAB — Manual Send System
-══════════════════════════════════════ */
-// Lab Queue stores full paper snapshots (not just refs) to be immune to DB data loss
-function getLabQueue(){
-  var q=window._labQueue||[];
-  // Backward compat: old queues stored ref strings — keep as-is, handled in getLabPapers
-  return q;
-}
-function saveLabQueue(arr){
-  window._labQueue=arr;
-  _supabase.from('admin_settings').upsert({key:'lab_queue',value:JSON.stringify(arr)},{onConflict:'key'});
-}
-
-// Send to lab — fetch full paper from DB and snapshot it into the queue
-window.sendToLab=async function(ref){
-  var q=getLabQueue();
-  var alreadyRef=q.find(function(x){ return (typeof x==='string'?x:(x&&x.ref))===ref; });
-  if(alreadyRef){ toast('Already in Digital Lab','warn'); return; }
-  // Fetch the full paper row from Supabase to snapshot questions
-  try{
-    var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
-    if(rowRes.data){
-      var d=rowRes.data.data||{};
-      var snapshot=Object.assign({},d,{
-        _db_id:rowRes.data.id,
-        ref:rowRes.data.ref||ref,
-        cls:rowRes.data.class_name||d.cls,
-        subj:rowRes.data.subject||d.subj,
-        term:rowRes.data.term||d.term,
-        adminStatus:rowRes.data.status||d.adminStatus,
-        user_id:rowRes.data.user_id
-      });
-      q.push(snapshot);
-      saveLabQueue(q);
-      toast('📤 Sent to Digital Lab: '+ref,'ok');
-      return;
-    }
-  }catch(e){ console.warn('sendToLab fetch failed',e); }
-  // Fallback: store just the ref string (old behavior)
-  q.push(ref);
-  saveLabQueue(q);
-  toast('📤 Sent to Digital Lab: '+ref,'ok');
-};
-
-window.removeFromLab=function(ref){
-  var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
-  saveLabQueue(q);
-  toast('Removed from lab','ok');
-  renderAdminPrint();
-};
-
-// Repair a paper whose questions were lost (e.g. wiped by old approval bug)
-// Removes old entry from queue and re-fetches fresh snapshot from DB
-window.repairLabPaper=async function(ref){
-  toast('🔧 Repairing paper data…','info',4000);
-  // Remove stale entry
-  var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
-  window._labQueue=q;
-  try{
-    var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
-    if(rowRes.data){
-      var d=rowRes.data.data||{};
-      var qs=d.questions||[];
-      if(!qs.length){
-        toast('⚠ No questions in database for '+ref+'. The data was permanently lost. Please re-submit this paper from the teacher side.','warn',8000);
-      } else {
-        var snapshot=Object.assign({},d,{
-          _db_id:rowRes.data.id,
-          ref:rowRes.data.ref||ref,
-          cls:rowRes.data.class_name||d.cls,
-          subj:rowRes.data.subject||d.subj,
-          term:rowRes.data.term||d.term,
-          adminStatus:rowRes.data.status||d.adminStatus,
-          user_id:rowRes.data.user_id
-        });
-        q.push(snapshot);
-        toast('✅ Repair successful — '+qs.length+' questions restored','ok',4000);
-      }
-    } else {
-      toast('Paper not found in database: '+ref,'err');
-    }
-  }catch(e){
-    toast('Repair failed: '+e.message,'err');
-  }
-  saveLabQueue(q);
-  renderAdminPrint();
-};
-
-async function getLabPapers(){
-  var queue=getLabQueue();
-  if(!queue.length) return [];
-
-  var papers=[];
-  var legacyRefs=[]; // old ref-string entries that need DB lookup
-
-  queue.forEach(function(entry){
-    if(typeof entry==='string'){
-      legacyRefs.push(entry);
-    } else if(entry&&entry.ref){
-      papers.push(entry); // already a full snapshot
-    }
-  });
-
-  // Resolve legacy ref-only entries from DB
-  if(legacyRefs.length){
-    var all=await getPublished();
-    legacyRefs.forEach(function(ref){
-      var p=all.find(function(x){ return x.ref===ref; });
-      if(p) papers.push(p);
-    });
-  }
-
-  // For any paper still missing questions, attempt a direct DB re-fetch as last resort
-  for(var i=0;i<papers.length;i++){
-    if(!papers[i].questions||!papers[i].questions.length){
-      try{
-        var row=await _supabase.from('papers').select('*').eq('ref',papers[i].ref).single();
-        if(row.data&&row.data.data&&row.data.data.questions&&row.data.data.questions.length){
-          papers[i]=Object.assign({},row.data.data,{
-            _db_id:row.data.id,
-            ref:row.data.ref||papers[i].ref,
-            cls:row.data.class_name||papers[i].cls,
-            subj:row.data.subject||papers[i].subj,
-            term:row.data.term||papers[i].term,
-            adminStatus:row.data.status||papers[i].adminStatus,
-            user_id:row.data.user_id
-          });
-        }
-      }catch(e){ console.warn('getLabPapers re-fetch failed for '+papers[i].ref,e); }
-    }
-  }
-
-  return papers;
-}
-
-
-/* ══════════════════════════════════════
-   DIGITAL LAB — renderAdminPrint
-══════════════════════════════════════ */
-async function renderAdminPrint(){
-  var el=$('screen-admin-print');
-  if(!el) return;
-  el.style.display='block';
-  // Always re-fetch admin settings so window._labQueue is current from Supabase
-  await _fetchAdminSettings();
-  var papers=await getLabPapers();
-  var adm=getAdminSettings();
-  window._printPapers=papers;
-  _applyLabConfigToDom(ADMIN.labConfig);
-
-  var papersHtml='';
-  if(!papers.length){
-    papersHtml='<div class="dash-empty"><div class="dash-empty-ico">🔬</div>'
-      +'No papers in Digital Lab.<br/>Go to <strong>Production Queue</strong> → approve a paper → tap <strong>📤 Lab</strong>.</div>';
-  } else {
-    papersHtml=papers.map(function(p,pi){
-      var qs=p.questions||[];
-      var qRows=qs.map(function(q,qi){
-        var isObj=q.k==='obj', isFitb=q.k==='fitb';
-        var kLabel=isObj?'<span class="tag t-obj" style="font-size:9px;">Obj</span>'
-          :isFitb?'<span class="tag t-fitb" style="font-size:9px;">Fill</span>'
-          :'<span class="tag t-th" style="font-size:9px;">Theory</span>';
-        var optsHtml='';
-        if(isObj&&q.o&&q.o.length){
-          optsHtml='<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin-top:4px;padding-left:10px;font-size:11.5px;color:var(--ink3);">'
-            +q.o.map(function(o,oi){ return '<span><strong>'+L[oi]+'.</strong> '+esc(o)+'</span>'; }).join('')+'</div>';
-        }
-        if(isFitb&&q.answer){
-          optsHtml='<div style="margin-top:3px;font-size:11px;color:var(--green);padding-left:10px;">Answer: <strong>'+esc(q.answer)+'</strong></div>';
-        }
-        var diagHtml=q._svgDiagram?'<div class="q-diag-wrap">'+q._svgDiagram+'<div class="q-diag-label">AI-generated diagram</div></div>':'';
-        return '<div class="q-layout-row" id="qrow_'+pi+'_'+qi+'">'
-          +'<div class="q-layout-num">'+(qi+1)+'</div>'
-          +'<div class="q-layout-text" style="word-break:break-word;white-space:normal;">'+kLabel+' <span>'+(q.t||'')+'</span>'+optsHtml+diagHtml+'</div>'
-          +'<div class="q-layout-ctrl">'
-          +'<button class="layout-btn'+(q.layout==='compact'?' on':'')+'" onclick="setQLayout('+pi+','+qi+',\'compact\')" title="Compact">C</button>'
-          +'<button class="layout-btn'+(q.layout==='standard'||!q.layout?' on':'')+'" onclick="setQLayout('+pi+','+qi+',\'standard\')" title="Standard">S</button>'
-          +'<button class="layout-btn'+(q.layout==='wide'?' on':'')+'" onclick="setQLayout('+pi+','+qi+',\'wide\')" title="Wide">W</button>'
-          +'</div></div>';
-      }).join('');
-      // If no questions, show repair banner instead
-      var noQWarning='';
-      if(!qs.length){
-        noQWarning='<div class="banner b-warn" style="margin:8px 0;font-size:12px;">'
-          +'⚠ <strong>No questions found</strong> for this paper. The question data may have been lost. '
-          +'<button class="btn bq bsm" style="margin-left:8px;" onclick="repairLabPaper(\''+esc(p.ref)+'\')">🔧 Repair</button>'
-          +'</div>';
-      }
-      return '<div class="print-lab" id="plab_'+pi+'">'
-        +'<div class="print-lab-head">'
-        +'<div><div class="print-lab-title">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-        +'<div class="print-lab-meta">'+esc(p.term)+' · '+esc(p.ref)+(p.autoGen?' · ⚡ Auto-Generated':'')+' · '+qs.length+' questions</div></div>'
-        +'<div style="display:flex;gap:6px;align-items:center;">'+renderStatusBadge(p.adminStatus||'pending',p)
-        +'<button class="btn-ghost" style="color:var(--red);" onclick="removeFromLab(\''+esc(p.ref)+'\')">✕ Remove</button></div>'
-        +'</div>'+noQWarning+qRows+'</div>';
-    }).join('');
-
-  }
-
-  var previewHtml='';
-  if(papers.length){
-    previewHtml='<div class="card" style="padding:0;overflow:hidden;margin-bottom:18px;">'
-      +'<div style="padding:12px 18px;background:var(--ink2);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;gap:8px;">'
-      +'<span>👁 LIVE PREVIEW</span>'
-      +'<span style="opacity:.5;font-weight:400;font-size:11px;margin-left:auto;">'+papers.length+' paper(s) · updates after each command</span>'
-      +'</div>'
-      +'<div id="digitalLabPreview" style="padding:16px;max-height:640px;overflow-y:auto;background:#f8f8f8;"></div>'
-      +'</div>';
-  }
-
-  el.innerHTML='<div class="pgw fade">'
-    +'<div class="ptl">🔬 Digital Lab</div>'
-    +'<div class="pst">Format, brand, and print exam papers using natural language commands.</div>'
-    +'<div class="nl-lab-bar">'
-    +'<div class="nl-lab-header">'
-    +'<div class="nl-lab-icon">✨</div>'
-    +'<div><div class="nl-lab-title">Layout Agent</div>'
-    +'<div class="nl-lab-sub">Type layout instructions or describe a diagram to inject into a specific question</div>'
-    +'</div></div>'
-    +'<div class="nl-lab-input-row">'
-    +'<textarea id="labCommandInput" class="nl-lab-input" rows="2" placeholder="e.g. \'2 columns, landscape, Times New Roman 12pt\' or \'Add a diagram of the water cycle to Question 3\'"></textarea>'
-    +'<button class="nl-lab-go" id="labGoBtn" onclick="runLabCommand()">&#9654; Apply</button>'
-    +'</div>'
-    +'<div class="lab-config-strip" id="labConfigStrip">'+renderLabConfigStrip()+'</div>'
-    +'<div class="lab-history" id="labHistory">'+renderLabHistory()+'</div>'
-    +'</div>'
-    +(papers.length
-      ?'<div class="card"><div class="ct">Papers in Lab ('+papers.length+')</div>'+papersHtml+'</div>'
-      :papersHtml)
-    +previewHtml
-    +'<div class="card">'
-    +'<div class="ct">School Branding</div>'
-    +'<div class="r2"><div>'
-    +'<div class="fl"><label>Institution Name</label>'
-    +'<input type="text" class="fi" id="adminSchoolName" value="'+esc(adm.school)+'" placeholder="e.g. Way To Success Standard Schools"/></div>'
-    +'<div class="fl"><label>School Address</label>'
-    +'<input type="text" class="fi" id="adminAddress" value="'+esc(adm.address)+'" placeholder="e.g. Oko/Ijado Road, Ejigbo, Osun State"/></div>'
-    +'<div class="fl"><label>Watermark Text</label>'
-    +'<input type="text" class="fi" id="adminWatermark" value="'+esc(adm.watermark)+'" placeholder="e.g. CONFIDENTIAL" maxlength="30"/></div>'
-    +'<button class="btn bp bsm" onclick="saveBranding()" style="margin-top:4px;">&#128190; Save Branding</button>'
-    +'</div>'
-    +'<div>'
-    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:8px;">School Logo</label>'
-    +'<div class="brand-preview" id="logoPreview">'
-    +(adm.logo?'<img class="brand-logo-preview" src="'+adm.logo+'" alt="Logo"/>':'<div class="dash-empty-ico" style="font-size:32px;">&#127978;</div><div style="font-size:11px;color:var(--mute);">No logo uploaded</div>')
-    +(adm.watermark?'<div class="watermark-preview">'+esc(adm.watermark)+'</div>':'')
-    +'</div>'
-    +'<label class="upload-zone" style="margin-top:10px;display:block;cursor:pointer;">'
-    +'<div class="upload-zone-ico">&#128193;</div>'
-    +'<div class="upload-zone-text">Upload Logo (PNG/JPG, max 200KB)</div>'
-    +'<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none;" onchange="uploadLogo(event)"/>'
-    +'</label>'
-    +(adm.logo?'<button class="btn bred bsm" onclick="removeLogo()" style="margin-top:6px;width:100%;">&#128465; Remove Logo</button>':'')
-    +'</div></div></div>'
-    +(papers.length?(function(){
-      var pm=ADMIN.labConfig.printMode;
-      var resolved=resolveLayoutMode(papers);
-      var isAuto=pm==='auto';
-      var modeForUI=isAuto?resolved:pm;
-      var autoLabel=isAuto?'🤖 Auto → '+getModeName(resolved):'🤖 Auto';
-      return '<div class="card"><div class="ct">Print Mode &amp; Export</div>'
-      +'<div style="margin-bottom:10px;font-size:11px;color:var(--mute);">Select layout mode or let Auto pick the best fit based on content size.</div>'
-      +'<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
-      +'<button class="btn'+(isAuto?' bp':' bq')+'" onclick="setPrintMode(\'auto\')" style="flex:1;min-width:100px;'+(isAuto?'background:var(--admin);border-color:var(--admin);':'')+'">'+autoLabel+'<br/><span style="font-size:9px;font-weight:400;opacity:.8;">Best fit</span></button>'
-      +'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">'
-      +'<button class="btn'+(!isAuto&&modeForUI==='portrait'?' bp':' bq')+'" onclick="setPrintMode(\'portrait\')" style="text-align:left;padding:8px 10px;">'
-      +'&#128203; Portrait<br/><span style="font-size:9px;font-weight:400;opacity:.7;">A4 portrait · full page</span></button>'
-      +'<button class="btn'+(!isAuto&&modeForUI==='landscape'?' bp':' bq')+'" onclick="setPrintMode(\'landscape\')" style="text-align:left;padding:8px 10px;">'
-      +'&#128421; Landscape<br/><span style="font-size:9px;font-weight:400;opacity:.7;">A4 landscape · one subject</span></button>'
-      +'<button class="btn'+(!isAuto&&modeForUI==='split'?' bp':' bq')+'" onclick="setPrintMode(\'split\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='split')?'background:var(--admin);border-color:var(--admin);':'')+'">&#9988; Split 2-in-1<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Landscape · Front [A|B] Back [B|A]</span></button>'
-      +'<button class="btn'+(!isAuto&&modeForUI==='multi'?' bp':' bq')+'" onclick="setPrintMode(\'multi\')" style="text-align:left;padding:8px 10px;">'
-      +'&#128209; Multi-Subject<br/><span style="font-size:9px;font-weight:400;opacity:.7;">2–3 subjects on one page</span></button>'
-      +'</div>'
-      +(isAuto?'<div class="banner b-info" style="margin-bottom:10px;font-size:11px;">🤖 <strong>Auto-selected: '+getModeName(resolved)+'</strong> — '+getModeDesc(resolved)+'</div>':'')
-      +(modeForUI==='split'?'<div class="banner b-info" style="margin-bottom:10px;font-size:11px;">&#9988; <strong>Split 2-in-1:</strong> Landscape A4 with two side-by-side copies. Cut down the middle. Front: [A|B] · Back: [B|A] (duplex aligned).'+(paperFitsHalfPage(papers[0])?'<br/><span style="color:var(--green);font-weight:700;">✓ Content fits half-page</span>':'<br/><span style="color:var(--amber);font-weight:700;">⚠ Content may overflow — consider Portrait or Landscape</span>')+'</div>':'')
-      +(modeForUI==='multi'&&papers.length<2?'<div class="banner b-warn" style="margin-bottom:10px;font-size:11px;">📑 Multi-Subject works best with 2+ papers in the lab. Currently only '+papers.length+' paper loaded.</div>':'')
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;">'
-      +'<button class="btn bp" onclick="doPrint()" style="min-width:160px;">&#128424; Print All Papers</button>'
-      +'<button class="btn bq" style="border-color:var(--blue);color:var(--blue);" onclick="setAllLayout(\'compact\')">Compact All</button>'
-      +'<button class="btn bq" onclick="setAllLayout(\'standard\')">Standard All</button>'
-      +'<button class="btn bq" onclick="setAllLayout(\'wide\')">Wide All</button>'
-      +'</div></div>';
-    }()):'')
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">'
-    +'<button class="btn bq" onclick="navTo(\'admin-dash\')">&#8592; Back to Queue</button>'
-    +'<button class="btn bq" onclick="navTo(\'admin-sett\')">&#9881; Admin Settings</button>'
-    +'</div></div>';
-
-  if(papers.length) setTimeout(function(){ renderDigitalLabPreview(papers,adm); },150);
-}
-
-function renderLabConfigStrip(){
-  var c=ADMIN.labConfig;
-  var modeLabel=(function(m){
-    if(m==='auto'){var r=ADMIN._resolvedMode||'portrait';return '🤖 Auto→'+(r==='split'?'Split':r==='landscape'?'Landscape':r==='multi'?'Multi':r.charAt(0).toUpperCase()+r.slice(1));}
-    if(m==='split'||m==='economy') return '✂️ Split 2-in-1';
-    if(m==='landscape') return '🖥 Landscape';
-    if(m==='multi') return '📑 Multi';
-    if(m==='portrait'||m==='normal') return '📃 Portrait';
-    return '📃 Portrait';
-  })(c.printMode);
-  var modeColor=c.printMode==='split'||c.printMode==='economy'?'background:rgba(124,58,237,.3);border-color:rgba(167,139,250,.5);':(c.printMode==='auto'?'background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.5);':'');
-  return '<span class="lab-cfg-pill" style="'+modeColor+'font-weight:800;">'+modeLabel+'</span>'
-    +'<span class="lab-cfg-pill">Col: '+(c.columns===2?'2':'1')+'</span>'
-    +'<span class="lab-cfg-pill">'+c.fontFamily+'</span>'
-    +'<span class="lab-cfg-pill">'+c.fontSize+'</span>'
-    +'<span class="lab-cfg-pill">'+c.margins+'</span>'
-    +'<span class="lab-cfg-pill">'+c.spacing+'</span>';
-}
-
-function renderLabHistory(){
-  if(!ADMIN.labHistory.length) return '<div style="font-size:11px;color:rgba(255,255,255,.35);padding:4px 0;">No commands yet — type above and press Apply.</div>';
-  return ADMIN.labHistory.slice().reverse().slice(0,8).map(function(h){
-    return '<div class="lab-hist-item'+(h.type==='drawing'?' drawing':h.type==='err'?' err':'')+'">'
-      +'<div style="flex:1;"><div class="lab-hist-cmd">'+esc(h.cmd.substring(0,80))+'</div>'
-      +'<div class="lab-hist-result">'+(h.result||'')+'</div></div>'
-      +'<div style="font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0;">'+h.time+'</div>'
-      +'</div>';
-  }).join('');
-}
-
-function _applyLabConfigToDom(c){
-  var root=document.documentElement;
-  var fontMap={'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'};
-  root.style.setProperty('--lab-font', fontMap[c.fontFamily]||'"Times New Roman",serif');
-  root.style.setProperty('--lab-size', c.fontSize||'11pt');
-  root.style.setProperty('--lab-margin', c.margins||'20mm');
-  root.style.setProperty('--lab-line', c.spacing==='compact'?'1.4':c.spacing==='wide'?'2.1':'1.72');
-  if(c.orientation==='landscape') document.body.classList.add('lab-landscape');
-  else document.body.classList.remove('lab-landscape');
-  if(c.columns===2) document.body.classList.add('lab-2col');
-  else document.body.classList.remove('lab-2col');
-}
-
-function _saveLabConfig(){
-  _supabase.from('admin_settings').upsert({key:'lab_config',value:JSON.stringify(ADMIN.labConfig)},{onConflict:'key'});
-}
-
-window.runLabCommand=async function(){
-  var inp=$('labCommandInput');
-  var cmd=(inp&&inp.value.trim())||'';
-  if(!cmd){ toast('Type a command first','warn'); return; }
-  if(!API_KEY){ toast('Add your OpenRouter API key in Settings first','warn'); return; }
-  var btn=$('labGoBtn');
-  if(btn){ btn.disabled=true; btn.textContent='...'; }
-  var time=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-  try{
-    var parsed=await callLabNL(cmd);
-    if(parsed.isDrawingCommand){
-      var desc=parsed.drawingDescription||cmd;
-      var qIdx=(parsed.targetQuestionIndex!==undefined&&parsed.targetQuestionIndex!==null)?parseInt(parsed.targetQuestionIndex):0;
-      var pps=window._printPapers||[];
-      var hostPaper=pps[0];
-
-      // Layout-aware: determine target diagram size based on current mode
-      var currentMode=hostPaper?resolveLayoutMode([hostPaper]):'portrait';
-      var targetDims=getDiagramTargetDims(currentMode);
-
-      // Advisory check — AI Layout Agent advises, never refuses
-      if(hostPaper){
-        var adv=advisDiagramFit(hostPaper,currentMode);
-        if(!adv.canFit && adv.advice){
-          toast('\ud83d\udca1 '+adv.advice,'warn',6000);
-          ADMIN.labHistory.push({type:'advisory',cmd:cmd,result:adv.advice.substring(0,80),time:time});
-        }
-      }
-
-      toast('Generating SVG diagram ('+targetDims.width+'x'+targetDims.height+')...','info',5000);
-      var svg=await callGeminiDraw(desc, targetDims);
-      if(pps.length){
-        var p=pps[0];
-        if(p.questions&&p.questions[qIdx]){
-          p.questions[qIdx]._svgDiagram=svg;
-          // Update in Supabase
-          var updData=Object.assign({},p);
-          await _supabase.from('papers').update({data:updData}).eq('ref',p.ref);
-          toast('Diagram injected into Question '+(qIdx+1),'ok',4000);
-          ADMIN.labHistory.push({type:'drawing',cmd:cmd,result:'Diagram added to Q'+(qIdx+1),time:time});
-          renderAdminPrint();
-        } else { toast('Question '+(qIdx+1)+' not found in first paper','warn'); }
-      } else { toast('No papers in lab to attach diagram to','warn'); }
-    } else {
-      var changed=[];
-      if(parsed.printMode){
-        var pm=parsed.printMode;
-        if(pm==='economy') pm='split';
-        if(pm==='normal') pm='portrait';
-        ADMIN.labConfig.printMode=pm;
-        changed.push(getModeName(pm));
-      }
-      if(parsed.columns!==undefined){ ADMIN.labConfig.columns=parsed.columns; changed.push(parsed.columns+' col'); }
-      if(parsed.orientation){ ADMIN.labConfig.orientation=parsed.orientation; changed.push(parsed.orientation); }
-      if(parsed.fontFamily){ ADMIN.labConfig.fontFamily=parsed.fontFamily; changed.push(parsed.fontFamily); }
-      if(parsed.fontSize){ ADMIN.labConfig.fontSize=parsed.fontSize; changed.push(parsed.fontSize); }
-      if(parsed.margins){ ADMIN.labConfig.margins=parsed.margins; changed.push(parsed.margins+' margins'); }
-      if(parsed.spacing){ ADMIN.labConfig.spacing=parsed.spacing; changed.push(parsed.spacing+' spacing'); }
-      _saveLabConfig();
-      _applyLabConfigToDom(ADMIN.labConfig);
-      var resultMsg=changed.length?'Applied: '+changed.join(', '):'No layout fields detected';
-      ADMIN.labHistory.push({type:'layout',cmd:cmd,result:resultMsg,time:time});
-      var strip=$('labConfigStrip'); if(strip) strip.innerHTML=renderLabConfigStrip();
-      var hist=$('labHistory'); if(hist) hist.innerHTML=renderLabHistory();
-      var pps2=window._printPapers||[];
-      if(pps2.length) renderDigitalLabPreview(pps2,getAdminSettings());
-      toast(resultMsg,'ok',3500);
-    }
-    if(inp) inp.value='';
-  } catch(e){
-    ADMIN.labHistory.push({type:'err',cmd:cmd,result:'Error: '+e.message.substring(0,60),time:time});
-    var hist2=$('labHistory'); if(hist2) hist2.innerHTML=renderLabHistory();
-    toast('Command failed: '+e.message,'err',5000);
-  }
-  if(btn){ btn.disabled=false; btn.textContent='Apply'; }
-};
-
-function getTemplateDesc(t){
-  var m={classic:'Standard serif.',modern:'Clean sans-serif.',compact:'Dense layout.',bold:'High contrast.'};
-  return m[t]||m.classic;
-}
-function getFormatDesc(mode){
-  if(mode==='mirror') return '🪞 Mirror.';
-  if(mode==='primary') return '📑 Primary Multi.';
-  return '📃 Standard A4.';
-}
-
-window.setDesignTemplate=function(t){
-  ADMIN.designTemplate=t;
-  ADMIN.designTemplate=t;
-  _supabase.from('admin_settings').upsert({key:'design_template',value:t},{onConflict:'key'});
-  var papers=window._printPapers||[];
-  if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
-};
-
-window.setFormat=function(mode){
-  if(mode==='standard') ADMIN.economyMode=false;
-  else ADMIN.economyMode=mode;
-  var desc=$('formatDesc'); if(desc) desc.innerHTML=getFormatDesc(ADMIN.economyMode);
-  document.querySelectorAll('#formatToggle .ab').forEach(function(b,i){
-    b.classList.toggle('on',(i===0&&!ADMIN.economyMode)||(i===1&&ADMIN.economyMode==='primary')||(i===2&&ADMIN.economyMode==='mirror'));
-  });
-  var papers=window._printPapers||[];
-  if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
-};
-
-/* ── Digital Lab Live Preview (unified 4-mode) ─────────── */
-function renderDigitalLabPreview(papers,adm){
-  var el=$('digitalLabPreview'); if(!el) return;
-  if(!papers.length){ el.innerHTML='<div style="text-align:center;color:var(--mute);padding:30px;">No papers to preview.</div>'; return; }
-
-  var mode=resolveLayoutMode(papers);
-  var isAuto=ADMIN.labConfig.printMode==='auto';
-  var p=papers[0];
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var fontFamily=({'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'})[ADMIN.labConfig.fontFamily]||'"Times New Roman",serif';
-
-  var headerBadge='<div style="margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-    +'<span style="font-size:11px;font-weight:700;color:var(--admin);">'+getModeName(mode)+' Preview</span>'
-    +(isAuto?'<span style="font-size:10px;color:var(--green);font-weight:600;background:rgba(34,197,94,.12);padding:1px 7px;border-radius:8px;">🤖 Auto-selected</span>':'')
-    +'</div>';
-
-  // ── SPLIT 2-IN-1 PREVIEW ──
-  if(mode==='split'){
-    var pB=papers[1]||p;
-    var colA=buildPreviewCol(p,adm,today);
-    var colB=buildPreviewCol(pB,adm,today);
-    var fits=paperFitsHalfPage(p);
-    el.innerHTML=headerBadge
-      +(fits?'<div style="font-size:10px;color:var(--green);font-weight:700;margin-bottom:5px;">✓ Content fits half-page</div>':'<div style="font-size:10px;color:var(--amber);font-weight:700;margin-bottom:5px;">⚠ Overflow risk</div>')
-      +'<div style="display:flex;border:1.5px solid var(--admin-bdr);border-radius:6px;overflow:hidden;background:#fff;">'
-      +'<div style="flex:1;padding:8px;border-right:1px dashed #bbb;font-family:Times New Roman,serif;font-size:7.5pt;line-height:1.3;color:#000;overflow:hidden;">'+colA+'</div>'
-      +'<div style="flex:1;padding:8px;font-family:Times New Roman,serif;font-size:7.5pt;line-height:1.3;color:#000;overflow:hidden;">'+colB+'</div>'
-      +'</div>'
-      +'<div style="font-size:9px;color:var(--mute);margin-top:4px;text-align:center;">Print duplex &bull; Cut vertically &bull; Front [A|B] &bull; Back [B|A]</div>';
-    setTimeout(function(){ math(el); },200);
-    return;
-  }
-
-  // ── MULTI-SUBJECT PREVIEW ──
-  if(mode==='multi'){
-    var mh='<div style="font-family:'+fontFamily+';font-size:9pt;line-height:1.4;color:#000;padding:12px;background:#fff;border:1px solid #ddd;border-radius:6px;overflow:hidden;">';
-    var school=adm.school||p.school||'School';
-    var logo=adm.logo;
-    mh+='<div style="text-align:center;border-bottom:1.5px double #000;padding-bottom:5px;margin-bottom:6px;">';
-    if(logo) mh+='<img src="'+logo+'" style="width:32px;height:32px;object-fit:contain;display:block;margin:0 auto 2px;"/>';
-    mh+='<div style="font-size:11pt;font-weight:700;text-transform:uppercase;">'+esc(school)+'</div>';
-    mh+='<div style="font-size:8pt;font-weight:600;">'+(p.at==='C.A.'?'Continuous Assessment':'Examination')+' &mdash; '+esc(p.term)+'</div>';
-    mh+='</div>';
-    papers.forEach(function(sp,si){
-      var sqs=sp.questions||[];
-      var stotal=sqs.reduce(function(a,q){ return a+(q.marks||1); },0);
-      mh+='<div style="border:0.5px solid #999;border-radius:3px;margin-top:'+(si===0?'4':'8')+'px;overflow:hidden;">';
-      mh+='<div style="background:#222;color:#fff;padding:2px 8px;font-size:8.5pt;font-weight:700;display:flex;justify-content:space-between;">'+esc(sp.subj)+' — '+esc(sp.cls)+'<span style="font-weight:400;font-size:7.5pt;">'+stotal+' marks</span></div>';
-      var sobjs=sqs.filter(function(q){ return q.k==='obj'; });
-      var sths=sqs.filter(function(q){ return q.k==='theory'; });
-      var sfitbs=sqs.filter(function(q){ return q.k==='fitb'; });
-      if(sobjs.length){
-        mh+='<div style="font-size:7.5pt;font-weight:700;margin:3px 8px 1px;">Objectives ('+sobjs.length+')</div>';
-        sobjs.slice(0,10).forEach(function(q,i){
-          var opts=q.o&&q.o.length?q.o.map(function(o,oi){ return '('+L[oi]+') '+esc(o); }).join(' '):'';
-          mh+='<div style="margin:0 8px 1.5px;font-size:7.5pt;">'+(i+1)+'. '+q.t+' '+opts+'</div>';
-        });
-        if(sobjs.length>10) mh+='<div style="margin:0 8px;font-size:6.5pt;opacity:.5;">+'+(sobjs.length-10)+' more…</div>';
-      }
-      if(sfitbs.length){
-        mh+='<div style="font-size:7.5pt;font-weight:700;margin:3px 8px 1px;">Fill in Blank ('+sfitbs.length+')</div>';
-        sfitbs.slice(0,5).forEach(function(q,i){ mh+='<div style="margin:0 8px 1.5px;font-size:7.5pt;">'+(i+1)+'. '+esc(q.t.replace(/_{2,}/g,'______'))+'</div>'; });
-      }
-      if(sths.length){
-        mh+='<div style="font-size:7.5pt;font-weight:700;margin:3px 8px 1px;">Theory ('+sths.length+')</div>';
-        sths.slice(0,3).forEach(function(q,i){ mh+='<div style="margin:0 8px 2px;font-size:7.5pt;">'+(i+1)+'. '+esc(q.t)+'</div>'; });
-      }
-      mh+='</div>';
-    });
-    mh+='</div>';
-    el.innerHTML=headerBadge+mh;
-    setTimeout(function(){ math(el); },200);
-    return;
-  }
-
-  // ── PORTRAIT / LANDSCAPE PREVIEW ──
-  var qs=p.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
-  var school2=adm.school||p.school||'School';
-  var address2=adm.address||'';
-  var logo2=adm.logo;
-  var use2col=objs.length>=30;
-  var isLS=mode==='landscape';
-
-  var h='<div style="font-family:'+fontFamily+';font-size:'+(isLS?'9.5pt':'10pt')+';line-height:'+(isLS?'1.5':'1.62')+';color:#000;padding:'+(isLS?'12px':'16px')+';background:#fff;border:1px solid #ddd;border-radius:6px;position:relative;overflow:hidden;">';
-  if(adm.watermark) h+='<div style="position:absolute;top:45%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:'+(isLS?'36pt':'42pt')+';font-weight:900;color:rgba(0,0,0,.04);white-space:nowrap;pointer-events:none;text-transform:uppercase;">'+esc(adm.watermark)+'</div>';
-  h+='<div style="text-align:center;border-bottom:2px double #000;padding-bottom:7px;margin-bottom:9px;">';
-  if(logo2) h+='<img src="'+logo2+'" style="width:44px;height:44px;object-fit:contain;display:block;margin:0 auto 3px;"/>';
-  h+='<div style="font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;">'+esc(school2)+'</div>';
-  if(address2) h+='<div style="font-size:7.5pt;text-transform:uppercase;opacity:.7;">'+esc(address2)+'</div>';
-  h+='<div style="font-size:10pt;font-weight:600;margin-top:3px;">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+'</div>';
-  h+='<div style="font-size:9pt;margin-top:2px;">Subject: <strong>'+esc(p.subj)+'</strong> &nbsp; Class: <strong>'+esc(p.cls)+'</strong> &nbsp; Total: <strong>'+total+' marks</strong></div>';
-  h+='</div>';
-  if(objs.length){
-    h+='<div style="font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1.5px solid #000;padding-bottom:2px;margin:10px 0 4px;">Section A &mdash; Objectives ('+objs.length+')</div>';
-    h+='<div style="'+(use2col?'column-count:2;column-gap:10mm;':'')+'">';
-    objs.slice(0,20).forEach(function(q,i){
-      var opts=q.o&&q.o.length?q.o.map(function(o,oi){ return '<span style="margin-left:7pt;white-space:nowrap;"><strong>('+L[oi]+')</strong> '+esc(o)+'</span>'; }).join(''):'';
-      h+='<div style="margin-bottom:4pt;line-height:1.5;break-inside:avoid;page-break-inside:avoid;font-size:9.5pt;">'+(i+1)+'. '+q.t+opts+'</div>';
-    });
-    if(objs.length>20) h+='<div style="font-style:italic;color:var(--mute);font-size:9pt;">… '+(objs.length-20)+' more objectives</div>';
-    h+='</div>';
-  }
-  if(fitbs.length){
-    var fSec=objs.length?'B':'A';
-    h+='<div style="font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1.5px solid #000;padding-bottom:2px;margin:10px 0 4px;">Section '+fSec+' &mdash; Fill in Blank ('+fitbs.length+')</div>';
-    fitbs.slice(0,5).forEach(function(q,i){
-      var t=q.t.replace(/_{2,}/g,'<span style="display:inline-block;border-bottom:1.5px solid #000;min-width:60pt;margin:0 2px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
-      h+='<div style="margin-bottom:5pt;font-size:9.5pt;">'+(i+1)+'. '+t+(q.marks?' <span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')+'</div>';
-    });
-    if(fitbs.length>5) h+='<div style="font-style:italic;color:var(--mute);font-size:9pt;">… '+(fitbs.length-5)+' more</div>';
-  }
-  if(ths.length){
-    var tSec=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
-    h+='<div style="font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1.5px solid #000;padding-bottom:2px;margin:10px 0 4px;">Section '+tSec+' &mdash; Theory ('+ths.length+')</div>';
-    ths.slice(0,3).forEach(function(q,i){
-      h+='<div style="margin-bottom:8pt;font-size:9.5pt;">'+(i+1)+'. '+q.t+(q.marks?' <span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
-        +'<div style="border-bottom:1px solid #bbb;min-height:36pt;margin:3pt 0;"></div></div>';
-    });
-    if(ths.length>3) h+='<div style="font-style:italic;color:var(--mute);font-size:9pt;">… '+(ths.length-3)+' more</div>';
-  }
-  h+='<div style="font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:3px;margin-top:12px;text-align:center;">'+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12</div>';
-  h+='</div>';
-  el.innerHTML=headerBadge+h;
-  setTimeout(function(){ math(el); },200);
-}
-
-function buildEcoPreviewCol(p,adm,today){ return buildPreviewCol(p,adm,today); }
-function buildPreviewCol(p,adm,today){
-  var school=adm.school||p.school||'School';
-  var logo=adm.logo;
-  var qs=p.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
-  var h='<div style="border-bottom:.5px solid #000;margin-bottom:3px;padding-bottom:2px;display:flex;align-items:center;gap:2mm;">';
-  if(logo) h+='<img src="'+logo+'" style="width:12px;height:12px;object-fit:contain;"/>';
-  h+='<div><div style="font-size:8pt;font-weight:800;text-transform:uppercase;">'+esc(school)+'</div>'
-    +'<div style="font-size:6.5pt;">'+esc(p.subj)+' &bull; '+esc(p.cls)+' &bull; '+total+' marks</div></div></div>';
-  if(objs.length){
-    h+='<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;margin:3px 0 1px;">Section A &mdash; Objectives</div>';
-    objs.slice(0,15).forEach(function(q,i){
-      var opts=q.o&&q.o.length?q.o.map(function(o,oi){ return '('+L[oi]+')'+esc(o); }).join(' '):'' ;
-      h+='<div style="margin-bottom:1.5px;">'+(i+1)+'. '+q.t+' '+opts+'</div>';
-    });
-    if(objs.length>15) h+='<div style="opacity:.5;font-size:6pt;">+'+(objs.length-15)+' more…</div>';
-  }
-  if(fitbs.length){
-    var fL=objs.length?'B':'A';
-    h+='<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;margin:3px 0 1px;">Section '+fL+' &mdash; Fill in Blank</div>';
-    fitbs.slice(0,5).forEach(function(q,i){ h+='<div style="margin-bottom:1.5px;">'+(i+1)+'. '+esc(q.t.replace(/_{2,}/g,'______'))+'</div>'; });
-  }
-  if(ths.length){
-    var tSec=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
-    h+='<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;margin:3px 0 1px;">Section '+tSec+' &mdash; Theory</div>';
-    ths.slice(0,2).forEach(function(q,i){ h+='<div style="margin-bottom:2px;">'+(i+1)+'. '+esc(q.t)+'<div style="border-bottom:.5px solid #ccc;height:10px;"></div></div>'; });
-  }
-  return h;
-}
-
-/* ── AI Optimize ──────────────────────── */
-window.runAiOptimize=async function(){
-  if(!API_KEY){ toast('Add your API key first','warn'); return; }
-  var instr=($('aiOptimizeInstr')||{}).value||'';
-  if(!instr.trim()){ toast('Enter your optimization instructions','warn'); return; }
-  var papers=window._printPapers||[];
-  if(!papers.length){ toast('No papers in lab to optimize','warn'); return; }
-  var status=$('aiOptStatus');
-  if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+papers.length+' paper(s)…';
-
-  for(var pi=0;pi<Math.min(papers.length,3);pi++){
-    var p=papers[pi];
-    var qs=p.questions||[];
-    if(!qs.length) continue;
-    if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+(pi+1)+'/'+Math.min(papers.length,3)+': '+esc(p.subj)+'…';
-
-    var qsJson=JSON.stringify(qs.map(function(q,i){
-      return {n:i+1,k:q.k,t:q.t,o:q.o||null,a:q.a!==undefined?q.a:null,answer:q.answer||null,marks:q.marks||1,layout:q.layout||'standard'};
+    const cloudRows = res.data || [];
+
+    /* Normalise: Supabase row → internal format */
+    const mapped=cloudRows.map(r=>({
+      id:r.id,category:r.category,ts:r.ts||new Date(r.created_at).toLocaleString(),
+      createdAt:r.created_at?new Date(r.created_at).getTime():r.created_at_ms||Date.now(),
+      status:r.status||'pending',reviewerNote:r.reviewer_note||'',reviewedAt:r.reviewed_at||null,
+      data:typeof r.data==='string'?JSON.parse(r.data):r.data||{},
+      photoData:r.photo_data||null,photoName:r.photo_name||null,
+      photos:r.photos?(typeof r.photos==='string'?JSON.parse(r.photos):r.photos):null
     }));
 
-    var prompt='You are an expert Nigerian exam formatting specialist.\n\n'
-      +'PAPER: '+p.subj+' — '+p.cls+' — '+p.term+'\n\n'
-      +'ADMIN INSTRUCTIONS:\n'+instr+'\n\n'
-      +'CURRENT QUESTIONS (JSON):\n'+qsJson+'\n\n'
-      +'Apply the admin instructions. Fix LaTeX formatting. Ensure proper math notation.\n'
-      +'CRITICAL: You MUST return the COMPLETE question data including all fields.\n'
-      +'For objectives: include k, t, o (array of 4 options), a (correct answer index 0-3), marks, layout.\n'
-      +'For fill-in-blank: include k, t, answer (the correct answer string), marks, layout.\n'
-      +'For theory: include k, t, marks, layout.\n\n'
-      +'Return ONLY a valid JSON array:\n'
-      +'[{"k":"obj","t":"question text","o":["opt A","opt B","opt C","opt D"],"a":0,"marks":1,"layout":"standard"}]\n'
-      +'JSON array ONLY. No markdown. No explanation.';
-
-    try{
-      var result=await callGemini(prompt,{temperature:0.2});
-      var newQs=Array.isArray(result)?result:[];
-      if(newQs.length){
-        // Merge: preserve original fields that AI might have dropped
-        var mergedQs=newQs.map(function(nq,i){
-          var orig=qs[i]||{};
-          return {
-            k: nq.k||orig.k||'theory',
-            t: nq.t||nq.text||orig.t||'',
-            o: nq.o||nq.options||orig.o||null,
-            a: nq.a!==undefined?nq.a:(nq.answer!==undefined&&typeof nq.answer==='number'?nq.answer:orig.a),
-            answer: nq.answer||orig.answer||null,
-            marks: nq.marks||orig.marks||1,
-            topic: nq.topic||orig.topic||'',
-            layout: nq.layout||orig.layout||'standard',
-            s: nq.s||nq.showSteps||orig.s||false,
-            ai: true
-          };
-        });
-        // Save to Supabase
-        var updPaper1=Object.assign({},p,{questions:mergedQs,objCount:mergedQs.filter(function(q){return q.k==='obj';}).length,fitbCount:mergedQs.filter(function(q){return q.k==='fitb';}).length,thCount:mergedQs.filter(function(q){return q.k==='theory';}).length});
-        await _supabase.from('papers').update({data:updPaper1}).eq('ref',p.ref);
-      }
-    } catch(e){ toast('Optimize failed for '+p.ref+': '+e.message,'err'); }
+    showSync('ok','✓ Cloud synced — '+mapped.length+' submissions');
+    return mapped;
+  }catch(e){
+    console.warn('[DB] Cloud load failed:',e.message);
+    showSync('err','⚠ Cloud unreachable — cannot load data');
+    return subs || [];
   }
-  if(status) status.innerHTML='✅ Optimization complete!';
-  toast('🤖 AI Optimization applied','ok',4000);
-  setTimeout(function(){ renderAdminPrint(); },1500);
+}
+
+async function dbSaveSubmission(sub){
+  /* Optimistic memory update */
+  const idx=subs.findIndex(s=>String(s.id)===String(sub.id));
+  if(idx>=0)subs[idx]=sub;else subs.push(sub);
+  
+  /* Cloud sync */
+  showSync('syncing','Syncing to cloud…');
+  try{
+    const sb=getSupa();if(!sb)throw new Error('Supabase client not available');
+    const row={
+      id:sub.id,category:sub.category,ts:sub.ts,
+      created_at:new Date(sub.createdAt||Date.now()).toISOString(),
+      status:sub.status,reviewer_note:sub.reviewerNote||'',
+      reviewed_at:sub.reviewedAt?new Date(sub.reviewedAt).toISOString():null,
+      data:JSON.stringify(sub.data),
+      photo_data:sub.photoData||null,photo_name:sub.photoName||null,
+      photos:sub.photos?JSON.stringify(sub.photos):null
+    };
+    
+    const{error,data}=await sb.from('submissions').upsert(row,{onConflict:'id'}).select();
+    if(error) {
+      await withRetry(async()=>{
+        const{error:e2,data:d2}=await sb.from('submissions').upsert(row,{onConflict:'id'}).select();
+        if(e2)throw e2;
+        return d2;
+      }, 'Saving submission');
+    }
+    
+    showSync('ok','✓ Cloud synced');
+  }catch(e){
+    console.warn('[DB] Cloud save failed:',e.message);
+    showSync('err','Failed to sync to cloud');
+  }
+}
+async function dbDeleteSubmission(id){
+  /* Optimistic memory delete */
+  subs=subs.filter(s=>String(s.id)!==String(id));
+  
+  showSync('syncing','Deleting from cloud…');
+  try{
+    const sb=getSupa();if(!sb)throw new Error('Supabase client not available');
+    
+    const{error}=await sb.from('submissions').delete().eq('id',String(id));
+    if(error){
+      await withRetry(async()=>{
+        const{error:e2}=await sb.from('submissions').delete().eq('id',String(id));
+        if(e2)throw e2;
+      },'Deleting submission');
+    }
+    
+    showSync('ok','✓ Deleted from cloud');
+  }catch(e){
+    console.warn('[DB] Cloud delete failed:',e.message);
+    showSync('err','Failed to delete from cloud');
+  }
+}
+async function dbUpdateStatus(id,status,reviewerNote,reviewedAt){
+  if(status === 'rejected') {
+    console.log('[DB] Submission rejected. Permanently wiping from system.');
+    return dbDeleteSubmission(id);
+  }
+
+  /* Optimistic memory update */
+  const s=subs.find(x=>String(x.id)===String(id));
+  if(s){s.status=status;s.reviewerNote=reviewerNote||'';s.reviewedAt=reviewedAt||null;}
+  
+  showSync('syncing','Updating cloud…');
+  try{
+    const sb=getSupa();if(!sb)throw new Error('Supabase client not available');
+    const updateData = {
+      status, 
+      reviewer_note:reviewerNote||'',
+      reviewed_at:reviewedAt?new Date(reviewedAt).toISOString():null
+    };
+    
+    const{error}=await sb.from('submissions').update(updateData).eq('id',String(id));
+    if(error){
+      await withRetry(async()=>{
+        const{error:e2}=await sb.from('submissions').update(updateData).eq('id',String(id));
+        if(e2)throw e2;
+      },'Updating status');
+    }
+    
+    showSync('ok','✓ Updated in cloud');
+  }catch(e){
+    console.warn('[DB] Cloud update failed:',e.message);
+    showSync('err','Failed to update cloud');
+  }
+}
+
+/* ── Settings (cloud kv store) ── */
+async function dbLoadSettings(key){
+  try{
+    const sb=getSupa();if(!sb)throw new Error('Supabase client not available');
+    const data = await Promise.race([
+      (async () => {
+        const { data, error } = await sb.from('settings').select('value').eq('key', key).maybeSingle();
+        if (error) throw error;
+        return data;
+      })(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 6000))
+    ]);
+    if(data?.value){
+      const parsed=typeof data.value==='string'?JSON.parse(data.value):data.value;
+      return parsed;
+    }
+  }catch(e){console.warn('[DB] Settings load failed:',key,e.message);}
+  return null;
+}
+async function dbSaveSettings(key,value){
+  try{
+    const sb=getSupa();if(!sb)throw new Error('Supabase client not available');
+    await withRetry(async()=>{
+      const{error}=await sb.from('settings').upsert({key,value:JSON.stringify(value)},{onConflict:'key'});
+      if(error)throw error;
+    },'Saving settings '+key);
+  }catch(e){console.warn('[DB] Settings save failed:',key,e.message);}
+}
+
+/* ── Patched legacy sync functions ── */
+function loadAll(){return subs;}
+
+async function dbSaveAllToCloud(list){
+  if(!list||!list.length)return;
+  showSync('syncing','Saving all to cloud…');
+  try{
+    const sb=getSupa();if(!sb)throw new Error('Supabase client not available');
+    const rows = list.map(sub=>({
+      id:sub.id,category:sub.category,ts:sub.ts,
+      created_at:new Date(sub.createdAt||Date.now()).toISOString(),
+      status:sub.status,reviewer_note:sub.reviewerNote||'',
+      reviewed_at:sub.reviewedAt?new Date(sub.reviewedAt).toISOString():null,
+      data:JSON.stringify(sub.data),photo_data:sub.photoData||null,photo_name:sub.photoName||null,
+      photos:sub.photos?JSON.stringify(sub.photos):null
+    }));
+    await withRetry(async()=>{
+      const {error}=await sb.from('submissions').upsert(rows,{onConflict:'id'});
+      if(error)throw error;
+    },'Bulk saving submissions');
+    showSync('ok','✓ Synced all to cloud');
+  }catch(e){
+    console.warn('[DB] Bulk upsert failed:',e.message);
+    showSync('err','Cloud unreachable — saved locally');
+  }
+}
+
+function saveAll(list){
+  subs = list;
+  /* Fire-and-forget bulk upsert */
+  dbSaveAllToCloud(list);
+}
+
+/* CONFIG — loads from localStorage (cloud override happens in initCloudSync) */
+function loadCfg(){
+  try{
+    const s=JSON.parse(localStorage.getItem('me_cfg')||'null');
+    if(s&&typeof s==='object'&&s.adminPin&&s.editorPin)return s;
+  }catch(e){}
+  return{adminPin:'1234',editorPin:'5678'};
+}
+function saveCfg(n){
+  cfg=n;
+  localStorage.setItem('me_cfg',JSON.stringify(n));
+  dbSaveSettings('cfg',n);
+}
+let cfg=loadCfg();
+
+/* LAYOUT SETTINGS */
+function loadLsSettings(){try{applyCustomCategories(lsSettings);}catch(e){}}
+function saveLsSettingsToStorage(s){
+  lsSettings=s;
+  localStorage.setItem('me_ls_settings',JSON.stringify(s));
+  dbSaveSettings('ls_settings',s);
+}
+
+function applyCustomCategories(s){
+  ensureCategoriesReady();
+  if(!s||!Array.isArray(s.customCategories))return;
+  s.customCategories.forEach(c=>{
+    CATEGORIES[c.id]=c;
+  });
+  ensureCategoriesReady();
+  
+  // Ensure they are in sectionOrder
+  s.customCategories.forEach(c=>{
+    if(!sectionOrder.find(sec=>sec.key===c.id)){
+      sectionOrder.push({key:c.id,label:c.label,icon:c.icon,layout:'single',visible:true});
+    }
+  });
+}
+
+/* LABELS */
+function loadLabels(){
+  try{
+    const s=JSON.parse(localStorage.getItem('me_labels')||'null');
+    if(s && typeof s==='object' && !Array.isArray(s)) return s;
+  }catch(e){}
+  return {};
+}
+function saveLabels(l){labelOverrides=l||{};try{localStorage.setItem('me_labels',JSON.stringify(labelOverrides));}catch(e){}dbSaveSettings('labels',labelOverrides);}
+let labelOverrides=loadLabels();
+function getLabel(key,fallback){
+  if (!labelOverrides || typeof labelOverrides !== 'object') return fallback;
+  return labelOverrides[key]||fallback;
+}
+
+/* ── Async init: pull cloud data on page load ── */
+async function initCloudSync(){
+  const statusEl = document.getElementById('bootLoadingStatus');
+  if(statusEl) statusEl.textContent = 'Syncing settings…';
+  showSync('syncing','Connecting to cloud…');
+  try{
+    /* Start Realtime listeners early */
+    initRealtime();
+
+    /* Pull settings first */
+    const settingsToLoad = ['cfg','ls_settings','labels','section_order','form_config'];
+    const results = await Promise.allSettled(settingsToLoad.map(k => dbLoadSettings(k)));
+    
+    results.forEach((res, i) => {
+      const key = settingsToLoad[i];
+      if(res.status === 'fulfilled' && res.value){
+        const val = res.value;
+        if(key === 'cfg'){ cfg = {...cfg, ...val}; try{localStorage.setItem('me_cfg',JSON.stringify(cfg));}catch(e){} }
+        if(key === 'ls_settings'){
+          lsSettings = val;
+          try{localStorage.setItem('me_ls_settings',JSON.stringify(val));}catch(e){}
+          applyLsColors(val);
+          applyCustomCategories(val);
+        }
+        if(key === 'labels'){ labelOverrides = {...labelOverrides, ...val}; try{localStorage.setItem('me_labels',JSON.stringify(labelOverrides));}catch(e){} }
+        if(key === 'section_order'){ sectionOrder = val; try{localStorage.setItem('me_section_order',JSON.stringify(val));}catch(e){} }
+        if(key === 'form_config'){ formConfig = val; try{localStorage.setItem('me_form_config',JSON.stringify(val));}catch(e){} }
+      }
+    });
+
+    if(statusEl) statusEl.textContent = 'Loading submissions…';
+    /* Pull submissions */
+    subs=await dbLoadAll();
+    
+    showSync('ok', subs.length ? '✓ Cloud Synced' : '✓ Connected (Empty)');
+    if(subs.length) showSync('live','✦ Live & Synced');
+    
+    /* Refresh any open view */
+    if(document.getElementById('viewAdmin')?.classList.contains('active'))renderAdmin();
+    if(document.getElementById('viewEditor')?.classList.contains('active'))renderEditor();
+    if(document.getElementById('viewLanding')?.classList.contains('active'))renderLandingCards();
+  }catch(e){
+    console.warn('[DB] Init sync failed:', e.message);
+    showSync('err','Running offline — using local cache');
+  } finally {
+    /* ALWAYS remove overlay after sync attempt (success or fail) */
+    if(typeof removeBootOverlay === 'function') removeBootOverlay();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   OCR ENGINE — Gemini 2.0 Flash via OpenRouter
+   Targets: academic, interviews, speeches, creative, motivational
+═══════════════════════════════════════════════════════════ */
+const OCR_TARGET_CATS=['academic','interviews','speeches','creative','motivational'];
+const OCR_TARGET_FIELDS={
+  academic:'ff-articleBody',
+  interviews:'ff-qaBody',
+  speeches:'ff-speechBody',
+  creative:'ff-contribBody',
+  motivational:'ff-articleBody'
 };
 
-window.toggleEconomyMode=function(){
-  ADMIN.economyMode=!ADMIN.economyMode;
-  var sw=$('ecoSwitch'), lbl=$('ecoLabel');
-  if(sw) sw.className='eco-switch'+(ADMIN.economyMode?' on':'');
-  if(lbl){ lbl.textContent=ADMIN.economyMode?'ON — Landscape A4':'OFF — Standard'; lbl.style.color=ADMIN.economyMode?'var(--green)':'var(--mute)'; }
-};
+function buildOCRPanel(catKey){
+  if(!OCR_TARGET_CATS.includes(catKey))return'';
+  return`
+  <div class="f-card">
+    <div class="f-card-title">📷 Snap &amp; Transcribe — OCR</div>
+    <div class="ocr-panel">
+      <div class="ocr-panel-title">✦ Scan Handwritten or Printed Text</div>
+      <p style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:12px;">Take a photo or upload an image of your document. Gemini AI will read and transcribe the text directly into the form field below.</p>
+      <div class="ocr-btn-row">
+        <button class="ocr-btn ocr-btn-cam" onclick="ocrCapture('${catKey}','camera')">📷 Take Photo</button>
+        <button class="ocr-btn ocr-btn-file" onclick="ocrCapture('${catKey}','file')">📁 Upload Image</button>
+      </div>
+      <input type="file" id="ocrInput-${catKey}" accept="image/*" style="display:none;" onchange="ocrProcess(event,'${catKey}')"/>
+      <input type="file" id="ocrCamInput-${catKey}" accept="image/*" capture="environment" style="display:none;" onchange="ocrProcess(event,'${catKey}')"/>
+      <div class="ocr-status" id="ocrStatus-${catKey}">Ready — point camera at any text</div>
+      <img class="ocr-preview-img" id="ocrPreview-${catKey}" alt="Scanned image"/>
+    </div>
+  </div>`;
+}
 
-window.setQLayout=function(pi,qi,layout){
-  var papers=window._printPapers;
-  if(!papers||!papers[pi]||!papers[pi].questions||!papers[pi].questions[qi]) return;
-  papers[pi].questions[qi].layout=layout;
-  // Persist layout to Supabase (fire and forget)
-  var ref=papers[pi].ref;
-  var updP=Object.assign({},papers[pi]);_supabase.from('papers').update({data:updP}).eq('ref',ref);
-  // Update button states visually
-  var plabEl=$('plab_'+pi);
-  if(plabEl){
-    var allRows=plabEl.querySelectorAll('.q-layout-row');
-    if(allRows[qi]){
-      allRows[qi].querySelectorAll('.layout-btn').forEach(function(b){
-        b.classList.remove('on');
-        if(b.textContent==='C'&&layout==='compact') b.classList.add('on');
-        if(b.textContent==='S'&&layout==='standard') b.classList.add('on');
-        if(b.textContent==='W'&&layout==='wide') b.classList.add('on');
-      });
+function ocrCapture(catKey,mode){
+  const inputId=mode==='camera'?`ocrCamInput-${catKey}`:`ocrInput-${catKey}`;
+  document.getElementById(inputId)?.click();
+}
+
+async function ocrProcess(event,catKey){
+  const file=event.target.files?.[0];if(!file)return;
+  const statusEl=document.getElementById(`ocrStatus-${catKey}`);
+  const previewEl=document.getElementById(`ocrPreview-${catKey}`);
+  const s=lsSettings;
+  const apiKey=s.apiKey;
+  if(!apiKey){
+    statusEl.className='ocr-status err';
+    statusEl.textContent='⚠ No API key. Go to Design Settings → AI Configuration.';
+    return;
+  }
+  /* Show preview */
+  const previewURL=URL.createObjectURL(file);
+  previewEl.src=previewURL;previewEl.style.display='block';
+  statusEl.className='ocr-status running';
+  statusEl.textContent='🔍 Reading text with Gemini…';
+  /* Convert to base64 */
+  const base64=await new Promise((res,rej)=>{
+    const r=new FileReader();r.onload=e=>res(e.target.result.split(',')[1]);
+    r.onerror=rej;r.readAsDataURL(file);
+  });
+  const mimeType=file.type||'image/jpeg';
+  try{
+    const resp=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,
+        'HTTP-Referer':'https://magazine-teachers-profile.vercel.app','X-Title':'MagicEditor OCR'},
+      body:JSON.stringify({
+        model:'google/gemini-2.0-flash-001',
+        max_tokens:4000,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image_url',image_url:{url:`data:${mimeType};base64,${base64}`}},
+            {type:'text',text:'You are a precise OCR engine for a school magazine. Transcribe ALL text from this image EXACTLY as written — preserve every word, punctuation, paragraph break, and line break. Do not summarize, paraphrase, or add anything. If the handwriting is unclear, make your best attempt and mark unclear words with [?]. Output only the transcribed text with no preamble.'}
+          ]
+        }]
+      })
+    });
+    const data=await resp.json();
+    const transcribed=data.choices?.[0]?.message?.content||'';
+    if(!transcribed){statusEl.className='ocr-status err';statusEl.textContent='✗ No text found. Try a clearer image.';return;}
+    /* Inject into target field */
+    const fieldId=OCR_TARGET_FIELDS[catKey];
+    const ta=document.getElementById(fieldId);
+    if(ta){
+      const existing=ta.value.trim();
+      ta.value=existing?(existing+'\n\n'+transcribed):transcribed;
+      ta.dispatchEvent(new Event('input'));
+      ta.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+    statusEl.className='ocr-status done';
+    statusEl.textContent=`✓ Transcribed ${transcribed.length} characters — text added to form.`;
+    URL.revokeObjectURL(previewURL);
+  }catch(e){
+    statusEl.className='ocr-status err';
+    statusEl.textContent='✗ Error: '+e.message;
+  }
+  event.target.value='';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GALLERY BULK UPLOAD
+═══════════════════════════════════════════════════════════ */
+/* Gallery bulk upload state (global) */
+function buildGalleryTabs(){
+  return`
+  <div class="f-card">
+    <div class="gallery-tabs">
+      <button class="gallery-tab active" id="gtab-single" onclick="switchGalleryTab('single')">📷 Single Upload</button>
+      <button class="gallery-tab" id="gtab-bulk" onclick="switchGalleryTab('bulk')">📦 Bulk Upload</button>
+    </div>
+    <!-- Single upload tab (existing photo flow) -->
+    <div class="gallery-tab-pane active" id="gpane-single">
+      <div class="f-card-title">Photo &amp; Caption</div>
+      <div class="photo-drop" id="photoDrop" onclick="document.getElementById('photoInput').click()" ondragover="dragOver(event)" ondragleave="dragLeave()" ondrop="dropPhoto(event)">
+        <input type="file" id="photoInput" accept=".jpg,.jpeg,.png,.webp" onchange="handlePhoto(event)"/>
+        <div id="photoPlaceholder"><span class="photo-drop-icon">📷</span><h3>Upload gallery photo <span class="req">*</span></h3><p>Click here or drag &amp; drop</p><span class="photo-pill">High quality · Min 600×600px</span></div>
+        <div class="photo-preview-wrap" id="photoPreviewWrap"><img id="photoPreview" src="" alt="Preview"/><div class="photo-filename" id="photoFilename"></div><div class="photo-dims" id="photoDims"></div><button class="photo-change" onclick="resetPhoto(event)">Change photo</button></div>
+      </div>
+      <div class="photo-err-msg" id="photoErrMsg"></div>
+      <div class="photo-reqs"><p><strong>For print quality:</strong> minimum 600×600 pixels, JPG or PNG, up to 5 MB.</p></div>
+    </div>
+    <!-- Bulk upload tab -->
+    <div class="gallery-tab-pane" id="gpane-bulk">
+      <div class="f-card-title">Bulk Photo Upload</div>
+      <div class="bulk-drop-zone" onclick="document.getElementById('bulkPhotoInput').click()">
+        <input type="file" id="bulkPhotoInput" accept=".jpg,.jpeg,.png,.webp" multiple style="display:none;" onchange="handleBulkPhotos(event)"/>
+        <span style="font-size:40px;display:block;margin-bottom:10px;">📦</span>
+        <h3>Select Multiple Photos</h3>
+        <p>Click to choose up to 30 photos at once — add captions for each</p>
+      </div>
+      <div id="bulkGrid" class="bulk-grid"></div>
+      <div id="bulkCount" style="margin-top:10px;font-size:13px;color:var(--ink3);"></div>
+      <div id="bulkErrMsg" class="photo-err-msg"></div>
+      <button class="submit-btn" style="margin-top:1.25rem;" onclick="submitBulkGallery()">📦 Submit All Bulk Photos</button>
+    </div>
+  </div>`;
+}
+
+function switchGalleryTab(tab){
+  ['single','bulk'].forEach(t=>{
+    document.getElementById('gtab-'+t)?.classList.toggle('active',t===tab);
+    document.getElementById('gpane-'+t)?.classList.toggle('active',t===tab);
+  });
+  const mainSubmit=document.getElementById('mainSubmitBtn');
+  if(mainSubmit) mainSubmit.style.display=tab==='bulk'?'none':'block';
+}
+
+function handleBulkPhotos(event){
+  const files=Array.from(event.target.files||[]);
+  const errEl=document.getElementById('bulkErrMsg');errEl.style.display='none';
+  const max=30;
+  const rem=max-bulkPhotos.length;
+  if(rem<=0){errEl.textContent=`Maximum ${max} photos reached.`;errEl.style.display='block';return;}
+  const toAdd=files.slice(0,rem);
+  if(files.length>rem){errEl.textContent=`Adding first ${rem} — limit is ${max} total.`;errEl.style.display='block';}
+  toAdd.forEach(f=>processBulkPhoto(f));
+  event.target.value='';
+}
+function processBulkPhoto(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['jpg','jpeg','png','webp'].includes(ext))return;
+  if(file.size>15*1024*1024)return;
+  const r=new FileReader();
+  const fileName=file.name;
+  r.onload=ev=>{
+    bulkPhotos.push({dataURL:ev.target.result,file:file,fileName:fileName,caption:''});
+    renderBulkGrid();
+  };
+  r.readAsDataURL(file);
+}
+function renderBulkGrid(){
+  const grid=document.getElementById('bulkGrid');
+  const ctr=document.getElementById('bulkCount');
+  if(!grid)return;
+  grid.innerHTML=bulkPhotos.map((p,i)=>`
+    <div class="bulk-thumb">
+      <img src="${p.dataURL}" alt="Photo ${i+1}"/>
+      <button class="bulk-thumb-rm" onclick="removeBulkPhoto(${i})">×</button>
+      <div class="bulk-thumb-cap">
+        <input type="text" placeholder="Caption for photo ${i+1}" value="${esc(p.caption)}" oninput="updateBulkCaption(${i},this.value)"/>
+      </div>
+    </div>`).join('');
+  if(ctr)ctr.textContent=bulkPhotos.length?`${bulkPhotos.length} photo${bulkPhotos.length>1?'s':''} ready to submit`:'';
+}
+function removeBulkPhoto(i){bulkPhotos.splice(i,1);renderBulkGrid();}
+function updateBulkCaption(i,val){if(bulkPhotos[i])bulkPhotos[i].caption=val;}
+
+async function submitBulkGallery(){
+  if(!bulkPhotos.length){alert('Please add at least one photo.');return;}
+  /* Validate required fields */
+  const submitterName=(document.getElementById('ff-submitterName')?.value||'').trim();
+  if(!submitterName){alert('Please enter your name before submitting.');document.getElementById('ff-submitterName')?.focus();return;}
+  const submitterRole=(document.getElementById('ff-submitterRole')?.value||'').trim()||'';
+  const ts=new Date().toLocaleString();
+  let count=0;let errors=0;
+  showSync('syncing','Uploading '+bulkPhotos.length+' photos…');
+  for(const p of bulkPhotos){
+    try{
+      const subId=genId();
+      /* Upload to Storage for full quality */
+      let photoData=p.dataURL;
+      if(p.file){
+        try{photoData=await uploadToStorage(p.file,subId);}catch(e){console.warn('[Storage] Bulk photo upload failed:',e.message);}
+      }
+      const sub={
+        id:subId,
+        category:'gallery',ts,createdAt:Date.now()+count,
+        status:'pending',
+        reviewerNote:'',reviewedAt:null,
+        data:{
+          submitterName:{label:'Submitted by',value:submitterName},
+          submitterRole:{label:'Role',value:submitterRole},
+          photoCaption:{label:'Photo caption',value:p.caption||'Gallery photo'},
+          photoCategory:{label:'Category',value:'Other'},
+          photoDate:{label:'Date',value:''}
+        },
+        photoData:photoData,photoName:p.fileName||('photo_'+(count+1)+'.jpg'),photos:null
+      };
+      await dbSaveSubmission(sub);
+      count++;
+    }catch(e){
+      console.warn('[Gallery] Failed to save photo '+(count+1)+':',e.message);
+      errors++;
     }
   }
-  // Refresh preview
-  renderDigitalLabPreview(papers,getAdminSettings());
-};
-
-window.setPrintMode=function(mode){
-  ADMIN.labConfig.printMode=mode;
-  _saveLabConfig();
-  var strip=$('labConfigStrip'); if(strip) strip.innerHTML=renderLabConfigStrip();
-  renderAdminPrint();
-  if(mode==='auto'){
-    var resolved=resolveLayoutMode(window._printPapers||[]);
-    toast('🤖 Auto mode — selected '+getModeName(resolved),'ok',3000);
+  bulkPhotos=[];renderBulkGrid();
+  if(errors){
+    alert(`${count} photos submitted, ${errors} failed. Failed items saved locally and will sync later.`);
   } else {
-    toast(getModeName(mode)+' mode active','ok',2500);
+    alert(`✓ ${count} photos submitted successfully! They are now awaiting Editor review.`);
   }
-};
+  showSync('ok','✓ '+count+' photos uploaded');
+  document.getElementById('formContainer').style.display='none';
+  document.getElementById('successWrap').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+const DEFAULT_SECTION_ORDER=[
+  {key:'cover',label:'Cover Page',icon:'📕',editable:false,visible:true,layout:'cover'},
+  {key:'toc',label:'Table of Contents',icon:'📑',editable:false,visible:true,layout:'toc'},
+  {key:'editorial-note',label:'Editorial Note',icon:'✎',editable:true,visible:true,layout:'single'},
+  {key:'speeches',label:'Speeches & Addresses',icon:'🎤',editable:true,visible:true,layout:'single'},
+  {key:'primary5',label:'Primary 5 Graduates',icon:'🧒',editable:true,visible:true,layout:'grid'},
+  {key:'jss3',label:'JSS3 Graduates',icon:'🎒',editable:true,visible:true,layout:'grid'},
+  {key:'ss3',label:'SS3 Graduates',icon:'🎓',editable:true,visible:true,layout:'grid'},
+  {key:'teachers',label:'Staff Profiles',icon:'👨‍🏫',editable:true,visible:true,layout:'teacher-grid'},
+  {key:'academic',label:'Academic & Educational',icon:'📚',editable:true,visible:true,layout:'single'},
+  {key:'creative',label:'Creative Corner',icon:'✍️',editable:true,visible:true,layout:'double'},
+  {key:'events',label:'School Life & Events',icon:'📸',editable:true,visible:true,layout:'events'},
+  {key:'interviews',label:'Interviews',icon:'🎙️',editable:true,visible:true,layout:'single'},
+  {key:'motivational',label:'Motivational Articles',icon:'💡',editable:true,visible:true,layout:'single'},
+  {key:'gallery',label:'Photo Gallery',icon:'🖼️',editable:true,visible:true,layout:'gallery'},
+  {key:'appreciation',label:'Appreciation Section',icon:'🙏',editable:true,visible:true,layout:'single'}
+];
+function loadSectionOrder(){try{const s=JSON.parse(localStorage.getItem('me_section_order')||'null');if(s&&Array.isArray(s)&&s.length)return s;}catch(e){}return JSON.parse(JSON.stringify(DEFAULT_SECTION_ORDER));}
+function saveSectionOrder(){
+  localStorage.setItem('me_section_order',JSON.stringify(sectionOrder));
+  dbSaveSettings('section_order',sectionOrder);
+  alert('Section order saved!');
+}
+sectionOrder=loadSectionOrder();
 
-window.setAllLayout=function(layout){
-  var papers=window._printPapers||[];
-  papers.forEach(function(p){ (p.questions||[]).forEach(function(q){ q.layout=layout; }); });
-  // Persist all layout changes to Supabase
-  papers.forEach(function(p){ _supabase.from('papers').update({data:Object.assign({},p)}).eq('ref',p.ref); });
-  toast('All questions set to '+layout+' layout','ok');
-  renderAdminPrint();
-};
+/* FORM CONFIG — Fix 4: synced to cloud so all devices/links get same custom fields */
+function loadFormConfig(){try{const raw=JSON.parse(localStorage.getItem('me_form_config')||'{}')||{};Object.keys(raw).forEach(k=>{if(!raw[k])raw[k]={};if(!raw[k].overrides||typeof raw[k].overrides!=='object')raw[k].overrides={};if(!Array.isArray(raw[k].customFields))raw[k].customFields=[];});return raw;}catch(e){return{};}}
+function saveFormConfig(c){
+  formConfig=c;
+  localStorage.setItem('me_form_config',JSON.stringify(c));
+  /* Sync to cloud immediately so all links/devices get it */
+  dbSaveSettings('form_config',c).then(()=>showSync('ok','✓ Form config saved to cloud'));
+}
+formConfig=loadFormConfig();
+function getEffectiveFields(catKey){const cat=CATEGORIES[catKey];if(!cat)return[];const ov=(formConfig[catKey]&&formConfig[catKey].overrides)||{};const cf=(formConfig[catKey]&&formConfig[catKey].customFields)||[];const bi=cat.fields.map((f,i)=>{const o=ov[f.id]||{};return{...f,_isBuiltIn:true,required:o.required!==undefined?!!o.required:!!f.required,hidden:!!o.hidden,order:o.order!==undefined?Number(o.order):i};});const cu=cf.map((c,i)=>({...c,_isBuiltIn:false,order:c.order!==undefined?Number(c.order):(1000+i)}));return[...bi,...cu].filter(f=>!f.hidden).sort((a,b)=>(a.order||0)-(b.order||0));}
+function getAllFieldsForEditing(catKey){const cat=CATEGORIES[catKey];if(!cat)return[];const ov=(formConfig[catKey]&&formConfig[catKey].overrides)||{};const cf=(formConfig[catKey]&&formConfig[catKey].customFields)||[];const bi=cat.fields.map((f,i)=>{const o=ov[f.id]||{};return{...f,_isBuiltIn:true,required:o.required!==undefined?!!o.required:!!f.required,hidden:!!o.hidden,order:o.order!==undefined?Number(o.order):i};});const cu=cf.map((c,i)=>({...c,_isBuiltIn:false,hidden:!!c.hidden,order:c.order!==undefined?Number(c.order):(1000+i)}));return[...bi,...cu].sort((a,b)=>(a.order||0)-(b.order||0));}
 
-window.uploadLogo=function(e){
-  var file=(e.target.files||[])[0]; if(!file) return;
-  if(file.size>210000){ toast('Logo must be under 200KB','warn'); return; }
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    var logoData=ev.target.result;
-    if(window._adminSettingsCache) window._adminSettingsCache.logo=logoData;
-    _supabase.from('admin_settings').upsert({key:'logo',value:logoData},{onConflict:'key'});
-    toast('Logo uploaded ✓','ok');
-    renderAdminPrint();
+/* STATE */
+let photoFile=null,photoDataURL=null,photoFilesMulti=[],photoDataURLsMulti=[];
+let pinBuf='',pinMode=null;
+let reviewingId=null,reviewingDecision=null,currentLsTab='preview';
+let magPages=[],currentPageIdx=0,renamingKey=null,dragSrcIdx=null;
+let currentCustCat=null,editingCustomFieldId=null;
+/* AI Chat history for conversational layout assistant */
+let aiChatHistory=[];
+let aiPendingSuggestion=null;
+
+/* VIEW */
+function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
+function goLanding(){show('viewLanding');currentFormCategory=null;resetFormState();renderLandingCards();}
+
+/* LANDING CARDS */
+function renderLandingCards(){
+  const grid=document.getElementById('formGrid');
+  if(!grid) return;
+  try {
+    ensureCategoriesReady();
+    const h=document.getElementById('landingHeading');if(h)h.textContent=getLabel('landing_heading','Choose a content category');
+    const DESCS={teachers:'For teaching staff and management. Share your journey, subjects, and message to the graduating class.',primary5:'For Primary 5 pupils moving on. Tell the world who you are.',jss3:'For Junior Secondary 3 students finishing this phase.',ss3:'For the main graduating class. Your legacy, your ambitions, your message.',speeches:'Proprietor, Senior Boy, guest speakers — formal addresses for the magazine.',creative:'Poems, short stories, jokes, riddles — creative writing from across the school.',events:'Sports days, excursions, competitions, achievements — the year\'s highlights.',academic:'Articles, subject features, research write-ups, and educational content.',interviews:'Q&A with old students, guest speakers, and notable voices.',motivational:'Inspirational messages and wisdom for the graduating class.',gallery:'Submit standalone photos with captions for the gallery section.'};
+    const STRIPES={teachers:'stripe-gold',primary5:'stripe-green',jss3:'stripe-green',ss3:'stripe-green',speeches:'stripe-blue',creative:'stripe-purple',events:'stripe-amber',academic:'stripe-blue',interviews:'stripe-mint',motivational:'stripe-purple',gallery:'stripe-gold'};
+    
+    if(!CATEGORY_KEYS || !CATEGORY_KEYS.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--ink2);">No categories found. Please check configuration.</div>';
+      return;
+    }
+
+    grid.innerHTML=CATEGORY_KEYS.map(k=>{
+      const cat=CATEGORIES[k];
+      if(!cat) return '';
+      const lbl=getLabel('cat_label_'+k, cat.label || k);
+      const dsc=getLabel('cat_desc_'+k, DESCS[k]||'');
+      return`<div class="form-card" data-cat="${esc(k)}" onclick="openForm(this.getAttribute('data-cat'))">
+        <span class="form-card-stripe ${STRIPES[k]||'stripe-blue'}"></span>
+        <span class="form-card-icon">${cat.icon||'📝'}</span>
+        <h3>${esc(lbl)}</h3>
+        <p>${esc(dsc)}</p>
+      </div>`;
+    }).join('');
+  } catch(err) {
+    console.error('Render error in renderLandingCards:', err);
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--red);">Failed to render categories. Please refresh the page.</div>';
+  }
+}
+
+/* FORM BUILDING */
+function openForm(k){
+  try {
+    ensureCategoriesReady();
+    currentFormCategory=k;
+    resetFormState();
+    const cat=CATEGORIES[k];
+    if(!cat) return;
+    const tagEl=document.getElementById('formTag'); if(tagEl) tagEl.textContent=getLabel('cat_tag_'+k,cat.tag);
+    const titleEl=document.getElementById('formTitle'); if(titleEl) titleEl.textContent=getLabel('cat_form_title_'+k,cat.title);
+    const subEl=document.getElementById('formSubtitle'); if(subEl) subEl.textContent=getLabel('cat_form_subtitle_'+k,cat.subtitle);
+    const wrap=document.getElementById('successWrap'); if(wrap) wrap.style.display='none';
+    const cont=document.getElementById('formContainer'); if(cont) cont.style.display='block';
+    try { buildForm(k); } catch(e) { console.error('Error in buildForm:', e); }
+  } catch(err) {
+    console.error('Error in openForm:', err);
+  } finally {
+    show('viewForm');
+  }
+}
+function resetFormState(){photoFile=null;photoDataURL=null;photoFilesMulti=[];photoDataURLsMulti=[];}
+function buildForm(k){
+  ensureCategoriesReady();
+  const cat=CATEGORIES[k];const c=document.getElementById('formContainer');
+  bulkPhotos=[];/* reset bulk state */
+  let h=`<div class="f-card"><div class="f-card-title">Your Details</div>`;
+  getEffectiveFields(k).forEach(f=>{h+=buildFieldHtml(f);});h+=`</div>`;
+  /* OCR panel — inject for applicable categories */
+  h+=buildOCRPanel(k);
+  /* Gallery: replace standard photo card with tabbed version */
+  if(k==='gallery'){
+    h+=buildGalleryTabs();
+  } else if(cat.photoRequired&&cat.photoMulti){
+    const max=cat.photoMax||5;
+    h+=`<div class="f-card"><div class="f-card-title">Event Photos (up to ${max})</div><div class="photo-drop" id="photoDrop" onclick="document.getElementById('photoInputMulti').click()"><input type="file" id="photoInputMulti" accept=".jpg,.jpeg,.png,.webp" multiple onchange="handlePhotoMulti(event,${max})"/><div id="photoPlaceholderMulti"><span class="photo-drop-icon">📸</span><h3>Upload event photos <span class="req">*</span></h3><p>Tap to choose 1–${max} photos</p><span class="photo-pill">Action shots · Group photos</span></div></div><div id="multiPhotoGrid" class="multi-photo-grid"></div><div id="multiPhotoCount" class="multi-photo-count" style="display:none;">0 of ${max}</div><div class="photo-err-msg" id="photoErrMsg"></div><div class="photo-reqs"><p><strong>For print quality:</strong> min 600×600px, JPG/PNG, max 5MB each.</p></div></div>`;
+  } else if(cat.photoRequired){
+    h+=`<div class="f-card"><div class="f-card-title">Profile photo</div><div class="photo-drop" id="photoDrop" onclick="document.getElementById('photoInput').click()" ondragover="dragOver(event)" ondragleave="dragLeave()" ondrop="dropPhoto(event)"><input type="file" id="photoInput" accept=".jpg,.jpeg,.png,.webp" onchange="handlePhoto(event)"/><div id="photoPlaceholder"><span class="photo-drop-icon">📷</span><h3>Upload your profile photo <span class="req">*</span></h3><p>Click here or drag &amp; drop</p><span class="photo-pill">Passport-style · Clear face · Plain background</span></div><div class="photo-preview-wrap" id="photoPreviewWrap"><img id="photoPreview" src="" alt="Preview"/><div class="photo-filename" id="photoFilename"></div><div class="photo-dims" id="photoDims"></div><button class="photo-change" onclick="resetPhoto(event)">Change photo</button></div></div><div class="photo-err-msg" id="photoErrMsg"></div><div class="photo-reqs"><p><strong>For print quality:</strong> minimum 600×600 pixels, JPG or PNG, up to 5 MB.</p></div></div>`;
+  }
+  /* Submit button — not shown for gallery (bulk has own button) */
+  h+=`<button class="submit-btn" onclick="submitForm()" id="mainSubmitBtn">Submit</button>`;
+  c.innerHTML=h;
+}
+function buildFieldHtml(f){
+  const req=f.required?'<span class="req"> *</span>':'<span class="opt">(optional)</span>';
+  const hint=f.hint?`<div class="field-hint">${esc(f.hint)}</div>`:'';
+  const err=`<div class="field-err">This field is required.</div>`;
+  const id=`ff-${f.id}`;
+  if(f.type==='textarea'){return`<div class="field" id="fw-${f.id}"><label for="${id}">${esc(f.label)}${req}</label><textarea id="${id}" class="${f.long?'long':''}" placeholder="${esc(f.placeholder||'')}"></textarea>${hint}${err}</div>`;}
+  if(f.type==='select'){let optsArr=Array.isArray(f.options)?f.options:typeof f.options==='string'?f.options.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean):[];const opts=optsArr.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');return`<div class="field" id="fw-${f.id}"><label for="${id}">${esc(f.label)}${req}</label><select id="${id}"><option value="">— Select —</option>${opts}</select>${hint}${err}</div>`;}
+  if(f.type==='checkbox'){return`<div class="field" id="fw-${f.id}"><div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="${id}"/><label for="${id}" style="font-weight:400;display:inline;cursor:pointer;">${esc(f.label)}</label></div>${hint}</div>`;}
+  if(f.type==='number'){return`<div class="field" id="fw-${f.id}"><label for="${id}">${esc(f.label)}${req}</label><input type="number" id="${id}" placeholder="${esc(f.placeholder||'')}" inputmode="numeric"/>${hint}${err}</div>`;}
+  return`<div class="field" id="fw-${f.id}"><label for="${id}">${esc(f.label)}${req}</label><input type="${f.type}" id="${id}" placeholder="${esc(f.placeholder||'')}"/>${hint}${err}</div>`;
+}
+
+/* PHOTO */
+function dragOver(e){e.preventDefault();document.getElementById('photoDrop').classList.add('drag');}
+function dragLeave(){const d=document.getElementById('photoDrop');if(d)d.classList.remove('drag');}
+function dropPhoto(e){e.preventDefault();dragLeave();const f=e.dataTransfer.files[0];if(f)processPhoto(f);}
+function handlePhoto(e){if(e.target.files[0])processPhoto(e.target.files[0]);}
+function processPhoto(file){
+  const err=document.getElementById('photoErrMsg');err.style.display='none';
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['jpg','jpeg','png','webp'].includes(ext)){err.textContent='Invalid format. Use JPG, PNG, or WebP.';err.style.display='block';return;}
+  if(file.size>15*1024*1024){err.textContent='File too large. Max 15 MB.';err.style.display='block';return;}
+  const img=new Image(),url=URL.createObjectURL(file);
+  img.onload=function(){
+    if(img.width<600||img.height<600){err.textContent='Image too small. Min 600×600 px.';err.style.display='block';URL.revokeObjectURL(url);return;}
+    photoFile=file;const r=new FileReader();
+    r.onload=ev=>{photoDataURL=ev.target.result;document.getElementById('photoPreview').src=photoDataURL;document.getElementById('photoFilename').textContent=file.name;document.getElementById('photoDims').textContent=`${img.width}×${img.height}px · ${(file.size/1024).toFixed(0)} KB`;document.getElementById('photoPlaceholder').style.display='none';document.getElementById('photoPreviewWrap').style.display='flex';document.getElementById('photoDrop').classList.add('uploaded');};
+    r.readAsDataURL(file);URL.revokeObjectURL(url);
+  };img.src=url;
+}
+function resetPhoto(e){e.stopPropagation();photoFile=null;photoDataURL=null;document.getElementById('photoInput').value='';document.getElementById('photoPreview').src='';document.getElementById('photoPlaceholder').style.display='block';document.getElementById('photoPreviewWrap').style.display='none';document.getElementById('photoDrop').classList.remove('uploaded');}
+function handlePhotoMulti(event,max){const files=Array.from(event.target.files||[]);if(!files.length)return;const err=document.getElementById('photoErrMsg');err.style.display='none';const rem=max-photoFilesMulti.length;if(rem<=0){err.textContent=`Maximum ${max} photos reached.`;err.style.display='block';event.target.value='';return;}const toAdd=files.slice(0,rem);if(files.length>rem){err.textContent=`Only ${rem} more can be added.`;err.style.display='block';}toAdd.forEach(f=>processPhotoForMulti(f,max));event.target.value='';}
+function processPhotoForMulti(file,max){const err=document.getElementById('photoErrMsg');const ext=file.name.split('.').pop().toLowerCase();if(!['jpg','jpeg','png','webp'].includes(ext)){err.textContent=`Skipped "${file.name}": invalid format.`;err.style.display='block';return;}if(file.size>15*1024*1024){err.textContent=`Skipped "${file.name}": too large (max 15 MB).`;err.style.display='block';return;}const img=new Image();const url=URL.createObjectURL(file);img.onload=function(){if(img.width<600||img.height<600){err.textContent=`Skipped "${file.name}": too small.`;err.style.display='block';URL.revokeObjectURL(url);return;}const r=new FileReader();r.onload=ev=>{photoFilesMulti.push(file);photoDataURLsMulti.push(ev.target.result);renderMultiPhotoGrid(max);};r.readAsDataURL(file);URL.revokeObjectURL(url);};img.onerror=()=>{err.textContent=`Skipped "${file.name}".`;err.style.display='block';URL.revokeObjectURL(url);};img.src=url;}
+function renderMultiPhotoGrid(max){const grid=document.getElementById('multiPhotoGrid');const ph=document.getElementById('photoPlaceholderMulti');const ctr=document.getElementById('multiPhotoCount');if(!grid)return;if(!photoDataURLsMulti.length){grid.innerHTML='';if(ph)ph.style.display='block';if(ctr)ctr.style.display='none';return;}if(ph)ph.style.display='none';grid.innerHTML=photoDataURLsMulti.map((url,i)=>`<div class="multi-photo-thumb"><img src="${url}" alt="Photo ${i+1}"/><button class="multi-photo-remove" type="button" onclick="removeMultiPhoto(${i},${max})">×</button></div>`).join('');if(ctr){ctr.style.display='inline-block';ctr.textContent=`${photoDataURLsMulti.length} of ${max} photos selected`;ctr.classList.toggle('full',photoDataURLsMulti.length>=max);}}
+function removeMultiPhoto(i,max){photoFilesMulti.splice(i,1);photoDataURLsMulti.splice(i,1);renderMultiPhotoGrid(max);}
+
+/* SUBMIT */
+async function submitForm(){
+  const cat=CATEGORIES[currentFormCategory];let valid=true;const data={};
+  getEffectiveFields(currentFormCategory).forEach(f=>{const el=document.getElementById('ff-'+f.id);const w=document.getElementById('fw-'+f.id);if(!el)return;const val=f.type==='checkbox'?el.checked?'Yes':'No':(el.value||'').trim();data[f.id]={label:f.label,value:val,type:f.type};if(f.required&&f.type!=='checkbox'&&!val){if(w)w.classList.add('has-error');valid=false;}else if(w)w.classList.remove('has-error');});
+  if(currentFormCategory==='gallery'){
+    const onBulk=document.getElementById('gpane-bulk')?.classList.contains('active');
+    if(!onBulk&&cat.photoRequired&&!photoDataURL){const e=document.getElementById('photoErrMsg');if(e){e.textContent='A photo is required.';e.style.display='block';}valid=false;}
+    if(onBulk){submitBulkGallery();return;}
+  } else if(cat.photoRequired&&cat.photoMulti){
+    if(!photoDataURLsMulti.length){const e=document.getElementById('photoErrMsg');if(e){e.textContent='At least one event photo is required.';e.style.display='block';}valid=false;}
+  } else if(cat.photoRequired&&!photoDataURL){
+    const e=document.getElementById('photoErrMsg');if(e){e.textContent='A profile photo is required.';e.style.display='block';}valid=false;
+  }
+  if(!valid){const fe=document.querySelector('.has-error')||document.getElementById('photoErrMsg');if(fe)fe.scrollIntoView({behavior:'smooth',block:'center'});return;}
+
+  /* Upload photo to Supabase Storage for full quality preservation */
+  const subId=genId();
+  let finalPhotoData=photoDataURL||null;
+  if(photoFile&&!cat.photoMulti){
+    try{
+      const storageUrl=await uploadToStorage(photoFile,subId);
+      finalPhotoData=storageUrl;/* full-quality URL replaces base64 */
+    }catch(e){console.warn('[Storage] Upload failed, using base64:',e.message);}
+  }
+  let finalPhotos=null;
+  if(cat.photoMulti&&photoFilesMulti.length){
+    finalPhotos=[];
+    for(let i=0;i<photoFilesMulti.length;i++){
+      try{
+        const url=await uploadToStorage(photoFilesMulti[i],subId+'_'+i);
+        finalPhotos.push({url:url,name:photoFilesMulti[i]?.name||`photo_${i+1}.jpg`});
+      }catch(e){
+        finalPhotos.push({data:photoDataURLsMulti[i],name:photoFilesMulti[i]?.name||`photo_${i+1}.jpg`});
+      }
+    }
+  }
+  const sub={id:subId,category:currentFormCategory,
+    ts:new Date().toLocaleString(),createdAt:Date.now(),
+    status:'pending',
+    reviewerNote:'',reviewedAt:null,data,
+    photoData:finalPhotoData,photoName:photoFile?.name||null,
+    photos:finalPhotos
+  };
+
+  /* FIX 1: Show uploading state immediately, done state only after cloud confirms */
+  document.getElementById('formContainer').style.display='none';
+  document.getElementById('successWrap').style.display='block';
+  document.getElementById('successUploading').style.display='block';
+  document.getElementById('successDone').style.display='none';
+  window.scrollTo({top:0,behavior:'smooth'});
+
+  /* Animate progress bar */
+  const bar=document.getElementById('uploadProgressBar');
+  const txt=document.getElementById('uploadProgressText');
+  let prog=0;
+  const tick=setInterval(()=>{
+    prog=Math.min(prog+8,85);/* max 85% until cloud confirms */
+    if(bar)bar.style.width=prog+'%';
+  },180);
+
+  try{
+    /* Cloud sync is now primary */
+    if(txt)txt.textContent='Uploading to cloud…';
+
+    /* Save to Supabase */
+    await dbSaveSubmission(sub);
+
+    clearInterval(tick);
+    if(bar)bar.style.width='100%';
+    if(txt)txt.textContent='✓ Saved successfully!';
+    setTimeout(()=>{
+      document.getElementById('successUploading').style.display='none';
+      document.getElementById('successDone').style.display='block';
+    },600);
+  }catch(e){
+    clearInterval(tick);
+    if(bar){bar.style.width='100%';bar.style.background='var(--school-mint3)';}
+    if(txt)txt.textContent='Saved locally. Cloud sync will retry.';
+    setTimeout(()=>{
+      document.getElementById('successUploading').style.display='none';
+      document.getElementById('successDone').style.display='block';
+    },1200);
+  }
+}
+
+/* PIN */
+function openPIN(mode){cfg=loadCfg();pinMode=mode;pinBuf='';updatePinDots();document.getElementById('pinErr').textContent='';const ov=document.getElementById('pinOverlay');ov.classList.toggle('editor',mode==='editor');const badge=document.getElementById('pinModeBadge');if(mode==='admin'){badge.textContent='⚙ Production Admin';badge.style.background='#1a2744';badge.style.color='#7dd4a8';}else if(mode==='editor'){badge.textContent='✎ Editor-in-Chief';badge.style.background='#2d1b4e';badge.style.color='#c6a5f0';}else{badge.textContent='🔒 Admin Portal';badge.style.background='#1c1c1e';badge.style.color='#f5f5f0';}document.getElementById('pinTitle').textContent=mode==='admin'?'Production Admin':(mode==='editor'?'Editor-in-Chief':'Admin Access');document.getElementById('pinSub').textContent=mode==='admin'?'Enter Production Admin PIN':(mode==='editor'?'Enter Editor-in-Chief PIN':'Enter your Admin PIN');ov.classList.add('active');}
+function closePIN(){document.getElementById('pinOverlay').classList.remove('active');pinBuf='';pinMode=null;}
+function pinKey(d){if(pinBuf.length>=4)return;pinBuf+=d;updatePinDots();if(pinBuf.length===4)checkPIN();}
+function pinDel(){pinBuf=pinBuf.slice(0,-1);updatePinDots();}
+function updatePinDots(){for(let i=0;i<4;i++){const dot=document.getElementById('pd'+i);dot.classList.toggle('filled',i<pinBuf.length);dot.classList.remove('error');}}
+function checkPIN(){if(pinMode==='unified'){if(pinBuf===cfg.adminPin){closePIN();enterAdmin();return;}if(pinBuf===cfg.editorPin){closePIN();enterEditor();return;}for(let i=0;i<4;i++)document.getElementById('pd'+i).classList.add('error');document.getElementById('pinErr').textContent='Incorrect PIN';setTimeout(()=>{pinBuf='';updatePinDots();},500);return;}const exp=pinMode==='admin'?cfg.adminPin:cfg.editorPin;if(pinBuf===exp){const m=pinMode;closePIN();m==='admin'?enterAdmin():enterEditor();}else{for(let i=0;i<4;i++)document.getElementById('pd'+i).classList.add('error');document.getElementById('pinErr').textContent='Incorrect PIN';setTimeout(()=>{pinBuf='';updatePinDots();},500);}}
+
+/* ADMIN */
+function adminRefresh(){
+  dbLoadAll().then(cloudList=>{
+    subs=cloudList;
+    renderAdmin();
+    const btn=document.getElementById('tab-all');
+    if(btn){btn.style.background='var(--school-mint2)';setTimeout(()=>btn.style.background='',800);}
+  }).catch(()=>{subs=loadAll();renderAdmin();});
+}
+function enterAdmin(){subs=loadAll();renderAdmin();show('viewAdmin');}
+function hideAllAdminModes(){['adminModeSubs','adminModeEditorial','adminModeLayout','adminModeShareLinks','adminModeSettings'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});}
+function setCategory(cat){currentAdminCat=cat;document.querySelectorAll('#viewAdmin .admin-tab').forEach(t=>t.classList.remove('active'));const btn=document.getElementById('tab-'+cat);if(btn)btn.classList.add('active');hideAllAdminModes();if(cat==='editorial'){document.getElementById('adminModeEditorial').style.display='block';renderEditorialMode();}else{document.getElementById('adminModeSubs').style.display='block';renderAdmin();}}
+function openLayoutStudio(){document.querySelectorAll('#viewAdmin .admin-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-layout').classList.add('active');hideAllAdminModes();document.getElementById('adminModeLayout').style.display='block';loadLsSettingsToUI();renderSectionManager();renderLabelRenameList();renderAIContentSummary();}
+function openSettings(){document.querySelectorAll('#viewAdmin .admin-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-settings').classList.add('active');hideAllAdminModes();document.getElementById('adminModeSettings').style.display='block';document.getElementById('setAdminPin').value=cfg.adminPin;document.getElementById('setEditorPin').value=cfg.editorPin;document.getElementById('pinSaveStatus').textContent='';const akEl=document.getElementById('settingsApiKey');if(akEl)akEl.value=lsSettings.apiKey||'';populateCustCatPicker();refreshDiag();}
+function populateCustCatPicker(){
+  const picker=document.getElementById('custCatPicker');if(!picker)return;
+  const currentVal=picker.value;
+  let html='<option value="">— Select a category —</option>';
+  CATEGORY_KEYS.forEach(k=>{
+    const c=CATEGORIES[k];
+    html+=`<option value="${k}">${c.icon||''} ${esc(getLabel('section_'+k,c.label))}</option>`;
+  });
+  picker.innerHTML=html;
+  if(CATEGORY_KEYS.includes(currentVal))picker.value=currentVal;
+}
+function openShareLinks(){document.querySelectorAll('#viewAdmin .admin-tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-sharelinks').classList.add('active');hideAllAdminModes();document.getElementById('adminModeShareLinks').style.display='block';renderShareLinks();}
+
+function renderAdminTabs(){
+  const c=document.getElementById('dynamicAdminTabs');if(!c)return;
+  // Keep the 'All' tab, the bottom 4 tabs, but replace the middle with CATEGORY_KEYS
+  const curActive=document.querySelector('.admin-tab.active')?.id||'tab-all';
+  let html=`<button class="admin-tab" onclick="setCategory('all')" id="tab-all">All <span class="tab-count" id="count-all">0</span></button>\n`;
+  CATEGORY_KEYS.forEach(k=>{
+    html+=`<button class="admin-tab" onclick="setCategory('${k}')" id="tab-${k}">${esc(CATEGORIES[k].tag||CATEGORIES[k].label)} <span class="tab-count" id="count-${k}">0</span></button>\n`;
+  });
+  html+=`<button class="admin-tab" onclick="setCategory('editorial')" id="tab-editorial" style="color:var(--gold);font-style:italic;">✎ Editorial <span class="tab-count" id="count-editorial">0</span></button>
+        <button class="admin-tab" onclick="openWorkspace()" id="tab-layout" style="color:var(--ws-accent);font-weight:700;">🛠 Open Workspace</button>
+        <button class="admin-tab" onclick="openShareLinks()" id="tab-sharelinks">🔗 Share Links</button>
+        <button class="admin-tab" onclick="openSettings()" id="tab-settings">⚙ Settings</button>`;
+  c.innerHTML=html;
+  // Restore active
+  const act=document.getElementById(curActive);
+  if(act)act.classList.add('active');
+}
+
+function renderAdmin(){
+  subs=loadAll();
+  renderAdminTabs();
+  document.getElementById('count-all').textContent=subs.length;
+  CATEGORY_KEYS.forEach(k=>{const el=document.getElementById('count-'+k);if(el)el.textContent=subs.filter(s=>s.category===k).length;});
+  const edCount=document.getElementById('count-editorial');if(edCount)edCount.textContent=subs.filter(s=>s.category==='editorial-note'||s.category==='appreciation').length;
+  document.getElementById('statTotal').textContent=subs.length;
+  document.getElementById('statPending').textContent=subs.filter(s=>s.status==='pending').length;
+  document.getElementById('statApproved').textContent=subs.filter(s=>s.status==='approved').length;
+  document.getElementById('statFinalized').textContent=subs.filter(s=>s.status==='finalized').length;
+  const sf=document.getElementById('filterStatus').value;
+  /* Sequence order: sort by createdAt ascending (oldest first = submission order) */
+  let filtered=subs.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  /* WORKFLOW: Production Admin only sees approved/finalized — pending stays with Editor */
+  filtered=filtered.filter(s=>s.status==='approved'||s.status==='finalized'||s.status==='rejected');
+  if(currentAdminCat!=='all')filtered=filtered.filter(s=>s.category===currentAdminCat);
+  if(sf!=='all')filtered=filtered.filter(s=>s.status===sf);
+  const list=document.getElementById('adminSubList');
+  /* Workflow notice for admin */
+  const pendingCount=subs.filter(s=>s.status==='pending').length;
+  const approvedCount=subs.filter(s=>s.status==='approved').length;
+  const workflowBanner=`<div style="background:linear-gradient(135deg,#f0fdf6,#e6faf0);border:1px solid var(--school-mint2);border-radius:var(--radius);padding:14px 18px;margin-bottom:1.25rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:20px;">📋</span>
+    <div style="flex:1;font-size:13px;color:var(--school-navy);">
+      <strong>Workflow:</strong> Submissions → <span style="color:var(--amber);font-weight:700;">Editor reviews &amp; proofreads</span> → <span style="color:var(--green);font-weight:700;">Approved here for layout</span> → Finalize
+      <br><span style="font-size:12px;color:var(--ink3);">Showing only Editor-approved content · ${pendingCount} still pending with Editor · ${approvedCount} ready to finalize</span>
+    </div>
+  </div>`;
+  if(!filtered.length){list.innerHTML=workflowBanner+`<div class="empty-state"><div class="empty-state-icon">📭</div><h3>No submissions to show</h3><p>${subs.length?'Try changing the filter.':'Share the submission links with contributors.'}</p></div>`;return;}
+  list.innerHTML=workflowBanner+filtered.map(s=>renderSubCard(s,'admin')).join('');
+}
+
+function renderSubCard(s,ctx){
+  const cat=CATEGORIES[s.category]||EDITORIAL_META[s.category]||{label:s.category,tag:s.category};
+  const name=s.data.name?.value||s.data.speakerName?.value||s.data.contribName?.value||s.data.reporterName?.value||s.data.authorName?.value||s.data.intervieweeName?.value||s.data.submitterName?.value||s.data.title?.value||'Untitled';
+  const sub=s.data.subject?.value||s.data.speechType?.value||s.data.contribType?.value||s.data.eventType?.value||s.data.subjectArea?.value||s.data.articleTitle?.value||s.data.photoCategory?.value||s.data.eventName?.value||'';
+  const initials=name.trim().split(/\s+/).map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  const avatar=s.photoData?`<img class="sub-avatar" src="${s.photoData}" alt="${esc(name)}"/>`:`<div class="sub-avatar-init">${initials}</div>`;
+  const fieldsHtml=Object.entries(s.data).map(([,fc])=>{if(!fc||!fc.value)return'';const wide=typeof fc.value==='string'&&fc.value.length>80;return`<div class="sub-field${wide?' wide':''}"><div class="sub-field-lbl">${esc(fc.label)}</div><div class="sub-field-val">${esc(fc.value)}</div></div>`;}).join('');
+  const noteHtml=s.reviewerNote?`<div class="sub-reviewer-note"><strong>Editor's note:</strong> ${esc(s.reviewerNote)}</div>`:'';
+
+  let acts='';
+  if(ctx==='admin'){
+    /* Fix 5: Production Admin — can only Finalize approved, or Delete. Cannot approve (that's editor's job) */
+    acts+=`<button class="sub-action-btn" onclick="exportOneSubmission('${s.id}')">⬇ ZIP</button>`;
+    if(s.status==='pending'){
+      acts+=`<span style="font-size:11px;color:var(--amber);font-weight:700;padding:4px 10px;background:var(--amber2);border-radius:999px;">⏳ Awaiting Editor review</span>`;
+    }
+    if(s.status==='approved'){
+      acts+=`<button class="sub-action-btn sub-action-finalize" style="background:var(--green);color:#fff;border-color:var(--green);" onclick="finalizeSubmission('${s.id}')">✓ Finalize for Print</button>`;
+    }
+    if(s.status==='finalized'){
+      acts+=`<span style="font-size:11px;color:var(--green);font-weight:700;padding:4px 10px;background:var(--green2);border-radius:999px;">✓ Finalized</span>`;
+    }
+    if(s.status==='rejected'){
+      acts+=`<span style="font-size:11px;color:var(--red);font-weight:700;padding:4px 10px;background:var(--red2);border-radius:999px;">✗ Rejected by Editor</span>`;
+    }
+    acts+=`<button class="sub-action-btn sub-action-delete" onclick="deleteSubmission('${s.id}')">Delete</button>`;
+  } else {
+    /* Fix 5: Editor — sees all text fields, can Approve/Reject/Proofread */
+    if(s.status==='pending'){
+      acts+=`<button class="sub-action-btn sub-action-finalize" style="color:var(--green);border-color:var(--green2);" onclick="editorReview('${s.id}','approved')">✓ Approve</button>`;
+      acts+=`<button class="sub-action-btn sub-action-delete" onclick="editorReview('${s.id}','rejected')">✗ Reject</button>`;
+    } else if(s.status==='approved'){
+      acts+=`<span class="status-badge status-approved">✓ Approved</span>`;
+      acts+=`<button class="sub-action-btn" onclick="editorReview('${s.id}','rejected')">Change to Rejected</button>`;
+    } else if(s.status==='rejected'){
+      acts+=`<span class="status-badge status-rejected">✗ Rejected</span>`;
+      acts+=`<button class="sub-action-btn" onclick="editorReview('${s.id}','approved')">Re-approve</button>`;
+    } else {
+      acts+=`<span class="status-badge status-${s.status}">${s.status}</span>`;
+    }
+    /* AI Proofread always available for editor on ALL submissions */
+    acts+=`<button class="sub-action-btn btn-ai" style="color:#fff;background:linear-gradient(135deg,#5b3a8a,#7b52a8);border:none;padding:7px 14px;" onclick="proofreadSubmission('${s.id}')">✦ AI Proofread</button>`;
+  }
+  return`<div class="sub-card cat-${s.category}">
+    <div class="sub-top">${avatar}
+      <div style="flex:1;min-width:200px;">
+        <div class="sub-name">${esc(name)}</div>
+        <div class="sub-meta"><span class="cat-pill">${cat.tag}</span>${sub?esc(sub)+' · ':''}${esc(s.ts)}</div>
+      </div>
+      <span class="status-badge status-${s.status}">${s.status.toUpperCase()}</span>
+    </div>
+    ${fieldsHtml?`<div class="sub-fields">${fieldsHtml}</div>`:''}
+    ${noteHtml}
+    <div class="sub-actions">${acts}</div>
+    <div id="proof-result-${s.id}" class="proofread-panel" style="display:none;margin-top:1rem;"></div>
+  </div>`;
+}
+
+/* ACTIONS */
+function sendForReview(id){if(!confirm('Send to Editor-in-Chief for review?'))return;subs=loadAll();const s=subs.find(x=>x.id===id);if(!s)return;s.status='pending';saveAll(subs);dbUpdateStatus(id,'pending','',null);renderAdmin();}
+function finalizeSubmission(id){if(!confirm('Finalize this submission? It will appear in the magazine layout.'))return;subs=loadAll();const s=subs.find(x=>String(x.id)===String(id));if(!s)return;s.status='finalized';saveAll(subs);dbUpdateStatus(id,'finalized',s.reviewerNote||'',s.reviewedAt);renderAdmin();}
+function deleteSubmission(id){if(!confirm('Permanently delete this submission?'))return;dbDeleteSubmission(id);subs=loadAll().filter(s=>String(s.id)!==String(id));renderAdmin();}
+
+/* ADMIN ENTER — pulls fresh cloud data */
+function enterAdmin(){
+  show('viewAdmin');
+  dbLoadAll().then(list=>{subs=list;renderAdmin();});
+}
+
+/* EDITOR ENTER — pulls fresh cloud data, defaults to pending */
+function enterEditor(){
+  show('viewEditor');
+  currentEditorCat='pending';
+  document.querySelectorAll('#viewEditor .editor-tab').forEach(t=>t.classList.remove('active'));
+  const pendingTab=document.getElementById('etab-pending');if(pendingTab)pendingTab.classList.add('active');
+  document.getElementById('editorModeList').style.display='block';
+  document.getElementById('editorModeNote').style.display='none';
+  const list=document.getElementById('editorSubList');
+  if(list)list.innerHTML='<div class="empty-state"><div class="empty-state-icon" style="font-size:32px;">⏳</div><h3>Loading submissions…</h3><p>Fetching latest from cloud.</p></div>';
+  dbLoadAll().then(cloudList=>{
+    subs=cloudList;
+    renderEditor();
+  }).catch(()=>{subs=loadAll();renderEditor();});
+}
+
+function editorRefresh(){
+  const list=document.getElementById('editorSubList');
+  if(list)list.innerHTML='<div class="empty-state"><div class="empty-state-icon" style="font-size:32px;">↻</div><h3>Refreshing…</h3><p>Fetching latest submissions from cloud.</p></div>';
+  dbLoadAll().then(cloudList=>{
+    subs=cloudList;
+    renderEditor();
+    /* Flash the tab counts to signal fresh data */
+    const btn=document.getElementById('etab-pending');
+    if(btn){btn.style.background='var(--school-mint2)';setTimeout(()=>btn.style.background='',800);}
+  }).catch(()=>{subs=loadAll();renderEditor();});
+}
+function setEditorCategory(cat){
+  currentEditorCat=cat;
+  document.querySelectorAll('#viewEditor .editor-tab').forEach(t=>t.classList.remove('active'));
+  const btn=document.getElementById('etab-'+cat);if(btn)btn.classList.add('active');
+  if(cat==='editorial'){
+    document.getElementById('editorModeList').style.display='none';
+    document.getElementById('editorModeNote').style.display='block';
+    renderEditorNote();
+  } else {
+    document.getElementById('editorModeList').style.display='block';
+    document.getElementById('editorModeNote').style.display='none';
+    /* Always re-pull cloud on tab switch so new submissions appear immediately */
+    dbLoadAll().then(cloudList=>{
+      subs=cloudList;
+      localStorage.setItem('me_subs',JSON.stringify(subs));
+      renderEditor();
+    }).catch(()=>{subs=loadAll();renderEditor();});
+  }
+}
+function renderEditorNote(){
+  if(!subs||!subs.length)subs=loadAll();
+  const edNote=subs.find(s=>s.category==='editorial-note');
+  if(edNote){
+    document.getElementById('edNoteTitle').value=edNote.data.title?.value||'';
+    document.getElementById('edNoteBody').value=edNote.data.body?.value||'';
+    document.getElementById('edNoteStatus').textContent='Last saved: '+edNote.ts;
+  }
+}
+function renderEditor(){
+  /* Use already-loaded subs (set by enterEditor/setEditorCategory from cloud).
+     Only fall back to localStorage if subs is somehow empty. */
+  if(!subs||!subs.length)subs=loadAll();
+  const pendingCount=subs.filter(s=>s.status==='pending').length;
+  const approvedCount=subs.filter(s=>s.status==='approved').length;
+  document.getElementById('ecount-pending').textContent=pendingCount;
+  document.getElementById('ecount-approved').textContent=approvedCount;
+  document.getElementById('ecount-rejected').textContent=subs.filter(s=>s.status==='rejected').length;
+  document.getElementById('ecount-all').textContent=subs.length;
+  /* Sequence order: sort by createdAt ascending (oldest first = submission order) */
+  let filtered=subs.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  if(currentEditorCat!=='all')filtered=filtered.filter(s=>s.status===currentEditorCat);
+  const list=document.getElementById('editorSubList');
+  /* Inbox banner for editor */
+  const inboxBanner=pendingCount>0?`<div style="background:linear-gradient(135deg,#2d1b4e,#4a2d7a);color:#fff;border-radius:var(--radius);padding:14px 18px;margin-bottom:1.25rem;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:24px;">📬</span>
+    <div>
+      <div style="font-weight:700;font-size:15px;">${pendingCount} submission${pendingCount>1?'s':''} waiting for your review</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.7);">Proofread → Approve or Reject → Production Admin finalizes</div>
+    </div>
+  </div>`:'';
+  if(!filtered.length){list.innerHTML=inboxBanner+`<div class="empty-state"><div class="empty-state-icon">✎</div><h3>No submissions here</h3><p>${currentEditorCat==='pending'?'No new submissions yet. Check back soon.':'Nothing to show in this filter.'}</p></div>`;return;}
+  list.innerHTML=inboxBanner+filtered.map(s=>renderSubCard(s,'editor')).join('');
+}
+function editorReview(id,dec){reviewingId=String(id);reviewingDecision=dec;const s=loadAll().find(x=>String(x.id)===String(id));const nameField=s?.data.name?.value||s?.data.speakerName?.value||s?.data.contribName?.value||s?.data.authorName?.value||'this submission';document.getElementById('reviewTitle').textContent=dec==='approved'?`Approve "${nameField}"?`:`Reject "${nameField}"?`;document.getElementById('reviewSub').textContent='Add a note (optional).';document.getElementById('reviewNote').value=s?.reviewerNote||'';document.getElementById('reviewConfirm').textContent=dec==='approved'?'Approve':'Reject';document.getElementById('reviewConfirm').className='btn '+(dec==='approved'?'btn-primary':'btn-danger');document.getElementById('reviewConfirm').onclick=confirmReview;document.getElementById('reviewModal').classList.add('active');}
+function closeReviewModal(){document.getElementById('reviewModal').classList.remove('active');reviewingId=null;reviewingDecision=null;}
+function confirmReview(){const note=document.getElementById('reviewNote').value.trim();const ts=Date.now();const localSubs=loadAll();const s=localSubs.find(x=>String(x.id)===String(reviewingId));if(s){s.status=reviewingDecision;s.reviewerNote=note;s.reviewedAt=ts;saveAll(localSubs);subs=localSubs;}dbUpdateStatus(reviewingId,reviewingDecision,note,ts);closeReviewModal();/* Re-pull cloud so list refreshes with latest state */dbLoadAll().then(cl=>{subs=cl;renderEditor();}).catch(()=>renderEditor());}
+
+/* SAVE EDITORIAL NOTE — called from Editor-in-Chief view */
+let _edNotePhotoData = null;
+function edNotePickPhoto(event){
+  const file = event.target.files?.[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _edNotePhotoData = e.target.result;
+    const prev = document.getElementById('edNoteImgPreview');
+    if(prev){ prev.src = _edNotePhotoData; prev.style.display = 'block'; }
+    const lbl = document.getElementById('edNoteImgLabel');
+    if(lbl) lbl.textContent = '✓ Photo selected: ' + file.name;
   };
   reader.readAsDataURL(file);
-};
-
-window.removeLogo=function(){
-  if(window._adminSettingsCache) window._adminSettingsCache.logo='';
-  _supabase.from('admin_settings').upsert({key:'logo',value:''},{onConflict:'key'});
-  toast('Logo removed','ok');
-  renderAdminPrint();
-};
-
-window.saveBranding=async function(){
-  var wm=($('adminWatermark')||{}).value||'';
-  var sc=($('adminSchoolName')||{}).value||'';
-  var addr=($('adminAddress')||{}).value||'';
-  var br={watermark:wm.trim(),school:sc.trim(),address:addr.trim()};
-  if(window._adminSettingsCache) Object.assign(window._adminSettingsCache,br);
-  ['watermark','school','address'].forEach(function(k){
-    _supabase.from('admin_settings').upsert({key:k,value:br[k]},{onConflict:'key'});
-  });
-  toast('Branding saved ✓','ok');
-  var papers=await getLabPapers();
-  if(papers.length) renderDigitalLabPreview(papers,getAdminSettings());
-};
-
-/* ══════════════════════════════════════
-   PRINT ENGINE v12 — Dual Mode
-   Spec-compliant: Normal + Economy 2-in-1
-══════════════════════════════════════ */
-
-/* (Legacy decision functions removed — now handled by selectLayout/resolveLayoutMode above) */
-
-/* ── Format one objective question inline ── */
-function formatObjective(q,i,extraCls){
-  var opts='';
-  if(q.o&&q.o.length){
-    opts=q.o.map(function(o,oi){
-      return '<span class="opt-inline"><span class="opt-inline-k">('+L[oi]+')</span> '+esc(o)+'</span>';
-    }).join('');
-  }
-  return '<div class="objective-item'+(extraCls?' '+extraCls:'')+'">'
-    +(i+1)+'. '+q.t+opts
-    +(q._svgDiagram?'<div style="margin:2pt 0;text-align:center;">'+q._svgDiagram+'</div>':'')
-    +'</div>';
+  event.target.value = '';
 }
-
-/* ── Inject @page rule dynamically ── */
-function setPageStyle(mode){
-  var el=document.getElementById('ee-page-style');
-  if(!el){ el=document.createElement('style'); el.id='ee-page-style'; document.head.appendChild(el); }
-  if(mode==='economy'){
-    el.textContent='@media print{@page{size:A4 landscape;margin:8mm;}}';
+function edNoteRemovePhoto(){
+  _edNotePhotoData = null;
+  const prev = document.getElementById('edNoteImgPreview');
+  if(prev){ prev.src = ''; prev.style.display = 'none'; }
+  const lbl = document.getElementById('edNoteImgLabel');
+  if(lbl) lbl.textContent = 'No photo selected';
+}
+async function saveEditorialNote(){
+  const title=(document.getElementById('edNoteTitle')?.value||'').trim();
+  const body=(document.getElementById('edNoteBody')?.value||'').trim();
+  const statusEl=document.getElementById('edNoteStatus');
+  if(!body){alert('Please write your editorial note before saving.');return;}
+  if(statusEl)statusEl.textContent='Saving…';
+  subs=loadAll();
+  let ex=subs.find(s=>s.category==='editorial-note');
+  const now=new Date().toLocaleString();
+  const photoData = _edNotePhotoData || (ex?.photoData || null);
+  if(ex){
+    ex.data={title:{label:'Title',value:title},body:{label:'Body',value:body}};
+    ex.ts=now; ex.photoData=photoData;
+    saveAll(subs);
+    await dbSaveSubmission(ex);
   } else {
-    el.textContent='@media print{@page{size:A4 portrait;margin:15mm 20mm 12mm;}}';
+    const sub={id:genId(),category:'editorial-note',ts:now,createdAt:Date.now(),
+      status:'approved',reviewerNote:'',reviewedAt:Date.now(),
+      data:{title:{label:'Title',value:title},body:{label:'Body',value:body}},
+      photoData:photoData,photoName:null,photos:null};
+    subs.push(sub);saveAll(subs);
+    await dbSaveSubmission(sub);
   }
+  if(statusEl)statusEl.textContent='✓ Saved '+new Date().toLocaleTimeString();
 }
 
-
-/* ── Shared paper header HTML ── */
-function buildPaperHeader(p,adm,compact){
-  var school=adm.school||p.school||'School';
-  var address=adm.address||'';
-  var logo=adm.logo;
-  var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var total=(p.questions||[]).reduce(function(a,q){ return a+(q.marks||1); },0);
-  var h='<div class="ep-header">';
-  if(compact){
-    // Compact header for economy col
-    h+='<div style="display:flex;align-items:center;gap:2mm;">';
-    if(logo) h+='<img src="'+logo+'" style="width:10mm;height:10mm;object-fit:contain;flex-shrink:0;"/>';
-    h+='<div style="flex:1;text-align:left;">'
-      +'<div class="ep-school" style="font-size:8.5pt!important;letter-spacing:.2px;">'+esc(school)+'</div>'
-      +(address?'<div style="font-size:6pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
-      +'<div class="ep-title" style="font-size:7.5pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+'</div>'
-      +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>&bull;<span>'+total+' marks</span>&bull;<span>'+today+'</span></div>'
-      +'</div></div>';
-  } else {
-    // Full header for normal
-    if(logo) h+='<img style="width:48pt;height:48pt;object-fit:contain;border-radius:5pt;display:block;margin:0 auto 4pt;" src="'+logo+'"/>';
-    else h+='<div class="ep-crest">'+initials+'</div>';
-    h+='<div class="ep-school">'+esc(school)+'</div>';
-    if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
-    h+='<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+'</div>';
-    h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>';
-    h+='<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span><span>Standard: '+esc(p.std||'')+'</span><span>Ref: '+esc(p.ref)+'</span></div>';
-  }
-  h+='</div>';
-  return h;
+/* PROOFREAD TEXT — for standalone textareas (editorial note etc) */
+async function proofreadText(textareaId){
+  const ta=document.getElementById(textareaId);
+  const panelEl=document.getElementById('proofread-'+textareaId);
+  if(!ta||!panelEl){return;}
+  const text=ta.value.trim();
+  if(!text){alert('Nothing to proofread yet.');return;}
+  await proofreadWithAI(text,panelEl,null,[{key:textareaId,label:'Text',value:text}]);
 }
 
-/* ── Shared sections HTML ── */
-function buildSectionsHtml(p,compact){
-  var qs=p.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var h='';
+/* EDITORIAL ADMIN */
+function renderEditorialMode(){subs=loadAll();const appr=subs.find(s=>s.category==='appreciation');if(appr){document.getElementById('apprTitle').value=appr.data.title?.value||'';document.getElementById('apprBody').value=appr.data.body?.value||'';document.getElementById('apprStatus').textContent='Last saved: '+appr.ts;}else{document.getElementById('apprTitle').value='';document.getElementById('apprBody').value='';document.getElementById('apprStatus').textContent='Not yet saved';}const edNote=subs.find(s=>s.category==='editorial-note');const prev=document.getElementById('edNotePreview');if(edNote){prev.innerHTML=(edNote.data.title?.value?`<strong>${esc(edNote.data.title.value)}</strong>\n\n`:'')+esc(edNote.data.body?.value||'');prev.style.color='var(--ink)';}else{prev.textContent='No editorial note yet.';prev.style.color='var(--ink3)';}const list=document.getElementById('editorialList');const entries=subs.filter(s=>s.category==='editorial-note'||s.category==='appreciation');if(!entries.length){list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📜</div><h3>No editorial entries yet</h3></div>`;}else{list.innerHTML=entries.map(s=>renderSubCard(s,'admin')).join('');}}
+function saveAppreciation(){const title=document.getElementById('apprTitle').value.trim();const body=document.getElementById('apprBody').value.trim();if(!body){alert('Please write the appreciation content before saving.');return;}subs=loadAll();let ex=subs.find(s=>s.category==='appreciation');if(ex){ex.data={title:{label:'Title',value:title},body:{label:'Body',value:body}};ex.ts=new Date().toLocaleString();}else{subs.push({id:genId(),category:'appreciation',ts:new Date().toLocaleString(),createdAt:Date.now(),status:'approved',reviewerNote:'',reviewedAt:Date.now(),data:{title:{label:'Title',value:title},body:{label:'Body',value:body}},photoData:null,photoName:null});}saveAll(subs);document.getElementById('apprStatus').textContent='✓ Saved '+new Date().toLocaleTimeString();setTimeout(()=>renderEditorialMode(),1500);}
 
-  // OBJECTIVES — always inline, never stacked options
-  if(objs.length){
-    var use2col=(objs.length>=30);
-    h+='<div class="ep-sec">Section A &mdash; Objectives ('+objs.length+')</div>';
-    if(!compact) h+='<div class="ep-sec-note">Circle the letter of the correct answer. Each = 1 mark.</div>';
-    h+='<div class="objective-container'+(use2col?' objective-2col':'')+'">';
-    objs.forEach(function(q,i){ h+=formatObjective(q,i,compact?'compact':''); });
-    h+='</div>';
-  }
-
-  // FILL-IN-BLANK
-  if(fitbs.length){
-    var fSec=objs.length?'B':'A';
-    h+='<div class="ep-sec">Section '+fSec+' &mdash; Fill in the Blank ('+fitbs.length+')</div>';
-    if(!compact) h+='<div class="ep-sec-note">Complete each sentence with the correct word or phrase.</div>';
-    fitbs.forEach(function(q,i){
-      var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank"></span>');
-      var cls=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
-      h+='<div class="ep-q'+(cls?' '+cls:'')+'">'
-        +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')
-        +(q._svgDiagram?'<div style="margin:2pt 0;">'+q._svgDiagram+'</div>':'')
-        +'</div>';
-    });
-  }
-
-  // THEORY
-  if(ths.length){
-    var tSec=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
-    var tInstr=p.theoryPaperInstr||'Answer all questions. Show all workings.';
-    h+='<div class="ep-sec">Section '+tSec+' &mdash; Theory ('+ths.length+')</div>';
-    if(!compact) h+='<div class="ep-sec-note">'+esc(tInstr)+'</div>';
-    ths.forEach(function(q,i){
-      var ansClass=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
-      h+='<div class="ep-q'+(q.layout==='compact'?' compact':q.layout==='wide'?' wide':'')+'">'
-        +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
-        +(q._svgDiagram?'<div style="margin:3pt 0;">'+q._svgDiagram+'</div>':'')
-        +'<div class="ep-ans'+(ansClass?' '+ansClass:'')+'"></div></div>';
-    });
-  }
-  return h;
+/* SETTINGS */
+function savePins(){const a=document.getElementById('setAdminPin').value.trim();const e=document.getElementById('setEditorPin').value.trim();if(!/^\d{4}$/.test(a)||!/^\d{4}$/.test(e)){document.getElementById('pinSaveStatus').textContent='✗ PINs must be exactly 4 digits.';document.getElementById('pinSaveStatus').style.color='var(--red)';return;}if(a===e){document.getElementById('pinSaveStatus').textContent='✗ Admin and Editor PINs must differ.';document.getElementById('pinSaveStatus').style.color='var(--red)';return;}saveCfg({adminPin:a,editorPin:e});document.getElementById('pinSaveStatus').textContent='✓ PINs saved.';document.getElementById('pinSaveStatus').style.color='var(--green)';refreshDiag();}
+function resetPinsToDefault(){if(!confirm('Reset PINs to defaults (1234/5678)?'))return;saveCfg({adminPin:'1234',editorPin:'5678'});document.getElementById('setAdminPin').value='1234';document.getElementById('setEditorPin').value='5678';document.getElementById('pinSaveStatus').textContent='✓ PINs reset.';document.getElementById('pinSaveStatus').style.color='var(--green)';refreshDiag();}
+function saveApiKeyFromSettings(){
+  const key=(document.getElementById('settingsApiKey')?.value||'').trim();
+  if(!key){document.getElementById('apiKeySaveStatus').textContent='✗ Please enter an API key.';document.getElementById('apiKeySaveStatus').style.color='var(--red)';return;}
+  lsSettings.apiKey=key;
+  localStorage.setItem('me_ls_settings',JSON.stringify(lsSettings));
+  dbSaveSettings('ls_settings',lsSettings);
+  /* Also populate the Layout Studio field if it exists */
+  const lsEl=document.getElementById('ls-apiKey');if(lsEl)lsEl.value=key;
+  document.getElementById('apiKeySaveStatus').textContent='✓ API key saved & synced to cloud.';
+  document.getElementById('apiKeySaveStatus').style.color='var(--green)';
 }
-
-/* ══════════════════════════════════════
-   NORMAL MODE BUILDER
-══════════════════════════════════════ */
-function buildNormalPaperHtml(p,adm){
-  var cfg=ADMIN.labConfig;
-  var fontMap={'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'};
-  var fontFam=fontMap[cfg.fontFamily]||'"Times New Roman",serif';
-  var wm=adm.watermark||'ExamEngine';
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-
-  var h='<div class="ep" style="font-family:'+fontFam+';">'
-    +'<div class="ep-wm">'+esc(wm)+'</div>'
-    +buildHouseStyleHeader(p,adm,false)
-    +buildPaperHeader(p,adm,false)
-    +buildSectionsHtml(p,false)
-    +buildHouseStyleFooter(p,adm,false)
-    +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12.5</div>'
-    +'</div>';
-  return h;
-}
-
-// Alias
-function buildNormalPrintHtml(p,adm){ return buildNormalPaperHtml(p,adm); }
-function buildStandardPrintHtml(p,adm){ return buildNormalPaperHtml(p,adm); }
-
-/* ══════════════════════════════════════
-   ECONOMY MODE BUILDER
-   Front: [A | B]   Back: [B | A]
-══════════════════════════════════════ */
-function buildEconomyFrame(papers,adm){
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var html='';
-
-  /* TRUE SPLIT 2-IN-1 — per-paper quadrant flow.
-     Each paper becomes: Front [P1 | P2], Back [P2 | P1].
-     After duplex print + center cut, each half-sheet = complete paper for ONE student.
-     Two students get the exam from one A4 landscape sheet. */
-  papers.forEach(function(p,idx){
-    var parts=divideIntoParts(p);
-    var pA=buildEcoQuadrant(p,parts.partA,adm,today,'A');
-    var pB=buildEcoQuadrant(p,parts.partB,adm,today,'B');
-
-    if(idx>0) html+='<div style="page-break-before:always;"></div>';
-
-    // FRONT PAGE: [Part 1 | Part 2]
-    html+='<div class="eco-page-pair">'
-      +'<div class="eco-col eco-col-left">'+pA+'</div>'
-      +'<div class="eco-col">'+pB+'</div>'
-      +'<div class="eco-cut-hint">&#9986; Cut here after printing</div>'
-      +'</div>';
-
-    // BACK PAGE: [Part 2 | Part 1] — mirrored for duplex alignment
-    html+='<div style="page-break-before:always;"></div>';
-    html+='<div class="eco-page-pair">'
-      +'<div class="eco-col eco-col-left">'+pB+'</div>'
-      +'<div class="eco-col">'+pA+'</div>'
-      +'<div class="eco-cut-hint">&#9986; Cut here after printing</div>'
-      +'</div>';
-  });
-  return html;
-}
-
-/* Divide ONE paper's questions into 2 balanced parts (Part1 / Part2).
-   Preference order:
-   1. Natural section boundary (objectives | fitb+theory) if both halves are non-trivial.
-   2. Mid-objectives split if objectives alone exceed one quadrant.
-   3. Balance theory across parts if no objectives present.
-   Never split a single question. Never separate a question from its diagram. */
-function divideIntoParts(p){
-  var qs=(p.questions||[]).slice();
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-
-  // Weighted "size" per question type (rough content density)
-  function weight(q){
-    if(q.k==='obj') return 1;
-    if(q.k==='fitb') return 1.4;
-    if(q.k==='theory') return 5;
-    return 1;
-  }
-  function sumW(arr){ return arr.reduce(function(a,q){ return a+weight(q); },0); }
-
-  var partA=[], partB=[];
-
-  // Strategy 1: Section boundary — objectives in Part A, fitb+theory in Part B
-  if(objs.length && (fitbs.length+ths.length)){
-    partA=objs.slice();
-    partB=fitbs.concat(ths);
-    var wA=sumW(partA), wB=sumW(partB);
-    // If highly imbalanced (>60/40), attempt rebalance by moving objectives to B
-    var total=wA+wB;
-    if(total>0){
-      var ratioA=wA/total;
-      if(ratioA>0.62){
-        // Too heavy on A — move last objectives to B
-        while(partA.length>1 && sumW(partA)/(sumW(partA)+sumW(partB))>0.58){
-          partB.unshift(partA.pop());
-        }
-      } else if(ratioA<0.38){
-        // Too heavy on B — move first fitb/theory forward to A (keeping type groups together)
-        while(partB.length>1 && sumW(partA)/(sumW(partA)+sumW(partB))<0.42){
-          partA.push(partB.shift());
-        }
-      }
-    }
-    return {partA:partA,partB:partB};
-  }
-
-  // Strategy 2: Only objectives — split at midpoint
-  if(objs.length && !fitbs.length && !ths.length){
-    var mid=Math.ceil(objs.length/2);
-    return {partA:objs.slice(0,mid), partB:objs.slice(mid)};
-  }
-
-  // Strategy 3: Only theory / only fitb — balance by weight
-  var all=fitbs.concat(ths);
-  if(all.length && !objs.length){
-    var targetW=sumW(all)/2;
-    var running=0;
-    for(var i=0;i<all.length;i++){
-      if(running+weight(all[i])/2 <= targetW || partA.length===0){
-        partA.push(all[i]);
-        running+=weight(all[i]);
-      } else {
-        partB=all.slice(i);
-        break;
-      }
-    }
-    if(!partB.length){ partB=[partA.pop()]; }
-    return {partA:partA,partB:partB};
-  }
-
-  // Fallback — everything in partA
-  return {partA:qs, partB:[]};
-}
-
-/* Build one quadrant (half-A4-landscape column) containing a subset of questions */
-function buildEcoQuadrant(paper,questions,adm,today,partLabel){
-  if(!questions||!questions.length) return '<div class="eco-empty" style="padding:20pt;text-align:center;color:#999;font-size:9pt;">(This section continues on the other side)</div>';
-  var subPaper={};
-  for(var k in paper){ if(paper.hasOwnProperty(k)) subPaper[k]=paper[k]; }
-  subPaper.questions=questions;
-  var wm=adm.watermark||'';
-  var h='';
-  if(wm) h+='<div class="eco-wm">'+esc(wm)+'</div>';
-  h+=buildHouseStyleHeader(paper,adm,true);
-  h+=buildPaperHeader(subPaper,adm,true);
-  h+='<div class="eco-part-tag" style="font-size:7pt;text-align:right;color:#999;font-style:italic;margin:2pt 0;">Part '+partLabel+'</div>';
-  h+=buildSectionsHtml(subPaper,true);
-  h+=buildHouseStyleFooter(paper,adm,true);
-  h+='<div class="ep-footer">'+esc(paper.ref)+' &bull; Part '+partLabel+' &bull; '+today+'</div>';
-  return h;
-}
-
-/* ── HOUSE STYLE (blank slate, admin-customizable) ────────────
-   Stored in localStorage as ee_house_style. All fields empty by default.
-   Any heading-style text admin enters is rendered in bold automatically.
-   Applied uniformly to ALL paper modes (Split, Landscape, Portrait, Multi).
-*/
-function getHouseStyle(){
+async function wipeAllData(){if(!confirm('PERMANENTLY DELETE all submissions from cloud AND local?'))return;if(!confirm('Really? This cannot be undone. All data will be lost forever.'))return;
+  showSync('syncing','Wiping all data…');
   try{
-    var raw=window._houseStyleCache?JSON.stringify(window._houseStyleCache):null;
-    if(raw){ var j=JSON.parse(raw); if(j&&typeof j==='object') return j; }
-  }catch(e){}
-  return {
-    headerTop:'',       // Top heading (above school name) — rendered bold
-    headerExtra:'',     // Extra header line (e.g. board/authority) — rendered bold
-    examTitle:'',       // Exam title override heading — rendered bold
-    studentStrip:'',    // Student info strip fields, comma-separated (e.g. "Name, Class, Adm No, Date")
-    instructions:'',    // General instructions block — rendered as body text
-    sectionLabel:'',    // Section divider prefix (e.g. "SECTION") — rendered bold
-    footerLeft:'',      // Footer left — rendered bold
-    footerCenter:'',    // Footer center (e.g. motto) — rendered bold
-    footerRight:''      // Footer right — rendered bold
+    const sb=getSupa();
+    if(sb){
+      const{error}=await sb.from('submissions').delete().neq('id','__never_match__');
+      if(error)console.warn('[DB] Cloud wipe failed:',error.message);
+      else console.log('[DB] Cloud submissions wiped');
+    }
+  }catch(e){console.warn('[DB] Cloud wipe error:',e.message);}
+  subs=[];
+  refreshDiag();renderAdmin();
+  showSync('ok','✓ All data wiped');
+  alert('All submissions wiped from cloud and local storage.');
+}
+function refreshDiag(){const all=loadAll();const counts={};CATEGORY_KEYS.forEach(k=>counts[k]=all.filter(s=>s.category===k).length);counts['editorial-note']=all.filter(s=>s.category==='editorial-note').length;counts['appreciation']=all.filter(s=>s.category==='appreciation').length;const byStatus={};['draft','pending','approved','rejected','finalized'].forEach(st=>byStatus[st]=all.filter(s=>s.status===st).length);document.getElementById('diagOutput').textContent=[`MagicEditor v2.0 — Way To Success Standard Schools`,`Time: ${new Date().toLocaleString()}`,``,`--- PINs ---`,`Admin: ${cfg.adminPin}`,`Editor: ${cfg.editorPin}`,``,`--- By category ---`,...Object.entries(counts).map(([k,v])=>`  ${k}: ${v}`),`  TOTAL: ${all.length}`,``,`--- By status ---`,...Object.entries(byStatus).map(([k,v])=>`  ${k}: ${v}`),``,`System Status: Cloud-Connected Only`].join('\n');}
+
+/* FIELD CUSTOMIZER */
+function ensureCatEntry(k){if(!formConfig[k])formConfig[k]={overrides:{},customFields:[]};if(!formConfig[k].overrides)formConfig[k].overrides={};if(!Array.isArray(formConfig[k].customFields))formConfig[k].customFields=[];return formConfig[k];}
+function toggleFieldHidden(fieldId){if(!currentCustCat)return;const entry=ensureCatEntry(currentCustCat);const bi=CATEGORIES[currentCustCat].fields.find(f=>f.id===fieldId);if(bi){if(!entry.overrides[fieldId])entry.overrides[fieldId]={};entry.overrides[fieldId].hidden=!entry.overrides[fieldId].hidden;}else{const cf=entry.customFields.find(x=>x.id===fieldId);if(cf)cf.hidden=!cf.hidden;}saveFormConfig(formConfig);renderFieldCustomizer();}
+function toggleFieldRequired(fieldId){if(!currentCustCat)return;const entry=ensureCatEntry(currentCustCat);const bi=CATEGORIES[currentCustCat].fields.find(f=>f.id===fieldId);if(bi){if(!entry.overrides[fieldId])entry.overrides[fieldId]={};const cur=entry.overrides[fieldId].required!==undefined?entry.overrides[fieldId].required:!!bi.required;entry.overrides[fieldId].required=!cur;}else{const cf=entry.customFields.find(x=>x.id===fieldId);if(cf)cf.required=!cf.required;}saveFormConfig(formConfig);renderFieldCustomizer();}
+function moveField(fieldId,dir){if(!currentCustCat)return;const fields=getAllFieldsForEditing(currentCustCat);const idx=fields.findIndex(f=>f.id===fieldId);if(idx<0)return;const ti=idx+dir;if(ti<0||ti>=fields.length)return;const a=fields[idx],b=fields[ti],aO=a.order,bO=b.order;const entry=ensureCatEntry(currentCustCat);[a,b].forEach((f,i)=>{const nO=i===0?bO:aO;if(f._isBuiltIn){if(!entry.overrides[f.id])entry.overrides[f.id]={};entry.overrides[f.id].order=nO;}else{const cf=entry.customFields.find(x=>x.id===f.id);if(cf)cf.order=nO;}});saveFormConfig(formConfig);renderFieldCustomizer();}
+function resetCategoryToDefaults(){if(!currentCustCat)return;if(!confirm(`Reset "${CATEGORIES[currentCustCat].label}" form to defaults?`))return;delete formConfig[currentCustCat];saveFormConfig(formConfig);renderFieldCustomizer();}
+function renderFieldCustomizer(){const picker=document.getElementById('custCatPicker');const catKey=picker.value;currentCustCat=catKey||null;const list=document.getElementById('custFieldsList');const actions=document.getElementById('custActions');if(!catKey){list.innerHTML='<div class="empty-state" style="padding:2rem 1rem;"><p>Select a form above to customize its fields.</p></div>';actions.style.display='none';return;}const fields=getAllFieldsForEditing(catKey);if(!fields.length){list.innerHTML='<div class="empty-state"><p>No fields configured.</p></div>';actions.style.display='flex';return;}list.innerHTML=fields.map((f,i)=>{const tl=({text:'Text',textarea:'Long text',select:'Dropdown',date:'Date',checkbox:'Yes/No',number:'Number'})[f.type]||f.type;const mU=i>0,mD=i<fields.length-1;return`<div class="cust-field-row ${f.hidden?'is-hidden':''} ${f._isBuiltIn?'is-builtin':'is-custom'}"><div class="cust-field-main"><div class="cust-field-label">${esc(f.label)}</div><div class="cust-field-meta"><span class="cust-field-type-pill">${tl}</span>${f._isBuiltIn?'Built-in':'Custom'}${f.hidden?' · HIDDEN':''}${f.required&&!f.hidden?' · Required':''}</div></div><div class="cust-toggle-group"><button class="cust-mini-btn" ${mU?'':'disabled style="opacity:.3;"'} onclick="moveField('${f.id}',-1)">↑</button><button class="cust-mini-btn" ${mD?'':'disabled style="opacity:.3;"'} onclick="moveField('${f.id}',1)">↓</button><button class="cust-chip ${f.hidden?'':'on'}" onclick="toggleFieldHidden('${f.id}')">${f.hidden?'Hidden':'Shown'}</button>${f.type!=='checkbox'?`<button class="cust-chip ${f.required?'on-red':''}" onclick="toggleFieldRequired('${f.id}')">${f.required?'Required':'Optional'}</button>`:''} ${!f._isBuiltIn?`<button class="cust-chip" onclick="editCustomField('${f.id}')">Edit</button><button class="cust-chip warn" onclick="deleteCustomField('${f.id}')">Delete</button>`:''}</div></div>`;}).join('');actions.style.display='flex';}
+function openCustomFieldModal(fieldId){editingCustomFieldId=fieldId||null;const isEd=!!fieldId;document.getElementById('cfmTitle').textContent=isEd?'Edit Custom Field':'Add Custom Field';document.getElementById('cfmSaveBtn').textContent=isEd?'Save Changes':'Save Field';if(isEd&&currentCustCat){const cf=(formConfig[currentCustCat]?.customFields||[]).find(x=>x.id===fieldId);if(cf){document.getElementById('cfmLabel').value=cf.label||'';document.getElementById('cfmType').value=cf.type||'text';document.getElementById('cfmOptions').value=cf.options||'';document.getElementById('cfmPlaceholder').value=cf.placeholder||'';document.getElementById('cfmRequired').checked=!!cf.required;}}else{document.getElementById('cfmLabel').value='';document.getElementById('cfmType').value='text';document.getElementById('cfmOptions').value='';document.getElementById('cfmPlaceholder').value='';document.getElementById('cfmRequired').checked=false;}updateCustomFieldModalOptions();document.getElementById('customFieldModal').classList.add('active');}
+function closeCustomFieldModal(){document.getElementById('customFieldModal').classList.remove('active');editingCustomFieldId=null;}
+function updateCustomFieldModalOptions(){document.getElementById('cfmOptionsWrap').style.display=document.getElementById('cfmType').value==='select'?'block':'none';}
+function editCustomField(id){openCustomFieldModal(id);}
+function saveCustomField(){if(!currentCustCat)return;const label=document.getElementById('cfmLabel').value.trim();const type=document.getElementById('cfmType').value;const options=document.getElementById('cfmOptions').value.trim();const placeholder=document.getElementById('cfmPlaceholder').value.trim();const required=document.getElementById('cfmRequired').checked;if(!label){alert('Field label is required.');return;}if(type==='select'&&!options){alert('Dropdown needs at least one option.');return;}const entry=ensureCatEntry(currentCustCat);if(editingCustomFieldId){const cf=entry.customFields.find(x=>x.id===editingCustomFieldId);if(cf){cf.label=label;cf.type=type;cf.options=options;cf.placeholder=placeholder;cf.required=required;}}else{const nId='cf_'+Date.now().toString(36);const maxO=Math.max(0,...getAllFieldsForEditing(currentCustCat).map(f=>f.order||0));entry.customFields.push({id:nId,label,type,options,placeholder,required,hidden:false,order:maxO+1});}saveFormConfig(formConfig);closeCustomFieldModal();renderFieldCustomizer();}
+function deleteCustomField(fieldId){if(!currentCustCat)return;const entry=formConfig[currentCustCat];if(!entry)return;const cf=entry.customFields.find(x=>x.id===fieldId);if(!cf)return;if(!confirm(`Delete custom field "${cf.label}"?`))return;entry.customFields=entry.customFields.filter(x=>x.id!==fieldId);saveFormConfig(formConfig);renderFieldCustomizer();}
+
+/* CUSTOM FORMS */
+function openCreateFormModal(){
+  document.getElementById('crfId').value='';
+  document.getElementById('crfName').value='';
+  document.getElementById('crfIcon').value='';
+  document.getElementById('crfTag').value='';
+  document.getElementById('crfSubtitle').value='';
+  document.getElementById('createFormModal').classList.add('active');
+}
+function closeCreateFormModal(){
+  document.getElementById('createFormModal').classList.remove('active');
+}
+function saveNewForm(){
+  const id=document.getElementById('crfId').value.trim();
+  const name=document.getElementById('crfName').value.trim();
+  const icon=document.getElementById('crfIcon').value.trim()||'📝';
+  const tag=document.getElementById('crfTag').value.trim()||name;
+  const subtitle=document.getElementById('crfSubtitle').value.trim();
+  
+  if(!id||!name){alert('ID and Name are required.');return;}
+  if(CATEGORIES[id]){alert('A category with this ID already exists.');return;}
+  
+  const newCat={
+    id,label:name,tag,title:name+' Submission',subtitle,icon,
+    photoRequired:false,
+    fields:[] // Initially empty, user can add fields via Field Customizer
   };
-}
-function saveHouseStyle(hs){
-  try{
-    window._houseStyleCache=hs||{};
-    _supabase.from('admin_settings').upsert({key:'house_style',value:JSON.stringify(hs||{})},{onConflict:'key'});
-    return true;
-  }catch(e){ return false; }
+  
+  if(!lsSettings.customCategories)lsSettings.customCategories=[];
+  lsSettings.customCategories.push(newCat);
+  saveLsSettingsToStorage(lsSettings);
+  applyCustomCategories(lsSettings);
+  
+  closeCreateFormModal();
+  populateCustCatPicker();
+  document.getElementById('custCatPicker').value=id;
+  renderFieldCustomizer();
+  alert(`Form "${name}" created successfully!\nYou can now add fields to it.`);
 }
 
-function buildHouseStyleHeader(paper,adm,compact){
-  var hs=getHouseStyle();
-  var h='';
-  var hasContent=hs.headerTop||hs.headerExtra||hs.examTitle||hs.studentStrip||hs.instructions;
-  if(!hasContent) return '';
-  var sizeTop=compact?'7.5pt':'10pt';
-  var sizeMid=compact?'7pt':'9pt';
-  var sizeBody=compact?'6.5pt':'8.5pt';
-  h+='<div class="hs-header" style="text-align:center;margin-bottom:'+(compact?'2pt':'4pt')+';">';
-  if(hs.headerTop) h+='<div style="font-weight:700;font-size:'+sizeTop+';text-transform:uppercase;letter-spacing:.5px;">'+esc(hs.headerTop)+'</div>';
-  if(hs.headerExtra) h+='<div style="font-weight:700;font-size:'+sizeMid+';">'+esc(hs.headerExtra)+'</div>';
-  if(hs.examTitle) h+='<div style="font-weight:700;font-size:'+sizeMid+';margin-top:1pt;">'+esc(hs.examTitle)+'</div>';
-  h+='</div>';
-  if(hs.studentStrip){
-    var fields=hs.studentStrip.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-    if(fields.length){
-      h+='<div class="hs-student-strip" style="display:flex;gap:'+(compact?'3mm':'6mm')+';flex-wrap:wrap;margin:'+(compact?'2pt':'4pt')+' 0;padding:'+(compact?'1.5pt':'3pt')+' 0;border-top:.5pt solid #000;border-bottom:.5pt solid #000;font-size:'+sizeBody+';">';
-      fields.forEach(function(f){
-        h+='<div style="flex:1;min-width:'+(compact?'25mm':'40mm')+';"><span style="font-weight:700;">'+esc(f)+':</span> <span style="display:inline-block;border-bottom:.5pt solid #000;min-width:'+(compact?'15mm':'25mm')+';">&nbsp;</span></div>';
-      });
-      h+='</div>';
+/* LAYOUT STUDIO */
+function lsTab(tab){currentLsTab=tab;document.querySelectorAll('.ls-tab').forEach(t=>t.classList.remove('active'));document.getElementById('lstab-'+tab).classList.add('active');['preview','sections','design','toc','aiassist'].forEach(t=>{const el=document.getElementById('lspanel-'+t);if(el)el.style.display=t===tab?'block':'none';});if(tab==='sections')renderSectionManager();if(tab==='toc')renderTOC();if(tab==='aiassist'){renderAIContentSummary();renderAIChatHistory();}if(tab==='design'){loadLsSettingsToUI();renderLabelRenameList();}}
+
+function loadLsSettingsToUI(){const s=lsSettings;const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!==undefined)el.value=val;};set('ls-magTitle',s.magTitle||'The Torch');set('ls-schoolName',s.schoolName||'Way To Success Standard Schools');set('ls-location',s.location||'Ejigbo, Osun State');set('ls-edition',s.edition||'1st Edition');set('ls-year',s.year||'2025/2026');set('ls-theme',s.theme||'');set('ls-color1',s.color1||'#1a2744');set('ls-color2',s.color2||'#7dd4a8');set('ls-color3',s.color3||'#8b1a1a');set('ls-pageBg',s.pageBg||'#ffffff');set('ls-textColor',s.textColor||'#1c1c1e');set('ls-headingFont',s.headingFont||"'Playfair Display',serif");set('ls-bodyFont',s.bodyFont||"'Crimson Text',serif");set('ls-fontSize',s.fontSize||'11px');set('ls-pageSize',s.pageSize||'a4');set('ls-orientation',s.orientation||'portrait');set('ls-pageNums',s.pageNums||'yes');set('ls-apiKey',s.apiKey||'');set('ls-layoutModel',s.layoutModel||'google/gemini-2.0-flash-001');set('ls-proofModel',s.proofModel||'google/gemini-flash-1.5');set('ls-maxTokens',s.maxTokens||'1000');set('ls-teachersPerPage',String(s.teachersPerPage||9));set('ls-studentsPerPage',String(s.studentsPerPage||2));set('ls-speechesPerPage',String(s.speechesPerPage||1));set('ls-galleryPerPage',String(s.galleryPerPage||4));set('ls-creativePerPage',String(s.creativePerPage||2));set('ls-autoTrim',s.autoTrim||'yes');updatePageSizeUI();}
+function updatePageSizeUI(){const ps=document.getElementById('ls-pageSize');const row=document.getElementById('ls-customSizeRow');if(ps&&row)row.style.display=ps.value==='custom'?'block':'none';}
+function saveLsSettings(){const get=id=>{const el=document.getElementById(id);return el?el.value:undefined;};const s={magTitle:get('ls-magTitle'),schoolName:get('ls-schoolName'),location:get('ls-location'),edition:get('ls-edition'),year:get('ls-year'),theme:get('ls-theme'),color1:get('ls-color1'),color2:get('ls-color2'),color3:get('ls-color3'),pageBg:get('ls-pageBg'),textColor:get('ls-textColor'),headingFont:get('ls-headingFont'),bodyFont:get('ls-bodyFont'),fontSize:get('ls-fontSize'),pageSize:get('ls-pageSize'),orientation:get('ls-orientation'),pageNums:get('ls-pageNums'),apiKey:get('ls-apiKey'),layoutModel:get('ls-layoutModel'),proofModel:get('ls-proofModel'),maxTokens:get('ls-maxTokens'),teachersPerPage:parseInt(get('ls-teachersPerPage'))||9,studentsPerPage:parseInt(get('ls-studentsPerPage'))||2,speechesPerPage:parseInt(get('ls-speechesPerPage'))||1,galleryPerPage:parseInt(get('ls-galleryPerPage'))||4,creativePerPage:parseInt(get('ls-creativePerPage'))||2,autoTrim:get('ls-autoTrim')};lsSettings=s;saveLsSettingsToStorage(s);applyLsColors(s);alert('Settings saved!');}
+function applyLsColors(s){
+  if(!s)s=lsSettings||{};
+  try {
+    const r=document.documentElement;
+    if(s.color1){r.style.setProperty('--school-navy',s.color1);r.style.setProperty('--school-navy2',s.color1+'cc');r.style.setProperty('--admin',s.color1);}
+    if(s.color2){r.style.setProperty('--school-mint',s.color2);r.style.setProperty('--school-mint3',s.color2);}
+    if(s.color3)r.style.setProperty('--school-red',s.color3);
+    if(s.pageBg)r.style.setProperty('--surface',s.pageBg);
+    if(s.textColor)r.style.setProperty('--ink',s.textColor);
+  } catch(err) {
+    console.error('applyLsColors error:', err);
+  }
+}
+
+/* SECTION MANAGER */
+function renderSectionManager(){const list=document.getElementById('sectionList');subs=loadAll();list.innerHTML=sectionOrder.map((sec,i)=>{const count=subs.filter(s=>s.category===sec.key&&(s.status==='approved'||s.status==='finalized')).length;const lbl=getLabel('section_'+sec.key,sec.label);return`<div class="section-row" draggable="true" data-idx="${i}" ondragstart="sectionDragStart(event,${i})" ondragover="sectionDragOver(event,${i})" ondrop="sectionDrop(event,${i})" ondragleave="sectionDragLeave(event)"><span class="section-handle">⠿</span><span class="section-row-num">${i+1}</span><div class="section-row-info"><div class="section-row-name">${sec.icon} ${esc(lbl)}</div><div class="section-row-meta">${count} approved · Layout: ${sec.layout}</div></div><div class="section-row-controls"><button class="section-toggle ${sec.visible?'on':''}" onclick="toggleSection(${i})">${sec.visible?'Visible':'Hidden'}</button><select class="section-layout-select" onchange="changeSectionLayout(${i},this.value)"><option value="single" ${sec.layout==='single'?'selected':''}>Single</option><option value="double" ${sec.layout==='double'?'selected':''}>Double</option><option value="grid" ${sec.layout==='grid'?'selected':''}>Grid</option><option value="teacher-grid" ${sec.layout==='teacher-grid'?'selected':''}>Teacher Grid</option><option value="gallery" ${sec.layout==='gallery'?'selected':''}>Gallery</option><option value="events" ${sec.layout==='events'?'selected':''}>Events</option><option value="cover" ${sec.layout==='cover'?'selected':''}>Cover</option><option value="toc" ${sec.layout==='toc'?'selected':''}>TOC</option></select>${sec.editable!==false?`<button class="section-rename-btn" onclick="openRenameModal('${sec.key}','${esc(lbl)}')">✎ Rename</button>`:''}</div></div>`;}).join('');}
+function sectionDragStart(e,i){dragSrcIdx=i;}
+function sectionDragOver(e,i){e.preventDefault();document.querySelectorAll('.section-row').forEach((r,ri)=>r.classList.toggle('drag-over',ri===i&&ri!==dragSrcIdx));}
+function sectionDragLeave(e){document.querySelectorAll('.section-row').forEach(r=>r.classList.remove('drag-over'));}
+function sectionDrop(e,i){e.preventDefault();document.querySelectorAll('.section-row').forEach(r=>{r.classList.remove('drag-over');});if(dragSrcIdx===null||dragSrcIdx===i)return;const moved=sectionOrder.splice(dragSrcIdx,1)[0];sectionOrder.splice(i,0,moved);dragSrcIdx=null;localStorage.setItem('me_section_order',JSON.stringify(sectionOrder));renderSectionManager();}
+function toggleSection(i){sectionOrder[i].visible=!sectionOrder[i].visible;localStorage.setItem('me_section_order',JSON.stringify(sectionOrder));renderSectionManager();}
+function changeSectionLayout(i,val){sectionOrder[i].layout=val;localStorage.setItem('me_section_order',JSON.stringify(sectionOrder));}
+
+/* RENAME */
+function openRenameModal(key,cur){renamingKey=key;document.getElementById('renameModalSub').textContent=`Renaming: "${cur}"`;document.getElementById('renameInput').value=cur;document.getElementById('renameModal').classList.add('active');setTimeout(()=>document.getElementById('renameInput').focus(),100);}
+function closeRenameModal(){document.getElementById('renameModal').classList.remove('active');renamingKey=null;}
+function confirmRename(){if(!renamingKey)return;const n=document.getElementById('renameInput').value.trim();if(!n){alert('Name cannot be empty.');return;}labelOverrides['section_'+renamingKey]=n;const sec=sectionOrder.find(s=>s.key===renamingKey);if(sec)sec.label=n;saveLabels(labelOverrides);localStorage.setItem('me_section_order',JSON.stringify(sectionOrder));closeRenameModal();renderSectionManager();}
+
+/* LABEL RENAME */
+function renderLabelRenameList(){const c=document.getElementById('labelRenameList');if(!c)return;const items=[{key:'landing_heading',label:'Landing page heading',def:'Choose a content category'},...CATEGORY_KEYS.map(k=>({key:'cat_label_'+k,label:`"${CATEGORIES[k].label}" card title`,def:CATEGORIES[k].label})),...CATEGORY_KEYS.map(k=>({key:'cat_form_title_'+k,label:`"${CATEGORIES[k].label}" form title`,def:CATEGORIES[k].title}))];c.innerHTML=items.map(item=>`<div style="margin-bottom:8px;"><label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:3px;">${esc(item.label)}</label><input type="text" value="${esc(getLabel(item.key,item.def))}" data-key="${item.key}" style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Lato',sans-serif;background:#fafaf8;"/></div>`).join('');}
+function saveAllLabels(){document.querySelectorAll('#labelRenameList input[data-key]').forEach(inp=>{const key=inp.getAttribute('data-key');const val=inp.value.trim();if(val)labelOverrides[key]=val;});saveLabels(labelOverrides);renderLandingCards();alert('Labels saved!');}
+
+/* MAGAZINE PREVIEW */
+function getPageDimensions(){const s=lsSettings;const ps=s.pageSize||'a4';const land=s.orientation==='landscape';const sizes={a4:[794,1123],a5:[559,794],letter:[816,1056],custom:[parseInt(s.customW)||794,parseInt(s.customH)||1123]};let[w,h]=sizes[ps]||sizes.a4;if(land)[w,h]=[h,w];return{w,h};}
+
+function generateMagPreview(){
+  subs=loadAll();magPages=[];currentPageIdx=0;
+  const s=lsSettings;
+  const approved=subs.filter(sub=>sub.status==='approved'||sub.status==='finalized');
+  sectionOrder.filter(sec=>sec.visible).forEach(sec=>{
+    if(sec.key==='cover'){magPages.push({type:'cover',sec});return;}
+    if(sec.key==='toc'){magPages.push({type:'toc',sec});return;}
+    const catSubs=approved.filter(sub=>sub.category===sec.key);
+    if(sec.key==='editorial-note'){const sub=approved.find(sub=>sub.category==='editorial-note');if(sub)magPages.push({type:'editorial-note',sub,sec});return;}
+    if(sec.key==='appreciation'){const sub=approved.find(sub=>sub.category==='appreciation');if(sub)magPages.push({type:'appreciation',sub,sec});return;}
+    if(!catSubs.length)return;
+    let perPage=1;
+    if(sec.key==='teachers')perPage=parseInt(s.teachersPerPage)||9;
+    else if(['primary5','jss3','ss3'].includes(sec.key))perPage=parseInt(s.studentsPerPage)||2;
+    else if(sec.key==='speeches')perPage=parseInt(s.speechesPerPage)||1;
+    else if(sec.key==='gallery')perPage=parseInt(s.galleryPerPage)||4;
+    else if(sec.key==='creative')perPage=parseInt(s.creativePerPage)||2;
+    for(let i=0;i<catSubs.length;i+=perPage){magPages.push({type:'section-content',sec,items:catSubs.slice(i,i+perPage),isFirst:i===0,pageInSection:Math.floor(i/perPage)+1});}
+  });
+  renderCurrentPage();renderTOC();updatePageNavUI();
+}
+
+function renderCurrentPage(){
+  const canvas=document.getElementById('magCanvas');
+  if(!magPages.length){canvas.innerHTML=`<div style="text-align:center;color:var(--ink3);padding:4rem 1rem;"><div style="font-size:48px;margin-bottom:1rem;">🗞</div><h3 style="font-family:'Lato',sans-serif;color:var(--ink2);">No approved content yet</h3><p style="font-size:14px;">Approve submissions and click Generate Preview again.</p></div>`;return;}
+  const page=magPages[currentPageIdx];const{w,h}=getPageDimensions();
+  const scale=Math.min(1,(window.innerWidth-20)/w);
+  const s=lsSettings;
+  const c1=s.color1||'#1a2744',c2=s.color2||'#7dd4a8',c3=s.color3||'#8b1a1a';
+  const hFont=s.headingFont||"'Playfair Display',serif",bFont=s.bodyFont||"'Crimson Text',serif",bSize=s.fontSize||'11px';
+  const magTitle=s.magTitle||'The Torch',schoolName=s.schoolName||'Way To Success Standard Schools',edition=s.edition||'1st Edition',year=s.year||'2025/2026',pageBg=s.pageBg||'#ffffff',textColor=s.textColor||'#1c1c1e';
+  const foot=`<div style="border-top:1px solid #e8e8e0;padding:5px 2rem;display:flex;justify-content:space-between;align-items:center;background:#fafaf8;"><span style="font-size:8px;font-weight:700;color:${c1};letter-spacing:.5px;text-transform:uppercase;">${esc(schoolName)}</span><div style="width:18px;height:2px;background:${c2};border-radius:1px;"></div><span style="font-size:8px;color:#888;">${currentPageIdx+1}</span></div>`;
+
+  let inner='';
+  if(page.type==='cover'){
+    inner=`<div style="background:linear-gradient(160deg,${c1},${c1}dd,${c1}aa);height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2.5rem 2rem;position:relative;overflow:hidden;"><div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:${c2};font-weight:700;margin-bottom:1rem;">${esc(edition)}</div><div style="width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid ${c2}66;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;font-size:24px;">🎓</div><div style="width:50px;height:4px;background:${c2};border-radius:2px;margin:0 auto 1.5rem;"></div><h1 style="font-family:${hFont};font-size:40px;color:#fff;margin-bottom:.5rem;line-height:1.1;">${esc(magTitle)}</h1>${s.theme?`<p style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:.5rem;font-style:italic;">${esc(s.theme)}</p>`:''}<p style="font-size:12px;color:${c2};margin-bottom:2rem;">${esc(schoolName)}</p><div style="font-size:24px;font-weight:700;color:${c2};font-family:${hFont};">${esc(year)}</div><div style="position:absolute;bottom:0;left:0;right:0;height:8px;background:linear-gradient(90deg,${c2},${c3});"></div></div>`;
+  } else if(page.type==='toc'){
+    const tocItems=buildTOCItems();
+    inner=`<div style="background:${pageBg};height:100%;padding:2rem;display:flex;flex-direction:column;"><h2 style="font-family:${hFont};font-size:24px;color:${c1};margin-bottom:4px;">Contents</h2><div style="height:3px;background:linear-gradient(90deg,${c2},transparent);margin-bottom:1.5rem;border-radius:2px;"></div><div style="flex:1;">${tocItems.map(item=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px dashed #e8e8e0;"><span style="font-size:11px;font-weight:700;color:${c2};width:20px;">${item.num}</span><span style="font-size:12px;color:${textColor};flex:1;font-family:${bFont};">${esc(item.name)}</span><span style="flex:1;border-bottom:1px dotted #ccc;height:12px;margin:0 4px;"></span><span style="font-size:11px;color:#888;font-weight:700;">p. ${item.page}</span></div>`).join('')}</div>${s.pageNums!=='no'?foot:''}</div>`;
+  } else if(page.type==='editorial-note'||page.type==='appreciation'){
+    const sub=page.sub;const title=sub.data.title?.value||page.sec.label;const body=sub.data.body?.value||'';
+    inner=`<div style="background:${pageBg};height:100%;display:flex;flex-direction:column;"><div style="background:linear-gradient(135deg,${c1},${c1}dd);color:#fff;padding:1.5rem 2rem;min-height:100px;position:relative;"><div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:${c2};font-weight:700;margin-bottom:6px;">${esc(page.sec.label)}</div><h2 style="font-family:${hFont};font-size:20px;color:#fff;">${esc(title)}</h2><div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:${c2};"></div></div><div style="padding:1.5rem 2rem;flex:1;overflow:hidden;"><p style="font-family:${bFont};font-size:${bSize};color:${textColor};line-height:1.8;white-space:pre-line;">${esc(body.substring(0,1500))}${body.length>1500?'\n\n…(continued)':''}</p></div>${s.pageNums!=='no'?foot:''}</div>`;
+  } else if(page.type==='section-content'){
+    const sec=page.sec;const items=page.items;const layout=sec.layout;const secLabel=getLabel('section_'+sec.key,sec.label);
+    let contentHtml='';
+
+    /* ── UNIVERSAL FIELD RENDERER ──────────────────────────────────────────────
+       Renders ALL data fields from sub.data dynamically.
+       No hardcoding — whatever was submitted and approved comes through.
+       Fields are rendered in submission order. Long text gets pre-line wrap.
+    ─────────────────────────────────────────────────────────────────────────── */
+    function renderAllFields(sub, opts){
+      opts = opts || {};
+      const maxChars = opts.maxChars || 99999;
+      const skipFirst = opts.skipFirst || false; // skip name field (shown in header)
+      const entries = Object.entries(sub.data || {});
+      if(skipFirst && entries.length > 0) entries.shift();
+      return entries.map(([k, fc]) => {
+        if(!fc || !fc.value) return '';
+        const val = String(fc.value);
+        const isLong = val.length > 60;
+        const display = val.length > maxChars ? val.substring(0, maxChars) + '…' : val;
+        if(isLong){
+          return `<div class="mag-item-field" style="margin-bottom:5px;">
+            <div class="mag-item-field-label" style="font-size:8px;text-transform:uppercase;letter-spacing:.4px;color:#999;font-weight:700;margin-bottom:1px;">${esc(fc.label)}</div>
+            <div class="mag-item-field-value" style="font-size:9px;color:${opts.textColor||'#333'};line-height:1.6;white-space:pre-line;font-family:${opts.bFont||'serif'};">${esc(display)}</div>
+          </div>`;
+        } else {
+          return `<div class="mag-item-field" style="margin-bottom:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:baseline;">
+            <span class="mag-item-field-label" style="font-size:8px;text-transform:uppercase;letter-spacing:.4px;color:#999;font-weight:700;flex-shrink:0;">${esc(fc.label)}:</span>
+            <span class="mag-item-field-value" style="font-size:9px;color:${opts.textColor||'#333'};">${esc(display)}</span>
+          </div>`;
+        }
+      }).join('');
     }
+
+    /* ── NAME / HEADLINE RESOLVER ──────────────────────────────────────────── */
+    function resolveName(sub){
+      return sub.data.name?.value || sub.data.speakerName?.value ||
+             sub.data.contribName?.value || sub.data.reporterName?.value ||
+             sub.data.authorName?.value || sub.data.intervieweeName?.value ||
+             sub.data.submitterName?.value || sub.data.eventName?.value ||
+             sub.data.title?.value || 'Untitled';
+    }
+    function resolveSubtitle(sub){
+      return sub.data.title?.value || sub.data.speakerTitle?.value ||
+             sub.data.authorRole?.value || sub.data.intervieweeTitle?.value ||
+             sub.data.contribRole?.value || sub.data.subject?.value ||
+             sub.data.speechType?.value || sub.data.eventType?.value ||
+             sub.data.subjectArea?.value || sub.data.photoCategory?.value || '';
+    }
+    function resolveMainText(sub){
+      return sub.data.speechBody?.value || sub.data.articleBody?.value ||
+             sub.data.contribBody?.value || sub.data.qaBody?.value ||
+             sub.data.eventReport?.value || sub.data.message?.value ||
+             sub.data.introParagraph?.value || '';
+    }
+    function resolvePhotoBlock(sub, w, h, radius, border){
+      const ini = resolveName(sub).trim().split(/\s+/).map(w=>w[0]).join('').substring(0,2).toUpperCase();
+      if(sub.photoData){
+        return `<img src="${sub.photoData}" style="width:${w};height:${h};object-fit:cover;object-position:top center;border-radius:${radius};flex-shrink:0;border:${border};display:block;"/>`;
+      }
+      return `<div style="width:${w};height:${h};border-radius:${radius};background:${c1};display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;flex-shrink:0;">${ini}</div>`;
+    }
+
+    /* ── TEACHER GRID ─────────────────────────────────────────────────────── */
+    if(layout==='teacher-grid'){
+      const cols = 3;
+      contentHtml = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:10px 8px;">
+        ${items.map(sub => {
+          const name = resolveName(sub);
+          const shortName = name.split(' ').slice(0,3).join(' ');
+          const ph = resolvePhotoBlock(sub,'54px','62px','6px',`2px solid ${c2}66`);
+          const allFields = renderAllFields(sub, {skipFirst:true, maxChars:99999, textColor, bFont});
+          return `<div class="mag-item mag-item-teacher" style="background:#fafaf8;border-radius:7px;padding:8px 5px 6px;border-top:3px solid ${c2};text-align:center;">
+            <div class="mag-item-photo" style="margin:0 auto 5px;width:54px;">${ph}</div>
+            <div class="mag-item-name" style="font-size:8.5px;font-weight:700;color:${c1};line-height:1.3;margin-bottom:4px;">${esc(shortName)}</div>
+            <div class="mag-item-fields" style="text-align:left;padding:0 2px;">${allFields}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    /* ── STUDENT GRID (primary5 / jss3 / ss3) ─────────────────────────────── */
+    else if(layout==='grid'){
+      const cols = items.length === 1 ? 1 : 2;
+      contentHtml = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:10px;">
+        ${items.map(sub => {
+          const name = resolveName(sub);
+          const ph = resolvePhotoBlock(sub,'62px','74px','6px',`2px solid ${c2}55`);
+          const allFields = renderAllFields(sub, {skipFirst:true, maxChars:120, textColor, bFont});
+          return `<div class="mag-item mag-item-student" style="display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px;background:#fafaf8;border-radius:8px;border-left:3px solid ${c2};">
+            <div class="mag-item-photo">${ph}</div>
+            <div class="mag-item-details">
+              <div class="mag-item-name" style="font-size:12px;font-weight:700;color:${c1};font-family:${hFont};margin-bottom:5px;">${esc(name)}</div>
+              <div class="mag-item-fields">${allFields}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    /* ── GALLERY ──────────────────────────────────────────────────────────── */
+    else if(layout==='gallery'){
+      contentHtml = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+        ${items.map(sub => {
+          // Get all field text for caption area
+          const allFields = renderAllFields(sub, {maxChars:80, textColor:'#666', bFont});
+          if(sub.photoData){
+            return `<div class="mag-item mag-item-gallery">
+              <img class="mag-item-photo" src="${sub.photoData}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid ${c2}33;"/>
+              <div class="mag-item-fields" style="padding:4px 2px;font-size:8px;">${allFields}</div>
+            </div>`;
+          }
+          if(sub.photos && sub.photos.length){
+            return sub.photos.slice(0,2).map((p,pi) => `<div class="mag-item mag-item-gallery">
+              <img class="mag-item-photo" src="${p.data}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid ${c2}33;"/>
+              ${pi===0?`<div class="mag-item-fields" style="padding:4px 2px;font-size:8px;">${allFields}</div>`:''}
+            </div>`).join('');
+          }
+          return '';
+        }).join('')}
+      </div>`;
+    }
+
+    /* ── DOUBLE / CREATIVE ────────────────────────────────────────────────── */
+    else if(layout==='double'){
+      const cols = items.length > 1 ? '1fr 1fr' : '1fr';
+      contentHtml = `<div style="display:grid;grid-template-columns:${cols};gap:12px;">
+        ${items.map(sub => {
+          const name = resolveName(sub);
+          const subtitle = resolveSubtitle(sub);
+          const allFields = renderAllFields(sub, {skipFirst:true, maxChars:400, textColor, bFont});
+          return `<div class="mag-item mag-item-creative" style="padding:12px;background:linear-gradient(135deg,#faf8ff,#f4f0fd);border-radius:8px;border:1px solid #e0d5f5;display:flex;flex-direction:column;">
+            <div class="mag-item-subtitle" style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#5b3a8a;font-weight:700;margin-bottom:3px;">${esc(subtitle)}</div>
+            <div class="mag-item-name" style="font-family:${hFont};font-size:13px;color:${c1};font-weight:700;margin-bottom:6px;">${esc(name)}</div>
+            <div class="mag-item-fields" style="flex:1;">${allFields}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    /* ── EVENTS ───────────────────────────────────────────────────────────── */
+    else if(layout==='events'){
+      contentHtml = items.map(sub => {
+        const name = resolveName(sub);
+        const allFields = renderAllFields(sub, {skipFirst:true, maxChars:400, textColor, bFont});
+        const imgs = sub.photos && sub.photos.length ? sub.photos : sub.photoData ? [{data:sub.photoData}] : [];
+        return `<div class="mag-item mag-item-event" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #eee;">
+          <h3 class="mag-item-name" style="font-family:${hFont};font-size:13px;color:${c1};margin-bottom:6px;">${esc(name)}</h3>
+          ${imgs.length ? `<div class="mag-item-photos" style="display:flex;gap:5px;margin-bottom:7px;">${imgs.slice(0,3).map(p=>`<img src="${p.data}" style="flex:1;aspect-ratio:16/9;object-fit:cover;border-radius:5px;max-height:75px;"/>`).join('')}</div>` : ''}
+          <div class="mag-item-fields">${allFields}</div>
+        </div>`;
+      }).join('');
+    }
+
+    /* ── SINGLE / SPEECHES / INTERVIEWS / MOTIVATIONAL / ACADEMIC / DEFAULT ─ */
+    else {
+      contentHtml = items.map(sub => {
+        const name = resolveName(sub);
+        const subtitle = resolveSubtitle(sub);
+        const mainText = resolveMainText(sub);
+        const pullQuote = sub.data.pullQuote?.value || '';
+        const allFields = renderAllFields(sub, {skipFirst:true, maxChars:99999, textColor, bFont});
+        const ph = sub.photoData ? resolvePhotoBlock(sub,'52px','58px','6px',`2px solid ${c2}44`) : '';
+        return `<div class="mag-item mag-item-single" style="margin-bottom:16px;">
+          ${name ? `<div class="mag-item-header" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #e8e8e0;">
+            <div class="mag-item-photo-wrap">${ph}</div>
+            <div class="mag-item-header-text">
+              <div class="mag-item-name" style="font-size:13px;font-weight:700;color:${c1};font-family:${hFont};">${esc(name)}</div>
+              ${subtitle ? `<div class="mag-item-subtitle" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:${c2};font-weight:700;">${esc(subtitle)}</div>` : ''}
+            </div>
+          </div>` : ''}
+          ${pullQuote ? `<div class="mag-item-quote" style="border-left:4px solid ${c2};padding:8px 12px;margin:8px 0;background:${c2}22;border-radius:0 8px 8px 0;">
+            <p style="font-family:${hFont};font-size:12px;color:${c1};font-style:italic;">${esc(pullQuote)}</p>
+          </div>` : ''}
+          ${mainText ? `<p class="mag-item-body" style="font-family:${bFont};font-size:${bSize};color:${textColor};line-height:1.8;white-space:pre-line;margin-bottom:10px;">${esc(mainText)}</p>` : ''}
+          <div class="mag-item-fields">${allFields}</div>
+        </div>`;
+      }).join('');
+    }
+
+    inner=`<div style="background:${pageBg};height:100%;display:flex;flex-direction:column;">${page.isFirst?`<div style="background:linear-gradient(135deg,${c1},${c1}dd);color:#fff;padding:1.25rem 2rem;min-height:90px;position:relative;"><div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:${c2};font-weight:700;margin-bottom:5px;">Section</div><h2 style="font-family:${hFont};font-size:20px;color:#fff;">${esc(secLabel)}</h2><div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:${c2};"></div></div>`:`<div style="background:${c1};padding:6px 2rem;"><span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:${c2};font-weight:700;">${esc(secLabel)} (continued)</span></div>`}<div style="padding:1rem 1.5rem;flex:1;overflow:hidden;">${contentHtml}</div>${s.pageNums!=='no'?foot:''}</div>`;
   }
-  if(hs.instructions){
-    h+='<div class="hs-instructions" style="font-size:'+sizeBody+';margin:'+(compact?'1pt':'3pt')+' 0 '+(compact?'2pt':'4pt')+';padding:'+(compact?'1.5pt':'3pt')+';background:#f4f4f4;border-left:2pt solid #000;line-height:1.4;">'+esc(hs.instructions).replace(/\n/g,'<br/>')+'</div>';
+  canvas.innerHTML=`<div class="mag-page" data-category="${esc(page.sec?.key || page.type)}" style="width:${w}px;height:${h}px;transform:scale(${scale});transform-origin:top center;"><div class="mag-page-inner">${inner}</div></div>`;
+  document.getElementById('previewPageTitle').textContent=`Page ${currentPageIdx+1} — ${page.sec?.label||page.type}`;
+}
+
+function prevPage(){if(currentPageIdx>0){currentPageIdx--;renderCurrentPage();updatePageNavUI();}}
+function nextPage(){if(currentPageIdx<magPages.length-1){currentPageIdx++;renderCurrentPage();updatePageNavUI();}}
+function updatePageNavUI(){const total=magPages.length||1;document.getElementById('pageNavInfo').textContent=`${currentPageIdx+1} / ${total}`;document.getElementById('btnPrevPage').disabled=currentPageIdx===0;document.getElementById('btnNextPage').disabled=currentPageIdx>=magPages.length-1;}
+
+/* TOC */
+function buildTOCItems(){const items=[];let pageNum=1;subs=loadAll();const approved=subs.filter(s=>s.status==='approved'||s.status==='finalized');const s=lsSettings;sectionOrder.filter(sec=>sec.visible).forEach(sec=>{if(sec.key==='cover'){pageNum++;return;}if(sec.key==='toc'){pageNum++;return;}const catSubs=approved.filter(sub=>sub.category===sec.key);if(sec.key==='editorial-note'||sec.key==='appreciation'){if(catSubs.length||approved.find(sub=>sub.category===sec.key)){items.push({num:items.length+1,name:getLabel('section_'+sec.key,sec.label),page:pageNum});pageNum++;}return;}if(!catSubs.length)return;items.push({num:items.length+1,name:getLabel('section_'+sec.key,sec.label),page:pageNum});let pp=1;if(sec.key==='teachers')pp=parseInt(s.teachersPerPage)||9;else if(['primary5','jss3','ss3'].includes(sec.key))pp=parseInt(s.studentsPerPage)||2;else if(sec.key==='speeches')pp=parseInt(s.speechesPerPage)||1;else if(sec.key==='gallery')pp=parseInt(s.galleryPerPage)||4;else if(sec.key==='creative')pp=parseInt(s.creativePerPage)||2;pageNum+=Math.ceil(catSubs.length/pp);});return items;}
+function renderTOC(){const c=document.getElementById('tocPreview');if(!c)return;const items=buildTOCItems();if(!items.length){c.innerHTML='<p style="color:var(--ink3);font-size:13px;">No approved content yet. Generate a preview first.</p>';return;}const s=lsSettings;const c1=s.color1||'#1a2744',c2=s.color2||'#7dd4a8';c.innerHTML=`<div style="max-width:500px;">${items.map(item=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed #e0e0d8;"><span style="font-size:12px;font-weight:700;color:${c2};width:24px;">${item.num}</span><span style="font-size:14px;color:var(--ink);flex:1;">${esc(item.name)}</span><span style="flex:1;border-bottom:1px dotted #ccc;height:14px;margin:0 6px;"></span><span style="font-size:12px;color:var(--ink3);font-weight:700;">p. ${item.page}</span></div>`).join('')}</div>`;}
+
+/* PRINT */
+function openPrintView(){
+  if(!magPages.length){alert('Please click "Generate Preview" first to build your magazine pages.');return;}
+  const s=lsSettings;
+  const ps=s.pageSize==='a4'?'A4':s.pageSize==='a5'?'A5':'letter';
+  const orient=s.orientation||'portrait';
+  const{w,h}=getPageDimensions();
+
+  /* Render every page to HTML by cycling through each page index */
+  const savedIdx=currentPageIdx;
+  let allPagesHtml='';
+  for(let i=0;i<magPages.length;i++){
+    currentPageIdx=i;
+    renderCurrentPage();
+    const pageEl=document.getElementById('magCanvas');
+    /* Strip the scale transform — print window uses real dimensions */
+    const inner=pageEl.innerHTML.replace(/transform:scale\([^)]+\);?/g,'').replace(/transform-origin:[^;]+;?/g,'');
+    allPagesHtml+=`<div class="mag-sheet">${inner}</div>`;
   }
-  return h;
+  /* Restore original page */
+  currentPageIdx=savedIdx;
+  renderCurrentPage();
+  updatePageNavUI();
+
+  const win=window.open('','_blank','width=960,height=800');
+  if(!win){alert('Please allow popups for this site to open the print window.');return;}
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>${esc(s.magTitle||'The Torch')} — Print</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@300;400;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
+    body{background:#888;font-family:'Lato',sans-serif;}
+    @media print{
+      body{background:#fff;}
+      @page{size:${ps} ${orient};margin:0;}
+      .no-print{display:none!important;}
+      .mag-sheet{box-shadow:none!important;margin:0!important;page-break-after:always;}
+      .mag-sheet:last-child{page-break-after:auto;}
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}
+    }
+    .no-print{
+      padding:16px 24px;text-align:center;background:#1a2744;color:#fff;
+      position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;
+    }
+    .no-print h2{font-size:16px;margin:0;}
+    .no-print button{
+      background:#7dd4a8;color:#1a2744;border:none;padding:10px 26px;
+      border-radius:999px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Lato',sans-serif;
+    }
+    .no-print p{font-size:11px;color:#aaa;margin:0;}
+    .mag-sheet{
+      width:${w}px;height:${h}px;margin:24px auto;
+      box-shadow:0 4px 24px rgba(0,0,0,.35);overflow:hidden;
+      background:#fff;position:relative;
+    }
+    .mag-page{width:${w}px!important;height:${h}px!important;}
+    .mag-page-inner{width:100%;height:100%;overflow:hidden;}
+    img{max-width:100%;}
+    /* AI-injected styles carried to print */
+    ${(document.getElementById('ai-custom-css')?.textContent||'').replace(/</g,'\u003c')}
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <h2>🖨 ${esc(s.magTitle||'The Torch')} &mdash; ${magPages.length} pages</h2>
+    <button onclick="window.print()">Print / Save as PDF</button>
+    <p>Paper: ${ps} &middot; ${orient} &middot; Margins: None &middot; <strong>Enable Background graphics ✓</strong></p>
+  </div>
+  <div id="printPages">
+    ${allPagesHtml}
+  </div>
+</body>
+</html>`);
+  win.document.close();
 }
 
-function buildHouseStyleFooter(paper,adm,compact){
-  var hs=getHouseStyle();
-  if(!hs.footerLeft && !hs.footerCenter && !hs.footerRight) return '';
-  var size=compact?'6.5pt':'8pt';
-  return '<div class="hs-footer" style="display:flex;justify-content:space-between;gap:4mm;margin-top:'+(compact?'2pt':'4pt')+';padding-top:'+(compact?'1pt':'2pt')+';border-top:.5pt solid #ccc;font-size:'+size+';">'
-    +'<span style="font-weight:700;">'+esc(hs.footerLeft||'')+'</span>'
-    +'<span style="font-weight:700;text-align:center;flex:1;">'+esc(hs.footerCenter||'')+'</span>'
-    +'<span style="font-weight:700;text-align:right;">'+esc(hs.footerRight||'')+'</span>'
-    +'</div>';
+/* ═══════════════════════════════════════════════════════════
+   AI PROOFREADER — Fix 2
+   • Scans ALL text fields from submission (not just one field)
+   • Inline edit box so editor can correct mistakes directly
+   • Retry with fallback model on 504/timeout
+   • Works from both admin and editor panels
+═══════════════════════════════════════════════════════════ */
+function extractAllText(s){
+  /* Gather ALL text-heavy fields from the submission */
+  const longFields=[];
+  Object.entries(s.data||{}).forEach(([k,fc])=>{
+    if(!fc||!fc.value)return;
+    const v=String(fc.value);
+    if(v.length>10)longFields.push({label:fc.label,key:k,value:v});
+  });
+  return longFields;
 }
 
-// Aliases for backward compatibility
-function buildEconomyPrintHtml(papers,adm){ return buildEconomyFrame(papers,adm); }
-function buildEcoCol(p,adm,today){
-  // Legacy fallback — full-paper column (used by old callsites only)
-  var wm=adm.watermark||'';
-  var h='';
-  if(wm) h+='<div class="eco-wm">'+esc(wm)+'</div>';
-  h+=buildHouseStyleHeader(p,adm,true);
-  h+=buildPaperHeader(p,adm,true);
-  h+=buildSectionsHtml(p,true);
-  h+=buildHouseStyleFooter(p,adm,true);
-  h+='<div class="ep-footer">'+esc(p.ref)+' &bull; '+today+'</div>';
-  return h;
+async function proofreadSubmission(subId){
+  /* Use string comparison to handle both uuid and numeric ids */
+  const allSubs=loadAll();
+  const s=allSubs.find(x=>String(x.id)===String(subId));if(!s)return;
+  const panel=document.getElementById('proof-result-'+subId);if(!panel)return;
+  const fields=extractAllText(s);
+  const combinedText=fields.map(f=>`[${f.label}]\n${f.value}`).join('\n\n---\n\n');
+  if(!combinedText.trim()){
+    panel.innerHTML='<p style="color:var(--ink3);font-size:13px;">No text content found in this submission to proofread.</p>';
+    panel.style.display='block';return;
+  }
+  await proofreadWithAI(combinedText,panel,subId,fields);
 }
-function buildEcoColumn(p,adm,today){ return buildEcoCol(p,adm,today); }
-/* ── AI Optimize ──────────────────────── */
-window.runAiOptimize=async function(){
-  if(!API_KEY){ toast('Add your API key first','warn'); return; }
-  var instr=($('aiOptimizeInstr')||{}).value||'';
-  if(!instr.trim()){ toast('Enter your optimization instructions','warn'); return; }
-  var papers=window._printPapers||[];
-  if(!papers.length){ toast('No papers in lab to optimize','warn'); return; }
-  var status=$('aiOptStatus');
-  if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+papers.length+' paper(s)…';
 
-  for(var pi=0;pi<Math.min(papers.length,3);pi++){
-    var p=papers[pi];
-    var qs=p.questions||[];
-    if(!qs.length) continue;
-    if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+(pi+1)+'/'+Math.min(papers.length,3)+': '+esc(p.subj)+'…';
+async function proofreadWithAI(text,panelEl,subId,fields){
+  const s=loadLsSettings();
+  const apiKey=s.apiKey;
+  if(!apiKey){
+    panelEl.innerHTML=`<div class="proofread-panel"><p class="proofread-panel-title">✦ AI Proofreading</p><p style="color:var(--red);font-size:13px;"><strong>No API key.</strong> Go to Layout Studio → Design Settings → AI Configuration.</p></div>`;
+    panelEl.style.display='block';return;
+  }
+  panelEl.innerHTML=`<div class="proofread-panel"><p class="proofread-panel-title">✦ AI Proofreading</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:16px;height:16px;border:2px solid var(--purple);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;"></div><p class="proofread-loading">Reading all fields…</p></div></div>`;
+  panelEl.style.display='block';
 
-    var qsJson=JSON.stringify(qs.map(function(q,i){
-      return {n:i+1,k:q.k,t:q.t,o:q.o||null,a:q.a!==undefined?q.a:null,answer:q.answer||null,marks:q.marks||1,layout:q.layout||'standard'};
-    }));
-
-    var prompt='You are an expert Nigerian exam formatting specialist.\n\n'
-      +'PAPER: '+p.subj+' — '+p.cls+' — '+p.term+'\n\n'
-      +'ADMIN INSTRUCTIONS:\n'+instr+'\n\n'
-      +'CURRENT QUESTIONS (JSON):\n'+qsJson+'\n\n'
-      +'Apply the admin instructions. Fix LaTeX formatting. Ensure proper math notation.\n'
-      +'CRITICAL: You MUST return the COMPLETE question data including all fields.\n'
-      +'For objectives: include k, t, o (array of 4 options), a (correct answer index 0-3), marks, layout.\n'
-      +'For fill-in-blank: include k, t, answer (the correct answer string), marks, layout.\n'
-      +'For theory: include k, t, marks, layout.\n\n'
-      +'Return ONLY a valid JSON array:\n'
-      +'[{"k":"obj","t":"question text","o":["opt A","opt B","opt C","opt D"],"a":0,"marks":1,"layout":"standard"}]\n'
-      +'JSON array ONLY. No markdown. No explanation.';
-
+  /* Try Gemini 2.0 first, fall back to Claude Haiku on 504 */
+  const models=['google/gemini-2.0-flash-001','google/gemini-2.0-flash-lite-001','anthropic/claude-3-haiku'];
+  let result='';
+  for(const model of models){
     try{
-      var result=await callGemini(prompt,{temperature:0.2});
-      var newQs=Array.isArray(result)?result:[];
-      if(newQs.length){
-        // Merge: preserve original fields that AI might have dropped
-        var mergedQs=newQs.map(function(nq,i){
-          var orig=qs[i]||{};
-          return {
-            k: nq.k||orig.k||'theory',
-            t: nq.t||nq.text||orig.t||'',
-            o: nq.o||nq.options||orig.o||null,
-            a: nq.a!==undefined?nq.a:(nq.answer!==undefined&&typeof nq.answer==='number'?nq.answer:orig.a),
-            answer: nq.answer||orig.answer||null,
-            marks: nq.marks||orig.marks||1,
-            topic: nq.topic||orig.topic||'',
-            layout: nq.layout||orig.layout||'standard',
-            s: nq.s||nq.showSteps||orig.s||false,
-            ai: true
-          };
-        });
-        // Save to Supabase
-        var updPaper2=Object.assign({},p,{
-          questions:mergedQs,
-          objCount:mergedQs.filter(function(q){ return q.k==='obj'; }).length,
-          fitbCount:mergedQs.filter(function(q){ return q.k==='fitb'; }).length,
-          thCount:mergedQs.filter(function(q){ return q.k==='theory'; }).length
-        });
-        await _supabase.from('papers').update({data:updPaper2}).eq('ref',p.ref);
+      const resp=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,
+          'HTTP-Referer':'https://magazine-teachers-profile.vercel.app','X-Title':'MagicEditor Proofread'},
+        body:JSON.stringify({
+          model,max_tokens:2500,
+          messages:[
+            {role:'system',content:'You are a professional editorial proofreader for a Nigerian school graduation magazine. Review ALL the text sections provided. For each section label, list: (1) spelling errors with corrections, (2) grammar issues with fixes, (3) punctuation problems, (4) awkward phrasing improvements. Format each issue as: ❌ Original: "..." → ✅ Correction: "..." with a brief reason. If a section is clean, say "✓ Clean". Be thorough but concise.'},
+            {role:'user',content:`Proofread all fields in this submission:\n\n${text.substring(0,4000)}`}
+          ]
+        })
+      });
+      if(resp.status===504||resp.status===503){throw new Error('timeout_'+resp.status);}
+      if(!resp.ok){const e=await resp.text();throw new Error(`HTTP ${resp.status}: ${e.substring(0,100)}`);}
+      const data=await resp.json();
+      if(data.error)throw new Error(data.error.message||'API error');
+      result=data.choices?.[0]?.message?.content||'';
+      if(result)break;/* success — stop trying models */
+    }catch(e){
+      if(model===models[models.length-1]||!e.message.startsWith('timeout_')){
+        /* Last model or non-timeout error */
+        if(!result)result=`Error with ${model}: ${e.message}`;
       }
-    } catch(e){ toast('Optimize failed for '+p.ref+': '+e.message,'err'); }
-  }
-  if(status) status.innerHTML='✅ Optimization complete!';
-  toast('🤖 AI Optimization applied','ok',4000);
-  setTimeout(function(){ renderAdminPrint(); },1500);
-};
-
-window.toggleEconomyMode=function(){
-  ADMIN.economyMode=!ADMIN.economyMode;
-  var sw=$('ecoSwitch'), lbl=$('ecoLabel');
-  if(sw) sw.className='eco-switch'+(ADMIN.economyMode?' on':'');
-  if(lbl){ lbl.textContent=ADMIN.economyMode?'ON — Landscape A4':'OFF — Standard'; lbl.style.color=ADMIN.economyMode?'var(--green)':'var(--mute)'; }
-};
-
-window.setQLayout=function(pi,qi,layout){
-  var papers=window._printPapers;
-  if(!papers||!papers[pi]||!papers[pi].questions||!papers[pi].questions[qi]) return;
-  papers[pi].questions[qi].layout=layout;
-  // Persist layout to Supabase (fire and forget)
-  var ref=papers[pi].ref;
-  var updP=Object.assign({},papers[pi]);_supabase.from('papers').update({data:updP}).eq('ref',ref);
-  // Update button states visually
-  var plabEl=$('plab_'+pi);
-  if(plabEl){
-    var allRows=plabEl.querySelectorAll('.q-layout-row');
-    if(allRows[qi]){
-      allRows[qi].querySelectorAll('.layout-btn').forEach(function(b){
-        b.classList.remove('on');
-        if(b.textContent==='C'&&layout==='compact') b.classList.add('on');
-        if(b.textContent==='S'&&layout==='standard') b.classList.add('on');
-        if(b.textContent==='W'&&layout==='wide') b.classList.add('on');
-      });
+      /* Otherwise try next model */
     }
   }
-  // Refresh preview
-  renderDigitalLabPreview(papers,getAdminSettings());
-};
+  if(!result)result='No response from AI. Please try again.';
 
+  /* Build edit boxes for each field */
+  let editBoxes='';
+  if(subId&&fields&&fields.length){
+    editBoxes=`<div style="margin-top:16px;border-top:1px solid var(--school-mint2);padding-top:14px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--school-navy);margin-bottom:10px;">✏️ Direct Edit — Apply Corrections Below</div>
+      ${fields.map(f=>`
+        <div style="margin-bottom:12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;">${esc(f.label)}</div>
+          <textarea id="edit-${subId}-${f.key}" style="width:100%;min-height:80px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Lato',sans-serif;resize:vertical;background:#fafaf8;">${esc(f.value)}</textarea>
+        </div>`).join('')}
+      <button onclick="saveProofreadEdits('${subId}')" style="background:var(--school-navy);color:#fff;border:none;padding:10px 22px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Lato',sans-serif;">💾 Save Corrections</button>
+      <span id="saveProofStatus-${subId}" style="font-size:12px;color:var(--green);margin-left:10px;"></span>
+    </div>`;
+  }
 
-/* ══════════════════════════════════════
-   INTELLIGENT ADAPTIVE LAYOUT ENGINE
-   Modes: portrait | landscape | split | multi
-   Auto mode selects best fit automatically
-══════════════════════════════════════ */
-
-/* Estimate paper height in points */
-function estimatePaperHeight(paper){
-  var qs=paper.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-  // SVG diagrams add ~80pt each
-  var diagCount=qs.filter(function(q){ return q._svgDiagram; }).length;
-  var headerPt=55;
-  var objPt=objs.length*12;
-  var fitbPt=fitbs.length*16;
-  var thPt=ths.length*60;
-  var diagPt=diagCount*80;
-  return headerPt+objPt+fitbPt+thPt+diagPt;
+  panelEl.innerHTML=`<div class="proofread-panel">
+    <div class="proofread-panel-title">✦ AI Proofreading — ${result.includes('Error')?'Error':'Gemini 2.0 Flash'}</div>
+    <div class="proofread-result" style="white-space:pre-line;max-height:400px;overflow-y:auto;">${esc(result)}</div>
+    <p style="font-size:11px;color:var(--ink3);margin-top:10px;font-style:italic;">⚠️ AI suggestions are advisory only. Use the edit boxes below to apply corrections directly.</p>
+    ${editBoxes}
+  </div>`;
+  panelEl.style.display='block';
 }
 
-/* Core auto-selection engine — factors in:
-   1. Class level (Creche/KG/Nursery/Primary → bias to Multi-Subject)
-   2. Assessment type (Test → Multi-Subject when possible)
-   3. Content volume (Split first for secondary, fallback to Landscape)
-   4. Split feasibility (can content divide into 2 quadrant-fitting halves?) */
-function selectLayout(papers){
-  if(!papers||!papers.length) return 'portrait';
-
-  var PORTRAIT_HEIGHT=842;      // A4 portrait usable
-  var LANDSCAPE_HEIGHT=560;     // A4 landscape usable (single-student, 2-col flow)
-  var QUADRANT_HEIGHT=265;      // Half of landscape — each Split 2-in-1 part
-  var MULTI_PORTRAIT=750;
-  var MULTI_LANDSCAPE=520;
-
-  /* --- Class-level heuristics --- */
-  function isEarlyClass(clsStr){
-    if(!clsStr) return false;
-    var s=String(clsStr).toLowerCase();
-    return /creche|cr[eè]che|kg|kindergarten|nursery|primary|pry\s*\d/i.test(s);
-  }
-  function isTest(paper){
-    if(!paper) return false;
-    var at=String(paper.at||'').toLowerCase();
-    return at.indexOf('c.a')>=0 || at.indexOf('ca')===0 || at.indexOf('test')>=0;
-  }
-
-  /* --- Multi-Subject triggers (highest priority) ---
-     Rule A: 2+ papers AND all from early classes → Multi-Subject
-     Rule B: 2+ papers AND all are Tests (C.A.) → Multi-Subject
-     Rule C: 2+ papers AND combined content fits a single sheet → Multi-Subject */
-  if(papers.length>=2){
-    var allEarly=papers.every(function(p){ return isEarlyClass(p.cls); });
-    var allTests=papers.every(function(p){ return isTest(p); });
-    var totalMultiH=0;
-    var allShort=true;
-    papers.forEach(function(p){
-      var h=estimatePaperHeight(p);
-      totalMultiH+=h+20;
-      if(h>300) allShort=false;
-    });
-    if(allEarly) return 'multi';
-    if(allTests && allShort) return 'multi';
-    if(allShort && totalMultiH<=MULTI_PORTRAIT) return 'multi';
-    if(allShort && totalMultiH<=MULTI_LANDSCAPE) return 'multi';
-  }
-
-  /* --- Single paper from early class → still try Split if it fits, else Portrait --- */
-  var firstPaper=papers[0];
-  var height=estimatePaperHeight(firstPaper);
-
-  /* --- Split 2-in-1 feasibility check (PRIMARY default for secondary exams) ---
-     Can we divide the paper into 2 parts that EACH fit a quadrant?
-     Total content must fit ≤ 2 × quadrant with room for two headers. */
-  var splitBudget=QUADRANT_HEIGHT*2 - 110; // subtract 2 headers + 2 house-style blocks
-  if(height<=splitBudget){
-    var parts=divideIntoParts(firstPaper);
-    var hA=estimateQuestionsHeight(parts.partA);
-    var hB=estimateQuestionsHeight(parts.partB);
-    var headerCushion=75; // per quadrant: header + house-style header
-    if(hA+headerCushion<=QUADRANT_HEIGHT && hB+headerCushion<=QUADRANT_HEIGHT) return 'split';
-  }
-
-  /* --- Split won't fit → Full Landscape (one student, 2-column flow) --- */
-  if(height<=LANDSCAPE_HEIGHT*1.6) return 'landscape'; // 2-col gives ~1.6x capacity
-
-  /* --- Last resort: Portrait --- */
-  return 'portrait';
-}
-
-/* Estimate height of a subset of questions (used for per-quadrant fit checks) */
-function estimateQuestionsHeight(questions){
-  if(!questions||!questions.length) return 0;
-  var h=0;
-  questions.forEach(function(q){
-    if(q.k==='obj') h+=12;
-    else if(q.k==='fitb') h+=16;
-    else if(q.k==='theory') h+=60;
-    if(q._svgDiagram) h+=80;
+async function saveProofreadEdits(subId){
+  const statusEl=document.getElementById(`saveProofStatus-${subId}`);
+  const allSubs=loadAll();
+  const sub=allSubs.find(x=>String(x.id)===String(subId));
+  if(!sub){if(statusEl)statusEl.textContent='Error: submission not found.';return;}
+  /* Find all edit boxes for this submission and update data */
+  Object.keys(sub.data).forEach(k=>{
+    const ta=document.getElementById(`edit-${subId}-${k}`);
+    if(ta&&sub.data[k]){sub.data[k].value=ta.value;}
   });
-  return h;
+  sub.ts=new Date().toLocaleString();/* update timestamp */
+  saveAll(allSubs);
+  if(statusEl)statusEl.textContent='Saving…';
+  await dbSaveSubmission(sub);
+  if(statusEl){statusEl.textContent='✓ Corrections saved!';setTimeout(()=>{statusEl.textContent='';},3000);}
+  /* Refresh the view */
+  if(document.getElementById('viewEditor')?.classList.contains('active'))renderEditor();
+  if(document.getElementById('viewAdmin')?.classList.contains('active'))renderAdmin();
 }
 
-/* Resolve the effective print mode (respects auto vs manual) */
-function resolveLayoutMode(papers){
-  var cfg=ADMIN.labConfig;
-  if(cfg.printMode==='auto'){
-    var resolved=selectLayout(papers);
-    ADMIN._resolvedMode=resolved;
-    return resolved;
-  }
-  // Manual mode mapping
-  if(cfg.printMode==='split'||cfg.printMode==='economy') return 'split';
-  if(cfg.printMode==='landscape') return 'landscape';
-  if(cfg.printMode==='multi') return 'multi';
-  if(cfg.printMode==='portrait'||cfg.printMode==='normal') return 'portrait';
-  return 'portrait';
+
+/* AI CHAT HELPERS */
+function addAIChatMessage(role,text,html){
+  aiChatHistory.push({role,text,html,time:new Date().toLocaleTimeString()});
+  renderAIChatHistory();
 }
-
-/* Check if paper can be split into 2 quadrant-fitting parts (true Split 2-in-1 test) */
-function paperFitsHalfPage(paper){
-  if(!paper||!paper.questions||!paper.questions.length) return true;
-  var QUADRANT_HEIGHT=265;
-  var headerCushion=75;
-  var parts=divideIntoParts(paper);
-  var hA=estimateQuestionsHeight(parts.partA);
-  var hB=estimateQuestionsHeight(parts.partB);
-  return (hA+headerCushion<=QUADRANT_HEIGHT) && (hB+headerCushion<=QUADRANT_HEIGHT);
-}
-
-/* Human-readable mode labels */
-function getModeName(mode){
-  var map={portrait:'📃 Portrait A4',landscape:'🖥 Full Landscape',split:'✂️ Split 2-in-1',multi:'📑 Multi-Subject',auto:'🤖 Auto'};
-  return map[mode]||map.portrait;
-}
-
-function getModeDesc(mode){
-  var map={
-    portrait:'Full A4 portrait · one subject per page',
-    landscape:'A4 landscape · one subject, optimized spacing',
-    split:'Landscape · two copies side-by-side · Front [A|B] · Back [B|A] duplex',
-    multi:'Multiple short subjects stacked on one page'
-  };
-  return map[mode]||map.portrait;
-}
-
-/* ══════════════════════════════════════
-   LANDSCAPE MODE BUILDER (NEW)
-══════════════════════════════════════ */
-function buildLandscapePaperHtml(p,adm){
-  var cfg=ADMIN.labConfig;
-  var fontMap={'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'};
-  var fontFam=fontMap[cfg.fontFamily]||'"Times New Roman",serif';
-  var wm=adm.watermark||'ExamEngine';
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-
-  /* FULL LANDSCAPE MODE — Content flows across the entire A4 landscape sheet
-     (all 4 quadrants continuously) for ONE student. NOT split/mirrored.
-     Used when Split 2-in-1 cannot accommodate the content cleanly.
-     Uses 2-column flowing layout to make efficient use of landscape width. */
-  var h='<div class="ep ep-landscape" style="font-family:'+fontFam+';padding:10mm 14mm 9mm;">'
-    +'<div class="ep-wm">'+esc(wm)+'</div>'
-    +buildHouseStyleHeader(p,adm,false)
-    +buildPaperHeader(p,adm,false)
-    +'<div class="ep-landscape-flow" style="column-count:2;column-gap:10mm;column-rule:.25pt solid #ccc;margin-top:4pt;">'
-    +buildSectionsHtml(p,false)
-    +'</div>'
-    +buildHouseStyleFooter(p,adm,false)
-    +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12.5</div>'
-    +'</div>';
-  return h;
-}
-
-/* ══════════════════════════════════════
-   MULTI-SUBJECT MODE BUILDER (NEW)
-   Stacks 2-3 subjects on one page
-══════════════════════════════════════ */
-function buildMultiSubjectHtml(papers,adm){
-  var cfg=ADMIN.labConfig;
-  var fontMap={'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'};
-  var fontFam=fontMap[cfg.fontFamily]||'"Times New Roman",serif';
-  var wm=adm.watermark||'ExamEngine';
-  var school=adm.school||papers[0].school||'School';
-  var address=adm.address||'';
-  var logo=adm.logo;
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
-
-  // Decide orientation: estimate total height
-  var totalH=0;
-  papers.forEach(function(p){ totalH+=estimatePaperHeight(p)+20; });
-  var useLS=totalH>750; // switch to landscape if too tall for portrait
-
-  var h='<div class="ep ep-multi" style="font-family:'+fontFam+';padding:'+(useLS?'10mm 14mm 8mm':'15mm 20mm 12mm')+';">';
-  if(wm) h+='<div class="ep-wm">'+esc(wm)+'</div>';
-
-  // House Style header (admin-customized) rendered once at top
-  h+=buildHouseStyleHeader(papers[0],adm,false);
-
-  // Shared school header (once for all subjects)
-  h+='<div class="ep-header">';
-  if(logo) h+='<img style="width:40pt;height:40pt;object-fit:contain;border-radius:4pt;display:block;margin:0 auto 3pt;" src="'+logo+'"/>';
-  else h+='<div class="ep-crest" style="width:36pt;height:36pt;font-size:11pt;">'+initials+'</div>';
-  h+='<div class="ep-school" style="font-size:12pt;">'+esc(school)+'</div>';
-  if(address) h+='<div style="font-size:7.5pt;text-transform:uppercase;margin-bottom:1pt;">'+esc(address)+'</div>';
-  h+='<div class="ep-title" style="font-size:10pt;">'+(papers[0].at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(papers[0].term)+'</div>';
-  h+='<div class="ep-meta" style="font-size:8.5pt;"><span>Date: '+today+'</span></div>';
-  h+='</div>';
-
-  // Each subject as a section block
-  papers.forEach(function(p,idx){
-    var qs=p.questions||[];
-    var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
-
-    h+='<div class="multi-subject-block" style="margin-top:'+(idx===0?'4pt':'10pt')+';page-break-inside:avoid;break-inside:avoid;">';
-    h+='<div style="background:#222;color:#fff;padding:3pt 8pt;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center;">';
-    h+='<span>'+esc(p.subj)+' — '+esc(p.cls)+'</span>';
-    h+='<span style="font-weight:400;font-size:8pt;">'+total+' marks</span>';
-    h+='</div>';
-
-    // Render sections with compact spacing
-    var objs=qs.filter(function(q){ return q.k==='obj'; });
-    var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-    var ths=qs.filter(function(q){ return q.k==='theory'; });
-
-    if(objs.length){
-      h+='<div class="ep-sec" style="font-size:8.5pt!important;margin:4pt 0 2pt!important;">Objectives ('+objs.length+')</div>';
-      h+='<div class="objective-container'+(objs.length>=30?' objective-2col':'')+'">';
-      objs.forEach(function(q,i){ h+=formatObjective(q,i,'compact'); });
-      h+='</div>';
-    }
-    if(fitbs.length){
-      h+='<div class="ep-sec" style="font-size:8.5pt!important;margin:4pt 0 2pt!important;">Fill in the Blank ('+fitbs.length+')</div>';
-      fitbs.forEach(function(q,i){
-        var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank" style="min-width:50pt;"></span>');
-        h+='<div class="ep-q compact" style="font-size:8.5pt;">'
-          +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-          +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')
-          +'</div>';
-      });
-    }
-    if(ths.length){
-      h+='<div class="ep-sec" style="font-size:8.5pt!important;margin:4pt 0 2pt!important;">Theory ('+ths.length+')</div>';
-      ths.forEach(function(q,i){
-        h+='<div class="ep-q compact" style="font-size:8.5pt;">'
-          +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t
-          +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
-          +(q._svgDiagram?'<div style="margin:2pt 0;">'+q._svgDiagram+'</div>':'')
-          +'<div class="ep-ans compact"></div></div>';
-      });
-    }
-    h+='</div>'; // end multi-subject-block
-  });
-
-  h+=buildHouseStyleFooter(papers[0],adm,false);
-  h+='<div class="ep-footer">'+esc(school)+' &bull; '+today+' &bull; ExamEngine Pro v12.5</div>';
-  h+='</div>';
-  return {html:h, landscape:useLS};
-}
-
-/* ══════════════════════════════════════
-   PRINT ENGINE — doPrint (updated for 4 modes)
-══════════════════════════════════════ */
-window.doPrint=function(){
-  var papers=window._printPapers||[];
-  var adm=getAdminSettings();
-  if(!papers.length){ toast('No papers in lab to print','warn'); return; }
-  window._printPapers=papers;
-
-  /* ── Resolve layout mode ── */
-  var mode=resolveLayoutMode(papers);
-
-  /* ── Overflow guard for split ── */
-  if(mode==='split'&&!paperFitsHalfPage(papers[0])){
-    toast('⚠ Content too long for Split 2-in-1 — switching to Landscape','warn',4000);
-    mode='landscape';
-  }
-
-  /* ── Build body HTML ── */
-  var bodyHtml='';
-  var isLandscape=false;
-
-  if(mode==='split'){
-    bodyHtml=buildEconomyFrame(papers,adm);
-    isLandscape=true;
-  } else if(mode==='multi'){
-    var result=buildMultiSubjectHtml(papers,adm);
-    bodyHtml=result.html;
-    isLandscape=result.landscape;
-  } else if(mode==='landscape'){
-    isLandscape=true;
-    papers.forEach(function(p,i){
-      if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
-      bodyHtml+=buildLandscapePaperHtml(p,adm);
-    });
-  } else {
-    // portrait (default)
-    papers.forEach(function(p,i){
-      if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
-      bodyHtml+=buildNormalPaperHtml(p,adm);
-    });
-  }
-
-  /* ── @page rule ── */
-  var pageRule=isLandscape
-    ?'@page{size:A4 landscape;margin:8mm;}'
-    :'@page{size:A4 portrait;margin:15mm 20mm 12mm;}';
-
-  /* ── KaTeX CDN (same version as parent) ── */
-  var katexCss='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
-  var katexJs ='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
-  var katexAuto='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
-
-  /* ── Exam paper CSS (self-contained — no app chrome) ── */
-  var css=pageRule+'\n'+
-    'body{margin:0;padding:0;background:#fff;}\n'+
-    '.ep{font-family:"Times New Roman",serif;font-size:11pt;line-height:1.7;color:#000;padding:18mm 20mm 14mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
-    '.ep-header{text-align:center;border-bottom:3pt double #000;padding-bottom:7pt;margin-bottom:9pt;}\n'+
-    '.ep-crest{width:48pt;height:48pt;border:2pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14pt;margin:0 auto 5pt;}\n'+
-    '.ep-school{font-size:14pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2pt;}\n'+
-    '.ep-title{font-size:12pt;font-weight:700;text-transform:uppercase;margin-bottom:2pt;}\n'+
-    '.ep-meta{font-size:10pt;margin-bottom:2pt;}\n'+
-    '.ep-meta span{margin:0 8pt;}\n'+
-    '.ep-instr{font-size:9pt;font-style:italic;border:1pt solid #666;padding:4pt 8pt;margin:6pt 0;}\n'+
-    '.ep-sec{font-size:11pt;font-weight:700;text-transform:uppercase;border-bottom:1.5pt solid #000;padding-bottom:2pt;margin:12pt 0 3pt;}\n'+
-    '.ep-sec-note{font-size:9pt;font-style:italic;color:#333;border-left:2pt solid #999;padding-left:6pt;margin-bottom:5pt;}\n'+
-    '.ep-footer{font-size:8pt;color:#555;text-align:center;border-top:1pt solid #ccc;padding-top:3pt;margin-top:14pt;}\n'+
-    '.ep-wm{position:fixed;bottom:40mm;left:50%;transform:translateX(-50%) rotate(-35deg);font-size:60pt;color:rgba(0,0,0,.04);font-weight:900;white-space:nowrap;pointer-events:none;}\n'+
-    '.ep-q{margin-bottom:8pt;page-break-inside:avoid;break-inside:avoid;}\n'+
-    '.ep-q.compact{margin-bottom:3pt;line-height:1.4;}\n'+
-    '.ep-q.wide{margin-bottom:14pt;line-height:2.0;}\n'+
-    '.ep-q-obj{margin-bottom:4pt;font-size:8.5pt;line-height:1.35;break-inside:avoid;page-break-inside:avoid;}\n'+
-    '.ep-q-obj.compact{margin-bottom:2pt;line-height:1.25;}\n'+
-    '.ep-obj-2col{column-count:2;column-gap:10mm;}\n'+
-    '.ep-obj-block{display:block;}\n'+
-    '.ep-opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
-    '.ep-opt-inline-k{font-weight:700;}\n'+
-    '.opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
-    '.opt-inline-k{font-weight:700;}\n'+
-    '.objective-item{break-inside:avoid;page-break-inside:avoid;margin-bottom:4px;font-size:8.5pt;line-height:1.2;display:block;}\n'+
-    '.ep-qn{font-weight:700;}\n'+
-    '.ep-fitb-blank{display:inline-block;border-bottom:1.5pt solid #000;min-width:70pt;margin:0 2pt;}\n'+
-    '.ep-ans{border-bottom:1pt solid #bbb;min-height:48pt;margin:3pt 0 9pt;}\n'+
-    '.ep-ans.compact{min-height:24pt;}\n'+
-    '.ep-ans.wide{min-height:70pt;}\n'+
-    '.eco-page-pair{display:grid;grid-template-columns:1fr 1fr;width:100%;min-height:185mm;page-break-after:always;position:relative;}\n'+
-    '.eco-page-pair:last-child{page-break-after:auto;}\n'+
-    '.eco-col{padding:6mm 7mm;box-sizing:border-box;font-size:8.5pt;line-height:1.35;overflow:hidden;position:relative;font-family:"Times New Roman",serif;}\n'+
-    '.eco-col-left{border-right:0.4mm dashed #aaa;}\n'+
-    '.eco-col .ep-school{font-size:9pt!important;}\n'+
-    '.eco-col .ep-title{font-size:8pt!important;}\n'+
-    '.eco-col .ep-meta{font-size:7.5pt!important;}\n'+
-    '.eco-col .ep-header{padding-bottom:3pt!important;margin-bottom:4pt!important;}\n'+
-    '.eco-col .ep-sec{font-size:8pt!important;margin:4pt 0 2pt!important;}\n'+
-    '.eco-col .ep-q{margin-bottom:3pt!important;}\n'+
-    '.eco-col .ep-ans{min-height:16pt!important;margin:2pt 0 5pt!important;}\n'+
-    '.eco-col .ep-footer{font-size:6.5pt!important;}\n'+
-    '.eco-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:22pt;font-weight:900;color:rgba(0,0,0,.04);text-transform:uppercase;white-space:nowrap;pointer-events:none;}\n'+
-    '.eco-cut-hint{position:absolute;bottom:2mm;right:4mm;font-size:5.5pt;color:#bbb;white-space:nowrap;}\n'+
-    '.ep-landscape{max-width:297mm;}\n'+
-    '.ep-landscape .ep-header{padding-bottom:5pt;margin-bottom:7pt;}\n'+
-    '.ep-landscape .ep-sec{margin:8pt 0 2pt;}\n'+
-    '.ep-landscape .ep-q{margin-bottom:6pt;}\n'+
-    '.ep-landscape .ep-ans{min-height:36pt;margin:2pt 0 7pt;}\n'+
-    '.ep-multi{position:relative;}\n'+
-    '.multi-subject-block{border:0.5pt solid #999;border-radius:3pt;overflow:hidden;margin-bottom:6pt;padding:0 0 4pt 0;}\n'+
-    '.multi-subject-block .ep-sec{margin:3pt 8pt 1pt!important;}\n'+
-    '.multi-subject-block .ep-q{margin-left:8pt;margin-right:8pt;}\n'+
-    '.multi-subject-block .objective-container{padding:0 8pt;}\n'+
-    '.multi-subject-block .ep-ans{min-height:18pt;margin:1pt 0 4pt;}\n'+
-    '.mg-head{font-size:13pt;font-weight:700;text-transform:uppercase;border-bottom:2pt solid #000;padding-bottom:4pt;margin-bottom:10pt;}\n'+
-    '.mg-conf{font-size:9pt;font-style:italic;color:#555;margin-bottom:14pt;border:1pt solid #999;padding:4pt 8pt;}\n'+
-    '.mg-sec{font-size:11pt;font-weight:700;border-bottom:1pt solid #000;padding-bottom:2pt;margin:12pt 0 6pt;}\n'+
-    '.mg-key-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3pt 14pt;font-size:10pt;margin-bottom:10pt;}\n'+
-    '.mg-fitb-ans{margin-bottom:5pt;font-size:10pt;}\n'+
-    '.mg-th-q{margin-bottom:12pt;page-break-inside:avoid;}\n'+
-    '.mg-th-q-text{font-size:10pt;margin:3pt 0;font-style:italic;}\n'+
-    '.mg-mark-breakdown{font-size:9.5pt;color:#333;line-height:1.8;border-left:2pt solid #999;padding-left:6pt;margin-top:4pt;}\n';
-
-  /* ── Open dedicated print window ── */
-  var win=window.open('','_blank','width=900,height=700');
-  if(!win){
-    toast('⚠ Pop-up blocked — please allow pop-ups for this page, then try again.','warn',7000);
-    return;
-  }
-
-  win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"/>'+
-    '<title>ExamEngine Print</title>'+
-    '<link rel="stylesheet" href="'+katexCss+'"/>'+
-    '<style>'+css+'</style>'+
-    '</head><body>'+
-    bodyHtml+
-    '<script src="'+katexJs+'"><\/script>'+
-    '<script src="'+katexAuto+'"><\/script>'+
-    '<script>'+
-      'document.addEventListener("DOMContentLoaded",function(){'+
-        'if(window.renderMathInElement){'+
-          'renderMathInElement(document.body,{delimiters:['+
-            '{left:"$$",right:"$$",display:true},'+
-            '{left:"$",right:"$",display:false},'+
-            '{left:"\\\\(",right:"\\\\)",display:false},'+
-            '{left:"\\\\[",right:"\\\\]",display:true}'+
-          ']});'+
-        '}'+
-        'setTimeout(function(){window.print();},600);'+
-      '});'+
-    '<\/script>'+
-    '</body></html>');
-  win.document.close();
-};
-
-/* ══════════════════════════════════════
-   BATCH PRINT CONSOLE
-   Grouped by Class > Subject. Checkboxes per subject.
-   Per-class "Print All" and master "Print All Classes" buttons.
-   Each paper routed through its correct mode before stacking.
-══════════════════════════════════════ */
-window.openBatchPrint=async function(){
-  var adm=getAdminSettings();
-  var termKey=ADMIN.selectedTerm||'1st Term';
-  // Only approved papers for current term
-  var allPapers=await getPublished();
-  var all=allPapers.filter(function(p){ return p.term===termKey && p.adminStatus==='approved'; });
-  if(!all.length){
-    toast('\u26a0 No approved papers for '+termKey+' yet. Approve papers in Production Queue first.','warn',5000);
-    return;
-  }
-
-  // Group by class -> subject
-  var grouped={};
-  all.forEach(function(p){
-    var cls=p.cls||'(No class)';
-    if(!grouped[cls]) grouped[cls]=[];
-    grouped[cls].push(p);
-  });
-
-  // Stable class order: Creche,KG,Nursery,Primary,JSS,SS
-  var order=['Creche','KG 1','KG 2','Nursery 1','Nursery 2','Primary 1','Primary 2','Primary 3','Primary 4','Primary 5','JSS 1','JSS 2','JSS 3','SS 1','SS 2','SS 3'];
-  var classes=Object.keys(grouped).sort(function(a,b){
-    var ia=order.indexOf(a), ib=order.indexOf(b);
-    if(ia<0) ia=999; if(ib<0) ib=999;
-    return ia-ib;
-  });
-
-  // Build modal HTML
-  var rowsHtml=classes.map(function(cls){
-    var papers=grouped[cls].sort(function(a,b){ return (a.subj||'').localeCompare(b.subj||''); });
-    var safeCls=cls.replace(/[^a-zA-Z0-9]/g,'_');
-    var subjRows=papers.map(function(p,i){
-      var mode=selectLayout([p]);
-      var modeLabel={split:'\u2702\ufe0f Split 2-in-1',landscape:'\ud83d\udda5 Landscape',portrait:'\ud83d\udcc3 Portrait',multi:'\ud83d\udcd1 Multi'}[mode]||mode;
-      var qc=(p.questions||[]).length;
-      return '<tr>'
-        +'<td style="padding:6px 8px;"><input type="checkbox" class="bp-subj-chk" data-cls="'+esc(safeCls)+'" data-ref="'+esc(p.ref)+'" checked/></td>'
-        +'<td style="padding:6px 8px;font-weight:600;">'+esc(p.subj)+'</td>'
-        +'<td style="padding:6px 8px;font-size:11px;color:#666;">'+qc+' Q</td>'
-        +'<td style="padding:6px 8px;font-size:10px;color:#888;">'+modeLabel+'</td>'
-        +'<td style="padding:6px 8px;"><button class="btn bq bsm" onclick="batchPrintSingle(\''+esc(p.ref)+'\')">\ud83d\udda8 Print</button></td>'
-        +'</tr>';
-    }).join('');
-    return '<div class="bp-class-block" style="margin-bottom:14px;border:1px solid #ddd;border-radius:6px;overflow:hidden;">'
-      +'<div style="background:#1e293b;color:#fff;padding:8px 12px;font-weight:700;display:flex;align-items:center;gap:8px;">'
-      +'<span>\ud83d\udcda '+esc(cls)+'</span>'
-      +'<span style="font-size:11px;font-weight:400;opacity:.75;">('+papers.length+' subject'+(papers.length===1?'':'s')+')</span>'
-      +'<span style="margin-left:auto;display:flex;gap:6px;">'
-      +'<button class="btn bq bsm" onclick="batchToggleClass(\''+esc(safeCls)+'\',true)" style="background:#fff;color:#1e293b;">\u2713 All</button>'
-      +'<button class="btn bq bsm" onclick="batchToggleClass(\''+esc(safeCls)+'\',false)" style="background:#fff;color:#1e293b;">\u2717 None</button>'
-      +'<button class="btn bp bsm" onclick="batchPrintClass(\''+esc(safeCls)+'\')" style="background:#059669;border-color:#059669;">\ud83d\udda8 Print Class</button>'
-      +'</span>'
-      +'</div>'
-      +'<table style="width:100%;border-collapse:collapse;background:#fff;">'
-      +'<thead><tr style="background:#f8fafc;font-size:11px;text-transform:uppercase;color:#64748b;"><th style="padding:6px 8px;text-align:left;width:40px;"></th><th style="padding:6px 8px;text-align:left;">Subject</th><th style="padding:6px 8px;text-align:left;">Size</th><th style="padding:6px 8px;text-align:left;">Auto Mode</th><th style="padding:6px 8px;text-align:left;">Action</th></tr></thead>'
-      +'<tbody>'+subjRows+'</tbody>'
-      +'</table>'
-      +'</div>';
+function renderAIChatHistory(){
+  const box=document.getElementById('aiChatHistory');if(!box)return;
+  if(!aiChatHistory.length){box.innerHTML='<div style="text-align:center;color:var(--ink3);font-size:13px;padding:2rem 1rem;">Start a conversation with the AI about your magazine design.</div>';return;}
+  box.innerHTML=aiChatHistory.map((m,i)=>{
+    if(m.role==='user')return`<div style="margin-bottom:10px;text-align:right;"><div style="display:inline-block;background:var(--school-navy);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px;font-size:13px;max-width:85%;text-align:left;">${m.html||esc(m.text)}</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">${esc(m.time)}</div></div>`;
+    return`<div style="margin-bottom:10px;"><div style="display:inline-block;background:#f0fdf6;border:1px solid var(--school-mint2);padding:10px 14px;border-radius:12px 12px 12px 2px;font-size:13px;max-width:90%;color:var(--ink);">${m.html||esc(m.text)}</div><div style="font-size:10px;color:var(--ink3);margin-top:2px;">${esc(m.time)}</div></div>`;
   }).join('');
+  box.scrollTop=box.scrollHeight;
+}
+function clearAIChat(){aiChatHistory=[];aiPendingSuggestion=null;renderAIChatHistory();document.getElementById('aiReviewBox').style.display='none';document.getElementById('aiAssistResult').style.display='none';document.getElementById('btnApplyLayout').style.display='none';}
+function approveAISuggestion(){
+  if(aiPendingSuggestion){applyLayoutFromObject(aiPendingSuggestion,document.getElementById('aiApplyLog'));aiPendingSuggestion=null;document.getElementById('aiReviewBox').style.display='none';}
+}
+function rejectAISuggestion(){aiPendingSuggestion=null;document.getElementById('aiReviewBox').style.display='none';addAIChatMessage('assistant','Suggestion rejected. What would you like to change?');}
 
-  // Build overlay
-  var overlay=document.createElement('div');
-  overlay.id='batchPrintOverlay';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;';
-  overlay.innerHTML='<div style="background:#fff;border-radius:10px;max-width:900px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);">'
-    +'<div style="padding:14px 18px;background:linear-gradient(135deg,#059669,#047857);color:#fff;display:flex;align-items:center;gap:10px;">'
-    +'<span style="font-size:20px;">\ud83d\udda8</span>'
-    +'<div style="flex:1;"><div style="font-weight:800;font-size:16px;">Batch Print \u2014 '+esc(termKey)+'</div>'
-    +'<div style="font-size:11px;opacity:.85;">'+all.length+' approved paper(s) across '+classes.length+' class(es). Each auto-formatted through its ideal mode.</div></div>'
-    +'<button onclick="closeBatchPrint()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:700;">\u2715 Close</button>'
-    +'</div>'
-    +'<div style="padding:16px 18px;overflow-y:auto;flex:1;background:#f8fafc;">'
-    +rowsHtml
-    +'</div>'
-    +'<div style="padding:12px 18px;background:#fff;border-top:1px solid #e5e7eb;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
-    +'<span style="font-size:12px;color:#64748b;flex:1;min-width:150px;">Select subjects above, then print.</span>'
-    +'<button class="btn bq" onclick="batchToggleAll(true)">\u2713 Select All</button>'
-    +'<button class="btn bq" onclick="batchToggleAll(false)">\u2717 Clear All</button>'
-    +'<button class="btn bp" onclick="batchPrintSelected()" style="background:#059669;border-color:#059669;">\ud83d\udda8 Print Selected</button>'
-    +'</div>'
-    +'</div>';
-  document.body.appendChild(overlay);
-};
+/* LAYOUT AI — enhanced conversational with formatting control */
+async function runLayoutAI(){
+  const queryEl=document.getElementById('aiAssistQuery');const resultEl=document.getElementById('aiAssistResult');
+  const applyBtn=document.getElementById('btnApplyLayout');const applyLog=document.getElementById('aiApplyLog');
+  const reviewBox=document.getElementById('aiReviewBox');const reviewText=document.getElementById('aiReviewText');
+  if(!queryEl||!resultEl)return;
+  const query=queryEl.value.trim();
+  if(!query){alert('Please type a message first.');return;}
+  queryEl.value='';
+  const s=loadLsSettings();const apiKey=s.apiKey;const model=s.layoutModel||'google/gemini-2.0-flash-001';const maxTokens=parseInt(s.maxTokens)||2000;
+  if(!apiKey){addAIChatMessage('assistant','<strong style="color:var(--red);">No API key configured.</strong> Go to Design Settings → AI Configuration.');renderAIChatHistory();return;}
 
-window.closeBatchPrint=function(){
-  var o=$('batchPrintOverlay'); if(o) o.remove();
-};
+  /* Add user message to chat */
+  addAIChatMessage('user',query);
+  if(applyLog){applyLog.style.display='none';applyLog.innerHTML='';}
 
-window.batchToggleAll=function(checked){
-  document.querySelectorAll('.bp-subj-chk').forEach(function(c){ c.checked=!!checked; });
-};
+  /* Show thinking indicator */
+  const thinkingIdx=aiChatHistory.length;
+  aiChatHistory.push({role:'assistant',text:'',html:'<em style="color:var(--ink3);">✦ Thinking…</em>',time:''});
+  renderAIChatHistory();
 
-window.batchToggleClass=function(safeCls,checked){
-  document.querySelectorAll('.bp-subj-chk[data-cls="'+safeCls+'"]').forEach(function(c){ c.checked=!!checked; });
-};
+  subs=loadAll();const approved=subs.filter(s=>s.status==='approved'||s.status==='finalized');
+  const counts=CATEGORY_KEYS.map(k=>`  ${CATEGORIES[k].label}: ${approved.filter(x=>x.category===k).length} approved`).join('\n');
+  const ctx=`MAGAZINE: ${s.magTitle||'The Torch'} | ${s.schoolName||'Way To Success Standard Schools'} | ${s.edition||'1st Edition'} ${s.year||'2025/2026'} | Theme: ${s.theme||'—'}
+APPROVED CONTENT:\n${counts}
+LAYOUT: Page: ${s.pageSize||'A4'} ${s.orientation||'portrait'} | Teachers/page: ${s.teachersPerPage||9} | Students/page: ${s.studentsPerPage||2} | Gallery/page: ${s.galleryPerPage||4} | Speeches/page: ${s.speechesPerPage||1} | Creative/page: ${s.creativePerPage||2}
+COLOURS: Primary: ${s.color1||'#1a2744'} | Accent: ${s.color2||'#7dd4a8'} | Contrast: ${s.color3||'#8b1a1a'} | Page BG: ${s.pageBg||'#ffffff'} | Text: ${s.textColor||'#1c1c1e'}
+TYPOGRAPHY: Heading: ${s.headingFont||'Playfair Display'} | Body: ${s.bodyFont||'Crimson Text'} | Size: ${s.fontSize||'11px'}
+CURRENT STYLES: Headers use heading font. Body uses body font. No special formatting like bold headers or all-caps is currently applied unless you set it.`;
 
-window.batchPrintSingle=async function(ref){
-  var all=await getPublished();
-  var p=all.find(function(x){ return x.ref===ref; });
-  if(!p){ toast('Paper not found','warn'); return; }
-  closeBatchPrint();
-  executeBatchPrint([p]);
-};
+  /* Build messages array with chat history for context */
+  const messages=[];
+  messages.push({role:'system',content:`You are a professional magazine designer and layout AI assistant for a Nigerian school graduation magazine. You have a CONVERSATIONAL style — chat naturally, ask clarifying questions, and build on previous messages.
 
-window.batchPrintClass=async function(safeCls){
-  var refs=[];
-  document.querySelectorAll('.bp-subj-chk[data-cls="'+safeCls+'"]').forEach(function(c){
-    if(c.checked) refs.push(c.getAttribute('data-ref'));
-  });
-  if(!refs.length){ toast('No subjects selected in this class','warn'); return; }
-  var all=await getPublished();
-  var selected=refs.map(function(r){ return all.find(function(x){ return x.ref===r; }); }).filter(Boolean);
-  closeBatchPrint();
-  executeBatchPrint(selected);
-};
+YOUR CAPABILITIES:
+1. Layout & pagination (items per page, orientation, page size)
+2. Colour scheme design (suggest hex codes for primary, accent, contrast, background, text)
+3. Typography (heading font, body font, size)
+4. FORMATTING & CSS CONTROL — IMPORTANT: You have absolute power over the layout structure using CSS injection!
+   • Use [FORMAT:customCSS:...css...] to inject CSS rules dynamically.
+   • The DOM uses semantic classes: .mag-item, .mag-item-name, .mag-item-subtitle, .mag-item-photo, .mag-item-fields, .mag-item-body.
+   • Target specific sections using the data attribute: .mag-page[data-category="creative"], .mag-page[data-category="teachers"], etc.
+   • Example to hide subtitles on creative page and put name below content: [FORMAT:customCSS:.mag-page[data-category="creative"] .mag-item-subtitle { display: none; } .mag-page[data-category="creative"] .mag-item-creative { display: flex; flex-direction: column-reverse; }]
+   • Reorganize, hide, or restyle elements—you have the power.
+5. Magazine identity (title, school name, edition, theme)
+6. Review submissions and suggest section ordering
 
-window.batchPrintSelected=async function(){
-  var refs=[];
-  document.querySelectorAll('.bp-subj-chk').forEach(function(c){
-    if(c.checked) refs.push(c.getAttribute('data-ref'));
-  });
-  if(!refs.length){ toast('No subjects selected','warn'); return; }
-  var all=await getPublished();
-  var selected=refs.map(function(r){ return all.find(function(x){ return x.ref===r; }); }).filter(Boolean);
-  closeBatchPrint();
-  executeBatchPrint(selected);
-};
+FORMATTING COMMANDS (include in your response when user asks for style changes):
+Use these exact commands anywhere in your response:
+• [FORMAT:customCSS:...css string...] — injects arbitrary CSS to restructure or restyle the preview
+• [FORMAT:headerBold:true] — makes section headers bold
+• [FORMAT:headerCaps:true] — makes section headers ALL CAPS
+• [FORMAT:headerColor:#1a2744] — changes header colour
+• [FORMAT:bodyBold:false] — toggles body text bold
+• [FORMAT:bodySize:11px] — changes body font size
 
-/* Execute batch print: each paper routed through its correct mode,
-   stacked into ONE print window. Mode resolution per-paper. */
-function executeBatchPrint(papers){
-  if(!papers||!papers.length){ toast('Nothing to print','warn'); return; }
-  var adm=getAdminSettings();
-  window._printPapers=papers;
+SETTINGS JSON: When you recommend specific layout/colour/type changes, end your response with:
+\`\`\`settings
+{"teachersPerPage":9,"color1":"#1a2744","color2":"#7dd4a8",...}
+\`\`\`
+Include ONLY settings you want to change. All available keys: teachersPerPage, studentsPerPage, galleryPerPage, speechesPerPage, creativePerPage, orientation, pageSize, pageNums, autoTrim, color1, color2, color3, pageBg, textColor, headingFont, bodyFont, fontSize, magTitle, schoolName, edition, year, theme.
 
-  var bodyHtml='';
-  var anyLandscape=false;
+fontSize options: "10px"|"11px"|"12px"|"13px". pageSize options: "a4"|"a5"|"letter". headingFont options: "'Playfair Display',serif"|"Georgia,serif"|"'Times New Roman',serif"|"'Lato',sans-serif". bodyFont options: "'Crimson Text',serif"|"'Lato',sans-serif"|"Georgia,serif".
 
-  /* Group papers by their auto-resolved mode.
-     Multi-Subject groups merge. Single papers print individually. */
-  var multiBucket=[];
-  var singles=[];
-  papers.forEach(function(p){
-    var mode=selectLayout([p]);
-    if(mode==='multi') multiBucket.push(p);
-    else singles.push({paper:p, mode:mode});
+BE CONVERSATIONAL: If the user says "remove the headers only shows the title on the top and the writer name below", generate the [FORMAT:customCSS:...] rule to achieve it AND explain what you changed. Do NOT auto-apply JSON settings — wait for user confirmation. (Formatting commands apply instantly).
+
+Context:
+${ctx}`});
+
+  /* Add previous chat history (last 6 exchanges for context) */
+  const recentHistory=aiChatHistory.slice(-12,-1).filter(m=>m.text);
+  recentHistory.forEach(m=>{
+    if(m.role==='user')messages.push({role:'user',content:m.text});
+    else messages.push({role:'assistant',content:m.text});
   });
 
-  // Multi-subject group first (if any)
-  if(multiBucket.length>=2){
-    var result=buildMultiSubjectHtml(multiBucket,adm);
-    bodyHtml+=result.html;
-    if(result.landscape) anyLandscape=true;
-  } else if(multiBucket.length===1){
-    singles.push({paper:multiBucket[0], mode:selectLayout([multiBucket[0]])==='multi'?'portrait':selectLayout([multiBucket[0]])});
+  messages.push({role:'user',content:query});
+
+  try{
+    /* Try the selected model first */
+    const models=[model,'google/gemini-2.0-flash-001','anthropic/claude-3-haiku'];
+    let result='';
+    let lastErr;
+    for(const tryModel of models){
+      try{
+        const resp=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,
+            'HTTP-Referer':'https://magazine-teachers-profile.vercel.app','X-Title':'MagicEditor Layout AI'},
+          body:JSON.stringify({model:tryModel,max_tokens:maxTokens,messages})});
+        if(!resp.ok){const txt=await resp.text();throw new Error(`HTTP ${resp.status}: ${txt.substring(0,100)}`);}
+        const data=await resp.json();
+        if(data.error)throw new Error(data.error.message||'API error');
+        result=data.choices?.[0]?.message?.content||'';
+        if(result)break;
+      }catch(e){lastErr=e;if(tryModel===models[models.length-1])throw e;}
+    }
+
+    /* Remove thinking indicator */
+    aiChatHistory.splice(thinkingIdx,1);
+
+    /* Parse formatting commands from response */
+    let displayText=result;
+    const formatCommands={};
+    const fmtRegex=/\[FORMAT:(\w+):([\s\S]*?)\]/g;
+    let fmtMatch;
+    while((fmtMatch=fmtRegex.exec(result))!==null){formatCommands[fmtMatch[1]]=fmtMatch[2];}
+    displayText=displayText.replace(/\[FORMAT:.*?\]/gs,'').trim();
+
+    /* Extract settings JSON block */
+    const settingsMatch=displayText.match(/\`\`\`settings\s*([\s\S]*?)\`\`\`/i);
+    const adviceText=displayText.replace(/\`\`\`settings[\s\S]*?\`\`\`/gi,'').trim();
+
+    /* Store suggestion for review */
+    if(settingsMatch){
+      try{
+        aiPendingSuggestion=JSON.parse(settingsMatch[1].trim());
+        if(reviewBox&&reviewText){
+          reviewText.innerHTML=esc(adviceText).replace(/\n/g,'<br>');
+          reviewBox.style.display='block';
+        }
+        if(applyBtn)applyBtn.style.display='inline-flex';
+      }catch(e){aiPendingSuggestion=null;}
+    }else{aiPendingSuggestion=null;if(reviewBox)reviewBox.style.display='none';}
+
+    /* Apply formatting commands immediately (these are safe styling changes) */
+    const fmtChanges=[];
+    if(Object.keys(formatCommands).length){
+      const s2=loadLsSettings();
+      if(formatCommands.customCSS){
+        const aiStyle = document.getElementById('ai-custom-css');
+        if(aiStyle) aiStyle.textContent = formatCommands.customCSS;
+        fmtChanges.push('Injected Custom CSS structure updates');
+      }
+      if(formatCommands.headerColor&&/^#[0-9a-fA-F]{3,8}$/.test(formatCommands.headerColor)){s2.color1=formatCommands.headerColor;document.getElementById('ls-color1').value=formatCommands.headerColor;fmtChanges.push('Header colour → '+formatCommands.headerColor);}
+      if(formatCommands.bodySize&&['10px','11px','12px','13px'].includes(formatCommands.bodySize)){s2.fontSize=formatCommands.bodySize;document.getElementById('ls-fontSize').value=formatCommands.bodySize;fmtChanges.push('Body size → '+formatCommands.bodySize);}
+      if(fmtChanges.length){
+        saveLsSettingsToStorage(s2);lsSettings=s2;applyLsColors(s2);
+        if(applyLog){applyLog.innerHTML='✅ Applied formatting: '+fmtChanges.join(', ');applyLog.style.display='block';}
+      }
+    }
+
+    window._lastAILayoutResponse=displayText;
+    const htmlResponse=esc(adviceText).replace(/\n/g,'<br>')+(fmtChanges.length?`<br><br><em style="color:var(--green);">✓ Formatting applied: ${fmtChanges.join(', ')}</em>`:'')+(settingsMatch?'<br><br><strong style="color:var(--amber);">⚡ Layout suggestion ready — review below before applying.</strong>':'');
+    addAIChatMessage('assistant',adviceText||result,htmlResponse);
+    renderAIChatHistory();
+
+  }catch(e){
+    aiChatHistory.splice(thinkingIdx,1);
+    addAIChatMessage('assistant','<strong style="color:var(--red);">Error:</strong> '+esc(e.message));
+    renderAIChatHistory();
+  }
+}
+/* Apply directly from a parsed settings object */
+function applyLayoutFromObject(obj,logEl){
+  const s=loadLsSettings();
+  const changes=[];
+  const setIfChanged=(key,uiId,valid,newVal)=>{
+    const snapped=valid?valid.reduce((a,b)=>Math.abs(b-Number(newVal))<Math.abs(a-Number(newVal))?b:a):newVal;
+    if(String(snapped)!==String(s[key])){
+      s[key]=String(snapped);
+      const el=document.getElementById(uiId);if(el)el.value=String(snapped);
+      changes.push(`✅ ${uiId.replace('ls-','')} → ${snapped}`);
+    }
+  };
+  /* Pagination */
+  if(obj.teachersPerPage!=null)setIfChanged('teachersPerPage','ls-teachersPerPage',[6,9,12,15],obj.teachersPerPage);
+  if(obj.studentsPerPage!=null)setIfChanged('studentsPerPage','ls-studentsPerPage',[1,2,3,4],obj.studentsPerPage);
+  if(obj.galleryPerPage!=null)setIfChanged('galleryPerPage','ls-galleryPerPage',[2,4,6,9],obj.galleryPerPage);
+  if(obj.speechesPerPage!=null)setIfChanged('speechesPerPage','ls-speechesPerPage',[1,2],obj.speechesPerPage);
+  if(obj.creativePerPage!=null)setIfChanged('creativePerPage','ls-creativePerPage',[1,2,3],obj.creativePerPage);
+  /* Page format */
+  if(obj.orientation&&['portrait','landscape'].includes(obj.orientation)&&obj.orientation!==s.orientation){
+    s.orientation=obj.orientation;const el=document.getElementById('ls-orientation');if(el)el.value=obj.orientation;
+    changes.push(`✅ Orientation → ${obj.orientation}`);
+  }
+  if(obj.pageSize&&['a4','a5','letter'].includes(obj.pageSize)&&obj.pageSize!==s.pageSize){
+    s.pageSize=obj.pageSize;const el=document.getElementById('ls-pageSize');if(el)el.value=obj.pageSize;
+    changes.push(`✅ Page size → ${obj.pageSize.toUpperCase()}`);
+  }
+  if(obj.pageNums&&obj.pageNums!==s.pageNums){
+    s.pageNums=obj.pageNums;const el=document.getElementById('ls-pageNums');if(el)el.value=obj.pageNums;
+    changes.push(`✅ Page numbers → ${obj.pageNums}`);
+  }
+  if(obj.autoTrim&&obj.autoTrim!==s.autoTrim){
+    s.autoTrim=obj.autoTrim;const el=document.getElementById('ls-autoTrim');if(el)el.value=obj.autoTrim;
+    changes.push(`✅ Auto-trim → ${obj.autoTrim}`);
+  }
+  /* ── COLOURS ── */
+  const colorMap={color1:'ls-color1',color2:'ls-color2',color3:'ls-color3',pageBg:'ls-pageBg',textColor:'ls-textColor'};
+  Object.entries(colorMap).forEach(([key,uiId])=>{
+    if(obj[key]&&/^#[0-9a-fA-F]{3,8}$/.test(obj[key])&&obj[key]!==s[key]){
+      s[key]=obj[key];const el=document.getElementById(uiId);if(el)el.value=obj[key];
+      changes.push(`✅ ${key} → ${obj[key]}`);
+    }
+  });
+  /* ── TYPOGRAPHY ── */
+  const fontOpts=["'Playfair Display',serif","Georgia,serif","'Times New Roman',serif","'Lato',sans-serif"];
+  const bodyFontOpts=["'Crimson Text',serif","'Lato',sans-serif","Georgia,serif"];
+  const fontSizeOpts=["10px","11px","12px","13px"];
+  if(obj.headingFont&&fontOpts.includes(obj.headingFont)&&obj.headingFont!==s.headingFont){
+    s.headingFont=obj.headingFont;const el=document.getElementById('ls-headingFont');if(el)el.value=obj.headingFont;
+    changes.push(`✅ Heading font → ${obj.headingFont}`);
+  }
+  if(obj.bodyFont&&bodyFontOpts.includes(obj.bodyFont)&&obj.bodyFont!==s.bodyFont){
+    s.bodyFont=obj.bodyFont;const el=document.getElementById('ls-bodyFont');if(el)el.value=obj.bodyFont;
+    changes.push(`✅ Body font → ${obj.bodyFont}`);
+  }
+  if(obj.fontSize&&fontSizeOpts.includes(obj.fontSize)&&obj.fontSize!==s.fontSize){
+    s.fontSize=obj.fontSize;const el=document.getElementById('ls-fontSize');if(el)el.value=obj.fontSize;
+    changes.push(`✅ Font size → ${obj.fontSize}`);
+  }
+  /* ── IDENTITY ── */
+  const identityMap={magTitle:'ls-magTitle',schoolName:'ls-schoolName',location:'ls-location',edition:'ls-edition',year:'ls-year',theme:'ls-theme'};
+  Object.entries(identityMap).forEach(([key,uiId])=>{
+    if(obj[key]&&String(obj[key]).trim()&&String(obj[key])!==String(s[key]||'')){
+      s[key]=String(obj[key]);const el=document.getElementById(uiId);if(el)el.value=String(obj[key]);
+      changes.push(`✅ ${key} → ${obj[key]}`);
+    }
+  });
+  if(!changes.length){
+    if(logEl){logEl.innerHTML='ℹ️ Settings already match AI recommendation — no changes needed.';logEl.style.display='block';}
+    return;
+  }
+  saveLsSettingsToStorage(s);lsSettings=s;
+  applyLsColors(s);/* Apply colour changes to UI immediately */
+  if(logEl){
+    logEl.innerHTML=`<strong>⚡ Auto-applied ${changes.length} setting${changes.length>1?'s':''}:</strong><br><br>${changes.join('<br>')}<br><br>🔄 Regenerating preview…`;
+    logEl.style.display='block';
+  }
+  setTimeout(()=>{
+    generateMagPreview();
+    if(logEl)logEl.innerHTML=logEl.innerHTML.replace('🔄 Regenerating preview…','✅ Preview updated!');
+  },500);
+}
+
+/* ── APPLY LAYOUT SUGGESTIONS ENGINE ─────────────────────────────────────────
+   Reads the last AI response, extracts actionable settings using keyword
+   matching and number detection, applies them to lsSettings, updates all
+   UI dropdowns, and regenerates the preview automatically.
+─────────────────────────────────────────────────────────────────────────────── */
+function applyLayoutSuggestions(){
+  /* If there's a pending parsed suggestion, apply it directly */
+  if(aiPendingSuggestion){applyLayoutFromObject(aiPendingSuggestion,document.getElementById('aiApplyLog'));aiPendingSuggestion=null;document.getElementById('aiReviewBox').style.display='none';return;}
+  const text=window._lastAILayoutResponse||'';
+  if(!text){alert('No AI response to apply. Ask the AI a question first.');return;}
+  const logEl=document.getElementById('aiApplyLog');
+  const s=loadLsSettings();
+  const changes=[];
+
+  /* ── Number extractor helper ── */
+  function extractNum(pattern){
+    const m=text.match(pattern);
+    if(m){const n=parseInt(m[1]||m[2]);if(!isNaN(n))return n;}
+    return null;
   }
 
-  // Singles
-  singles.forEach(function(item,idx){
-    if(bodyHtml) bodyHtml+='<div style="page-break-before:always;"></div>';
-    var m=item.mode, p=item.paper;
-    if(m==='split'){
-      if(paperFitsHalfPage(p)){
-        bodyHtml+=buildEconomyFrame([p],adm);
-        anyLandscape=true;
-      } else {
-        bodyHtml+=buildLandscapePaperHtml(p,adm);
-        anyLandscape=true;
-      }
-    } else if(m==='landscape'){
-      bodyHtml+=buildLandscapePaperHtml(p,adm);
-      anyLandscape=true;
-    } else {
-      bodyHtml+=buildNormalPaperHtml(p,adm);
+  /* ── 1. Teachers per page ── */
+  const teacherMatch=extractNum(/(\d+)[- ]?(?:teachers?|staff|profiles?)\s*(?:per|a|each)?\s*page/i)
+    ||extractNum(/(?:teachers?|staff)\s*(?:per|a|each)\s*page[:\s]+(\d+)/i)
+    ||extractNum(/(\d+)x(\d+)\s*grid/i);
+  if(teacherMatch){
+    const valid=[6,9,12,15];
+    const snapped=valid.reduce((a,b)=>Math.abs(b-teacherMatch)<Math.abs(a-teacherMatch)?b:a);
+    if(String(snapped)!==String(s.teachersPerPage)){
+      s.teachersPerPage=String(snapped);
+      const el=document.getElementById('ls-teachersPerPage');if(el)el.value=String(snapped);
+      changes.push(`✅ Teachers per page → ${snapped}`);
+    }
+  }
+
+  /* ── 2. Students per page ── */
+  const studentMatch=extractNum(/(\d+)[- ]?(?:students?|graduates?|pupils?)\s*(?:per|a|each)?\s*page/i)
+    ||extractNum(/(?:students?|graduates?)\s*(?:per|a|each)\s*page[:\s]+(\d+)/i);
+  if(studentMatch){
+    const valid=[1,2,3,4];
+    const snapped=valid.reduce((a,b)=>Math.abs(b-studentMatch)<Math.abs(a-studentMatch)?b:a);
+    if(String(snapped)!==String(s.studentsPerPage)){
+      s.studentsPerPage=String(snapped);
+      const el=document.getElementById('ls-studentsPerPage');if(el)el.value=String(snapped);
+      changes.push(`✅ Students per page → ${snapped}`);
+    }
+  }
+
+  /* ── 3. Gallery photos per page ── */
+  const galleryMatch=extractNum(/(\d+)[- ]?(?:photos?|images?|pictures?)\s*(?:per|a|each)?\s*page/i)
+    ||extractNum(/(?:gallery|photos?)\s*(?:per|a|each)\s*page[:\s]+(\d+)/i);
+  if(galleryMatch){
+    const valid=[2,4,6,9];
+    const snapped=valid.reduce((a,b)=>Math.abs(b-galleryMatch)<Math.abs(a-galleryMatch)?b:a);
+    if(String(snapped)!==String(s.galleryPerPage)){
+      s.galleryPerPage=String(snapped);
+      const el=document.getElementById('ls-galleryPerPage');if(el)el.value=String(snapped);
+      changes.push(`✅ Gallery photos per page → ${snapped}`);
+    }
+  }
+
+  /* ── 4. Speeches per page ── */
+  const speechMatch=extractNum(/(\d+)[- ]?speeches?\s*(?:per|a|each)?\s*page/i);
+  if(speechMatch){
+    const valid=[1,2];
+    const snapped=valid.reduce((a,b)=>Math.abs(b-speechMatch)<Math.abs(a-speechMatch)?b:a);
+    if(String(snapped)!==String(s.speechesPerPage)){
+      s.speechesPerPage=String(snapped);
+      const el=document.getElementById('ls-speechesPerPage');if(el)el.value=String(snapped);
+      changes.push(`✅ Speeches per page → ${snapped}`);
+    }
+  }
+
+  /* ── 5. Creative items per page ── */
+  const creativeMatch=extractNum(/(\d+)[- ]?(?:creative|poem|stor(?:y|ies)|joke|riddle)\s*(?:items?)?\s*(?:per|a|each)?\s*page/i);
+  if(creativeMatch){
+    const valid=[1,2,3];
+    const snapped=valid.reduce((a,b)=>Math.abs(b-creativeMatch)<Math.abs(a-creativeMatch)?b:a);
+    if(String(snapped)!==String(s.creativePerPage)){
+      s.creativePerPage=String(snapped);
+      const el=document.getElementById('ls-creativePerPage');if(el)el.value=String(snapped);
+      changes.push(`✅ Creative items per page → ${snapped}`);
+    }
+  }
+
+  /* ── 6. Page orientation ── */
+  if(/\blandscape\b/i.test(text)&&s.orientation!=='landscape'){
+    s.orientation='landscape';
+    const el=document.getElementById('ls-orientation');if(el)el.value='landscape';
+    changes.push('✅ Orientation → Landscape');
+  } else if(/\bportrait\b/i.test(text)&&s.orientation!=='portrait'){
+    s.orientation='portrait';
+    const el=document.getElementById('ls-orientation');if(el)el.value='portrait';
+    changes.push('✅ Orientation → Portrait');
+  }
+
+  /* ── 7. Page size ── */
+  if(/\bA5\b/i.test(text)&&s.pageSize!=='a5'){
+    s.pageSize='a5';const el=document.getElementById('ls-pageSize');if(el)el.value='a5';
+    changes.push('✅ Page size → A5');
+  } else if(/\bA4\b/i.test(text)&&s.pageSize!=='a4'){
+    s.pageSize='a4';const el=document.getElementById('ls-pageSize');if(el)el.value='a4';
+    changes.push('✅ Page size → A4');
+  } else if(/\b(?:letter|US letter)\b/i.test(text)&&s.pageSize!=='letter'){
+    s.pageSize='letter';const el=document.getElementById('ls-pageSize');if(el)el.value='letter';
+    changes.push('✅ Page size → Letter');
+  }
+
+  /* ── 8. Show/hide page numbers ── */
+  if(/\bpage numbers?\b.*\b(?:hide|remove|off|no)\b|\b(?:hide|remove|turn off|disable)\b.*page numbers?/i.test(text)&&s.pageNums!=='no'){
+    s.pageNums='no';const el=document.getElementById('ls-pageNums');if(el)el.value='no';
+    changes.push('✅ Page numbers → Hidden');
+  } else if(/\b(?:show|add|enable|include)\b.*page numbers?|page numbers?.*\b(?:show|on|yes)\b/i.test(text)&&s.pageNums==='no'){
+    s.pageNums='yes';const el=document.getElementById('ls-pageNums');if(el)el.value='yes';
+    changes.push('✅ Page numbers → Visible');
+  }
+
+  /* ── 9. Auto-trim long text ── */
+  if(/\b(?:full text|no trim|don.t trim|show full|don.t cut|complete text)\b/i.test(text)&&s.autoTrim!=='no'){
+    s.autoTrim='no';const el=document.getElementById('ls-autoTrim');if(el)el.value='no';
+    changes.push('✅ Auto-trim → Off (full text shown)');
+  }
+
+  /* ── Save & regenerate ── */
+  if(!changes.length){
+    if(logEl){
+      logEl.innerHTML='ℹ️ <strong>No specific settings detected</strong> in the AI response.<br>The AI gave general advice. Try asking something more specific like:<br>"How many teachers per page for 30 teachers?" or "Should I use landscape for the gallery?"';
+      logEl.style.display='block';
+    }
+    return;
+  }
+
+  saveLsSettingsToStorage(s);
+  lsSettings=s;
+
+  if(logEl){
+    logEl.innerHTML=`<strong>⚡ Applied ${changes.length} change${changes.length>1?'s':''}:</strong><br><br>${changes.join('<br>')}<br><br>🔄 Regenerating preview…`;
+    logEl.style.display='block';
+  }
+
+  /* Regenerate preview after short delay so user can read the log */
+  setTimeout(()=>{
+    generateMagPreview();
+    if(logEl){
+      logEl.innerHTML=logEl.innerHTML.replace('🔄 Regenerating preview…','✅ Preview updated! Scroll up to see your magazine.');
+    }
+  },600);
+}
+function renderAIContentSummary(){const el=document.getElementById('aiContentSummary');if(!el)return;subs=loadAll();const approved=subs.filter(s=>s.status==='approved'||s.status==='finalized');el.textContent=CATEGORY_KEYS.map(k=>`${CATEGORIES[k].label}: ${approved.filter(x=>x.category===k).length} approved`).join('\n')+`\n\nTotal approved: ${approved.length} | Total submitted: ${subs.length}`;renderAIChatHistory();}
+
+/* EXPORTS */
+function slugify(s){return(s||'unknown').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').substring(0,40)||'unknown';}
+function submissionToText(s,num){const cat=CATEGORIES[s.category]||EDITORIAL_META[s.category]||{label:s.category};let txt=`SUBMISSION${num?' #'+num:''}\nCategory: ${cat.label}\nStatus: ${s.status.toUpperCase()}\nSubmitted: ${s.ts}\n`;if(s.reviewerNote)txt+=`Editor's Note: ${s.reviewerNote}\n`;txt+='\n';Object.entries(s.data).forEach(([,fc])=>{txt+=`${fc.label}: ${fc.value||'Not provided'}\n`;});return txt;}
+function extractAllPhotos(s,prefix){const results=[];const nameSlug=slugify(s.data.name?.value||s.data.eventName?.value||s.data.submitterName?.value||'unknown');if(s.photoData&&!s.photos){const m=/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/.exec(s.photoData);if(m){const ext=m[1].toLowerCase()==='jpeg'?'jpg':m[1].toLowerCase();results.push({filename:`${prefix}_${nameSlug}.${ext}`,base64:m[2]});}}if(Array.isArray(s.photos)&&s.photos.length){s.photos.forEach((p,i)=>{const m=/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/.exec(p.data||'');if(m){const ext=m[1].toLowerCase()==='jpeg'?'jpg':m[1].toLowerCase();results.push({filename:`${prefix}_${nameSlug}_photo${String(i+1).padStart(2,'0')}.${ext}`,base64:m[2]});}});}return results;}
+function exportOneSubmission(id){const s=loadAll().find(x=>String(x.id)===String(id));if(!s)return;if(typeof JSZip==='undefined'){alert('ZIP library not loaded.');return;}const zip=new JSZip();const nameField=s.data.name?.value||s.data.speakerName?.value||s.data.contribName?.value||s.data.reporterName?.value||s.data.authorName?.value||s.data.intervieweeName?.value||s.data.submitterName?.value||s.data.eventName?.value||s.data.title?.value||'unknown';const slug=slugify(nameField);const allPhotos=extractAllPhotos(s,'01');const catLabel=CATEGORIES[s.category]?.label||EDITORIAL_META[s.category]?.label||s.category;let txt=`${catLabel.toUpperCase()} — SINGLE EXPORT\nExported: ${new Date().toLocaleString()}\n\n${'='.repeat(55)}\n\n`;txt+=submissionToText(s);let photoList='(no photo provided)';if(allPhotos.length){photoList=allPhotos.map(p=>p.filename).join(', ');const pf=zip.folder('photos');allPhotos.forEach(p=>pf.file(p.filename,p.base64,{base64:true}));}txt+=`PHOTO FILE(S): ${photoList}\n`;zip.file('submission.txt',txt);zip.generateAsync({type:'blob'}).then(blob=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${s.category}_${slug}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}).catch(err=>alert('Export failed: '+err.message));}
+function exportCurrentCategory(){subs=loadAll();const cat=currentAdminCat==='all'?null:currentAdminCat;let list;if(cat==='editorial')list=subs.filter(s=>s.category==='editorial-note'||s.category==='appreciation');else list=cat?subs.filter(s=>s.category===cat):subs;if(!list.length){alert('Nothing to export.');return;}const catLabel=cat==='editorial'?'EDITORIAL PIECES':cat?(CATEGORIES[cat]?.label||cat).toUpperCase()+' — CATEGORY EXPORT':'ALL SUBMISSIONS EXPORT';exportZip(list,cat?`${cat}_export`:'all_submissions',catLabel);}
+function exportMasterMagazine(){subs=loadAll();const list=subs.filter(s=>s.status==='approved'||s.status==='finalized');if(!list.length){alert('No approved or finalized content yet.');return;}exportZipByCategory(list,'master_magazine','MASTER MAGAZINE EXPORT — Approved & Finalized Content Only');}
+function exportZip(list,filename,heading){if(typeof JSZip==='undefined'){alert('ZIP library not loaded.');return;}const zip=new JSZip();const pf=zip.folder('photos');let txt=`${heading}\nExported: ${new Date().toLocaleString()}\nTotal: ${list.length}\n\n${'='.repeat(55)}\n\n`;let manifest=`MANIFEST — ${heading}\n\n`;list.forEach((s,i)=>{const num=String(i+1).padStart(2,'0');const photos=extractAllPhotos(s,num);let pl='(no photo provided)';if(photos.length){pl=photos.map(p=>p.filename).join(', ');photos.forEach(p=>pf.file(p.filename,p.base64,{base64:true}));}txt+=submissionToText(s,i+1);txt+=`PHOTO FILE(S): ${pl}\n\n${'-'.repeat(40)}\n\n`;manifest+=`#${i+1}  [${s.category}]  →  ${pl}\n`;});zip.file('submissions.txt',txt);zip.file('manifest.txt',manifest);zip.generateAsync({type:'blob'}).then(blob=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${filename}_${new Date().toISOString().slice(0,10)}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}).catch(err=>alert('Export failed: '+err.message));}
+function exportZipByCategory(list,filename,heading){if(typeof JSZip==='undefined'){alert('ZIP library not loaded.');return;}const zip=new JSZip();let overview=`${heading}\nExported: ${new Date().toLocaleString()}\nTotal: ${list.length}\n\n${'='.repeat(55)}\n\n`;const ag=zip.folder('_auto_photo_gallery');let gm='AUTO-GATHERED PHOTO GALLERY\n\n';[...CATEGORY_KEYS,'editorial-note','appreciation'].forEach(ck=>{const cl=list.filter(s=>s.category===ck);if(!cl.length)return;const catLabel=CATEGORIES[ck]?.label||EDITORIAL_META[ck]?.label||ck;const folder=zip.folder(ck);const photos=folder.folder('photos');let catTxt=`${catLabel.toUpperCase()}\nTotal: ${cl.length}\n\n${'='.repeat(55)}\n\n`;cl.forEach((s,i)=>{const num=String(i+1).padStart(2,'0');const allPhotos=extractAllPhotos(s,num);let pl='(no photo provided)';if(allPhotos.length){pl=allPhotos.map(p=>p.filename).join(', ');allPhotos.forEach(p=>{photos.file(p.filename,p.base64,{base64:true});ag.file(`${ck}_${p.filename}`,p.base64,{base64:true});const n=s.data.name?.value||s.data.eventName?.value||'unknown';gm+=`${ck}_${p.filename}  —  ${catLabel}  —  ${n}\n`;});}catTxt+=submissionToText(s,i+1);catTxt+=`PHOTO FILE(S): ${pl}\n\n${'-'.repeat(40)}\n\n`;});folder.file(`${ck}.txt`,catTxt);overview+=`${catLabel}: ${cl.length} submissions\n`;});ag.file('_MANIFEST.txt',gm);zip.file('README.txt',overview);zip.generateAsync({type:'blob'}).then(blob=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${filename}_${new Date().toISOString().slice(0,10)}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}).catch(err=>alert('Export failed: '+err.message));}
+
+/* SHARE LINKS */
+function getBaseUrl(){try{return window.location.origin+window.location.pathname;}catch(e){return'';}}
+function copyShareLink(formKey){const base=getBaseUrl();const url=formKey===''?base:`${base}?form=${formKey}`;try{navigator.clipboard.writeText(url);const btn=document.getElementById('copy-'+(formKey||'landing'));if(btn){const orig=btn.textContent;btn.textContent='✓ Copied!';btn.style.background='var(--green)';btn.style.color='#fff';setTimeout(()=>{btn.textContent=orig;btn.style.background='';btn.style.color='';},1600);}}catch(e){alert('URL: '+url);}}
+function renderShareLinks(){const c=document.getElementById('shareLinksContainer');if(!c)return;const base=getBaseUrl();const entries=[{key:'',label:'Landing Page (all forms)',icon:'🏠',desc:'Full homepage with all category cards'},...CATEGORY_KEYS.map(k=>({key:k,label:getLabel('cat_label_'+k,CATEGORIES[k].label),icon:CATEGORIES[k].icon,desc:`Submission form for ${CATEGORIES[k].label}`}))];c.innerHTML=entries.map(e=>{const url=e.key===''?base:`${base}?form=${e.key}`;return`<div class="share-link-row"><div class="share-link-icon">${e.icon}</div><div class="share-link-body"><div class="share-link-label">${esc(e.label)}</div><div class="share-link-desc">${esc(e.desc)}</div><div class="share-link-url">${esc(url)}</div></div><button class="btn btn-primary" id="copy-${e.key||'landing'}" onclick="copyShareLink('${e.key}')">Copy</button></div>`;}).join('');}
+
+/* ═══════════════════════════════════════════════════════════
+   WORKSPACE ENGINE — VS Code-style Design Studio
+   Only finalized submissions enter the workspace.
+═══════════════════════════════════════════════════════════ */
+let wsPages=[],wsPageIdx=0,wsZoom=100,wsShowGuides=true,wsSpreadMode=false;
+let wsAIChatHistory=[],wsAISampleBase64=null,wsAISampleMime=null;
+let wsUndoStack=[],wsRedoStack=[],wsAutoSaveTimer=null;
+
+/* ── Open / Close ── */
+function openWorkspace(){
+  subs=loadAll();
+  const finalized=subs.filter(s=>s.status==='finalized');
+  const s=lsSettings;
+  document.getElementById('wsProjectTitle').textContent=(s.magTitle||'The Torch')+' — Design Workspace';
+  show('viewWorkspace');
+  wsRenderColorPanel();
+  wsRenderFontPanel();
+  wsRenderAssets();
+  wsGeneratePreview();
+  wsStartAutoSave();
+  document.getElementById('wsStatusFinalized').textContent=finalized.length+' finalized';
+}
+function closeWorkspace(){
+  wsClearAutoSave();
+  show('viewAdmin');
+  renderAdmin();
+}
+
+/* ── Generate Preview (finalized only) ── */
+function wsGeneratePreview(){
+  subs=loadAll();
+  wsPages=[];wsPageIdx=0;
+  const s=lsSettings;
+  /* Include approved, finalized AND pending so workspace always shows content */
+  const finalized=subs.filter(sub=>sub.status==='approved'||sub.status==='finalized'||sub.status==='pending');
+  document.getElementById('wsStatusFinalized').textContent=finalized.filter(x=>x.status==='approved'||x.status==='finalized').length+' approved | '+finalized.filter(x=>x.status==='pending').length+' pending';
+
+  sectionOrder.filter(sec=>sec.visible).forEach(sec=>{
+    if(sec.key==='cover'){wsPages.push({type:'cover',sec,label:'Cover Page'});return;}
+    if(sec.key==='toc'){wsPages.push({type:'toc',sec,label:'Table of Contents'});return;}
+    const catSubs=finalized.filter(sub=>sub.category===sec.key);
+    if(sec.key==='editorial-note'){const sub=finalized.find(sub=>sub.category==='editorial-note');if(sub)wsPages.push({type:'editorial-note',sub,sec,label:'Editorial Note'});return;}
+    if(sec.key==='appreciation'){const sub=finalized.find(sub=>sub.category==='appreciation');if(sub)wsPages.push({type:'appreciation',sub,sec,label:'Appreciation'});return;}
+    if(!catSubs.length)return;
+    let perPage=1;
+    if(sec.key==='teachers')perPage=parseInt(s.teachersPerPage)||9;
+    else if(['primary5','jss3','ss3'].includes(sec.key))perPage=parseInt(s.studentsPerPage)||2;
+    else if(sec.key==='speeches')perPage=parseInt(s.speechesPerPage)||1;
+    else if(sec.key==='gallery')perPage=parseInt(s.galleryPerPage)||4;
+    else if(sec.key==='creative')perPage=parseInt(s.creativePerPage)||2;
+    for(let i=0;i<catSubs.length;i+=perPage){
+      wsPages.push({type:'section-content',sec,items:catSubs.slice(i,i+perPage),isFirst:i===0,pageInSection:Math.floor(i/perPage)+1,label:getLabel('section_'+sec.key,sec.label)+(i>0?' (p'+(Math.floor(i/perPage)+1)+')':'')});
     }
   });
 
-  /* Mixed orientations: default to landscape if ANY paper is landscape,
-     since mixing @page rules per section isn't reliable. Portrait-only papers
-     render with extra padding in landscape @page frame. */
-  var pageRule=anyLandscape
-    ?'@page{size:A4 landscape;margin:8mm;}'
-    :'@page{size:A4 portrait;margin:15mm 20mm 12mm;}';
-
-  openPrintWindow(bodyHtml, pageRule, 'Batch Print \u2014 '+papers.length+' paper(s)');
+  wsRenderPageList();
+  wsRenderCurrentPage();
+  wsUpdateNavUI();
+  document.getElementById('wsStatusPages').textContent=wsPages.length+' pages';
 }
 
-/* Shared print-window opener — dedicated window with embedded CSS.
-   Android Chrome fix: fire window.print() AFTER DOM + KaTeX load (600ms delay). */
-function openPrintWindow(bodyHtml, pageRule, title){
-  var katexCss='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
-  var katexJs ='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
-  var katexAuto='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
-
-  var css=pageRule+'\n'+
-    'body{margin:0;padding:0;background:#fff;}\n'+
-    '.ep{font-family:"Times New Roman",serif;font-size:11pt;line-height:1.7;color:#000;padding:18mm 20mm 14mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
-    '.ep-header{text-align:center;border-bottom:3pt double #000;padding-bottom:7pt;margin-bottom:9pt;}\n'+
-    '.ep-crest{width:48pt;height:48pt;border:2pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14pt;margin:0 auto 5pt;}\n'+
-    '.ep-school{font-size:14pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2pt;}\n'+
-    '.ep-title{font-size:12pt;font-weight:700;text-transform:uppercase;margin-bottom:2pt;}\n'+
-    '.ep-meta{font-size:10pt;margin-bottom:2pt;}\n'+
-    '.ep-meta span{margin:0 8pt;}\n'+
-    '.ep-sec{font-size:11pt;font-weight:700;text-transform:uppercase;border-bottom:1.5pt solid #000;padding-bottom:2pt;margin:12pt 0 3pt;}\n'+
-    '.ep-sec-note{font-size:9pt;font-style:italic;color:#333;border-left:2pt solid #999;padding-left:6pt;margin-bottom:5pt;}\n'+
-    '.ep-footer{font-size:8pt;color:#555;text-align:center;border-top:1pt solid #ccc;padding-top:3pt;margin-top:14pt;}\n'+
-    '.ep-wm{position:fixed;bottom:40mm;left:50%;transform:translateX(-50%) rotate(-35deg);font-size:60pt;color:rgba(0,0,0,.04);font-weight:900;white-space:nowrap;pointer-events:none;}\n'+
-    '.ep-q{margin-bottom:8pt;page-break-inside:avoid;break-inside:avoid;}\n'+
-    '.ep-q.compact{margin-bottom:3pt;line-height:1.4;}\n'+
-    '.ep-q-obj{margin-bottom:4pt;font-size:8.5pt;line-height:1.35;break-inside:avoid;page-break-inside:avoid;}\n'+
-    '.ep-q-obj.compact{margin-bottom:2pt;line-height:1.25;}\n'+
-    '.objective-container{display:block;}\n'+
-    '.objective-2col{column-count:2;column-gap:10mm;}\n'+
-    '.ep-opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
-    '.ep-opt-inline-k{font-weight:700;}\n'+
-    '.ep-qn{font-weight:700;}\n'+
-    '.ep-fitb-blank{display:inline-block;border-bottom:1.5pt solid #000;min-width:70pt;margin:0 2pt;}\n'+
-    '.ep-ans{border-bottom:1pt solid #bbb;min-height:48pt;margin:3pt 0 9pt;}\n'+
-    '.ep-ans.compact{min-height:24pt;}\n'+
-    '.eco-page-pair{display:grid;grid-template-columns:1fr 1fr;width:100%;min-height:185mm;page-break-after:always;position:relative;}\n'+
-    '.eco-page-pair:last-child{page-break-after:auto;}\n'+
-    '.eco-col{padding:6mm 7mm;box-sizing:border-box;font-size:8.5pt;line-height:1.35;overflow:hidden;position:relative;font-family:"Times New Roman",serif;}\n'+
-    '.eco-col-left{border-right:0.4mm dashed #aaa;}\n'+
-    '.eco-col .ep-school{font-size:9pt!important;}\n'+
-    '.eco-col .ep-title{font-size:8pt!important;}\n'+
-    '.eco-col .ep-sec{font-size:8pt!important;margin:4pt 0 2pt!important;}\n'+
-    '.eco-col .ep-q{margin-bottom:3pt!important;}\n'+
-    '.eco-col .ep-ans{min-height:16pt!important;margin:2pt 0 5pt!important;}\n'+
-    '.eco-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:22pt;font-weight:900;color:rgba(0,0,0,.04);text-transform:uppercase;white-space:nowrap;pointer-events:none;}\n'+
-    '.eco-cut-hint{position:absolute;bottom:2mm;right:4mm;font-size:5.5pt;color:#bbb;white-space:nowrap;}\n'+
-    '.ep-landscape{max-width:297mm;}\n'+
-    '.ep-landscape-flow{column-count:2;column-gap:10mm;column-rule:.25pt solid #ccc;}\n'+
-    '.multi-subject-block{border:0.5pt solid #999;border-radius:3pt;overflow:hidden;margin-bottom:6pt;padding:0 0 4pt 0;}\n'+
-    '.hs-header strong,.hs-footer strong{font-weight:800;}\n';
-
-  var win=window.open('','_blank');
-  if(!win){ toast('Pop-up blocked \u2014 allow pop-ups to print','err',5000); return; }
-  win.document.open();
-  win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"/>'+
-    '<title>'+esc(title||'Print')+'</title>'+
-    '<link rel="stylesheet" href="'+katexCss+'"/>'+
-    '<style>'+css+'</style>'+
-    '</head><body>'+bodyHtml+
-    '<script src="'+katexJs+'"><\/script>'+
-    '<script src="'+katexAuto+'"><\/script>'+
-    '<script>'+
-    'window.addEventListener("load",function(){'+
-    'try{if(window.renderMathInElement){renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]});}}catch(e){}'+
-    'setTimeout(function(){window.print();},600);'+
-    'window.onafterprint=function(){setTimeout(function(){window.close();},400);};'+
-    '});'+
-    '<\/script>'+
-    '</body></html>');
-  win.document.close();
+/* ── Page List (Left Sidebar) ── */
+function wsRenderPageList(){
+  const c=document.getElementById('wsPageList');if(!c)return;
+  if(!wsPages.length){c.innerHTML='<div style="font-size:11px;color:var(--ws-text3);text-align:center;padding:16px;">No finalized content yet.<br>Finalize submissions from the admin panel.</div>';return;}
+  c.innerHTML=wsPages.map((p,i)=>{
+    const icon=p.type==='cover'?'📕':p.type==='toc'?'📑':p.sec?.icon||'📄';
+    return `<div class="ws-page-item${i===wsPageIdx?' active':''}" onclick="wsSelectPage(${i})">
+      <div class="ws-page-thumb">${icon}</div>
+      <div class="ws-page-info">
+        <div class="ws-page-info-name">${esc(p.label||p.type)}</div>
+        <div class="ws-page-info-meta">Page ${i+1}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
-function buildObjInlineHtml(q,i,compact){
-  var opts='';
-  if(q.o&&q.o.length){
-    opts=q.o.map(function(o,oi){
-      return '<span class="ep-opt-inline"><span class="ep-opt-inline-k">('+L[oi]+')</span> '+esc(o)+'</span>';
+
+/* ── Page Navigation ── */
+function wsSelectPage(idx){
+  if(idx<0||idx>=wsPages.length)return;
+  wsPageIdx=idx;
+  wsRenderPageList();
+  wsUpdateNavUI();
+  const el = document.getElementById('ws-page-'+idx);
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function wsPrevPage(){if(wsPageIdx>0)wsSelectPage(wsPageIdx-1);}
+function wsNextPage(){if(wsPageIdx<wsPages.length-1)wsSelectPage(wsPageIdx+1);}
+function wsUpdateNavUI(){
+  document.getElementById('wsPageNavInfo').textContent=wsPages.length?`${wsPageIdx+1} / ${wsPages.length}`:'— / —';
+  document.getElementById('wsBtnPrev').disabled=wsPageIdx<=0;
+  document.getElementById('wsBtnNext').disabled=wsPageIdx>=wsPages.length-1;
+}
+
+/* ── Render Preview using Print-Ready Iframe ── */
+function wsRenderCurrentPage(){
+  const container = document.getElementById('wsPageContainer');
+  if(!wsPages.length){
+    container.innerHTML = '<div class="ws-empty"><div class="ws-empty-icon">🛠</div><h3>No pages yet</h3><p>Click <strong>Generate</strong> above to build your magazine preview from submitted content.</p></div>';
+    return;
+  }
+
+  const origIdx = currentPageIdx;
+  const origPages = magPages;
+  magPages = wsPages;
+  const {w, h} = getPageDimensions();
+  const s = lsSettings;
+
+  /* CRITICAL FIX: Temporarily hide the real magCanvas so our temp one
+     is the one found by getElementById inside renderCurrentPage() */
+  const realCanvas = document.getElementById('magCanvas');
+  let realCanvasOrigId = null;
+  if(realCanvas){
+    realCanvasOrigId = realCanvas.id;
+    realCanvas.id = '_magCanvas_hidden_';
+  }
+
+  const tempCanvas = document.createElement('div');
+  tempCanvas.id = 'magCanvas';
+  tempCanvas.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:'+w+'px;height:'+h+'px;overflow:hidden;';
+  document.body.appendChild(tempCanvas);
+
+  let allPagesHtml = '';
+  const guidesHtml = wsShowGuides ? `
+    <div style="position:absolute;inset:-3mm;border:1px dashed rgba(255,0,0,.4);pointer-events:none;z-index:99;"></div>
+    <div style="position:absolute;inset:5mm;border:1px dashed rgba(0,120,255,.25);pointer-events:none;z-index:99;"></div>
+  ` : '';
+
+  for(let i = 0; i < wsPages.length; i++){
+    currentPageIdx = i;
+    renderCurrentPage();
+    const pageHtml = tempCanvas.innerHTML;
+    allPagesHtml += `<div class="mag-sheet" id="ws-page-${i}">
+      ${guidesHtml}
+      <div class="mag-page-inner">${pageHtml}</div>
+    </div>`;
+  }
+
+  /* Restore original magCanvas */
+  document.body.removeChild(tempCanvas);
+  if(realCanvas && realCanvasOrigId){
+    realCanvas.id = realCanvasOrigId;
+  }
+  magPages = origPages; currentPageIdx = origIdx;
+
+  /* AI-injected CSS */
+  const aiCSS = document.getElementById('ai-custom-css')?.textContent || '';
+
+  /* Build print-ready iframe */
+  const scale = wsZoom / 100;
+  const gFonts = 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lato:wght@300;400;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap';
+  const iframeDoc = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <link href="${gFonts}" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+    body{background:#555;font-family:'Lato',sans-serif;padding:20px;}
+    .mag-sheet{
+      width:${w}px;height:${h}px;margin:0 auto 24px;
+      box-shadow:0 6px 30px rgba(0,0,0,.5);overflow:hidden;background:#fff;position:relative;
+      transform:scale(${scale});transform-origin:top center;
+      margin-bottom:${Math.round(h * scale - h + 24)}px;
+    }
+    .mag-page{width:${w}px!important;height:${h}px!important;}
+    .mag-page-inner{width:100%;height:100%;overflow:hidden;}
+    img{max-width:100%;}
+    ${aiCSS}
+  </style></head><body>${allPagesHtml}</body></html>`;
+
+  /* Create or reuse iframe */
+  let iframe = container.querySelector('iframe#ws-preview-iframe');
+  if(!iframe){
+    container.innerHTML = '';
+    iframe = document.createElement('iframe');
+    iframe.id = 'ws-preview-iframe';
+    iframe.style.cssText = 'border:none;width:100%;height:100%;min-height:600px;background:#555;';
+    container.appendChild(iframe);
+  }
+  const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+  iDoc.open(); iDoc.write(iframeDoc); iDoc.close();
+}
+
+
+/* ── Zoom ── */
+function wsSetZoom(level){
+  wsZoom=Math.max(25,Math.min(200,level));
+  document.getElementById('wsZoomLevel').textContent=wsZoom+'%';
+  document.getElementById('wsStatusZoom').textContent=wsZoom+'%';
+  wsRenderCurrentPage();
+}
+
+/* ── Guides Toggle ── */
+function wsToggleGuides(){
+  wsShowGuides=!wsShowGuides;
+  document.getElementById('wsGuidesBtn').textContent=wsShowGuides?'☑ Guides':'☐ Guides';
+  wsRenderCurrentPage();
+}
+
+/* ── Spread View ── */
+function wsToggleSpread(){
+  wsSpreadMode=!wsSpreadMode;
+  document.getElementById('wsSpreadBtn').textContent=wsSpreadMode?'⊞ Single':'⊞ Spread';
+  wsRenderCurrentPage();
+}
+
+/* ── Sidebar Panel Toggle ── */
+function wsTogglePanel(id){document.getElementById(id)?.classList.toggle('collapsed');}
+
+/* ── Assets Panel ── */
+function wsRenderAssets(){
+  const grid=document.getElementById('wsAssetGrid');if(!grid)return;
+  const empty=document.getElementById('wsAssetEmpty');
+  const finalized=loadAll().filter(s=>s.status==='finalized');
+  const photos=[];
+  finalized.forEach(s=>{
+    if(s.photoData)photos.push(s.photoData);
+    if(Array.isArray(s.photos))s.photos.forEach(p=>{if(p.data)photos.push(p.data);});
+  });
+  if(!photos.length){grid.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  grid.innerHTML=photos.slice(0,30).map((url,i)=>`<div class="ws-asset-thumb" title="Asset ${i+1}"><img src="${url}" alt="Asset ${i+1}"/></div>`).join('');
+}
+
+/* ── Color Panel ── */
+function wsRenderColorPanel(){
+  if(!document.getElementById('wsColorPanel'))return;
+  const c=document.getElementById('wsColorPanel');if(!c)return;
+  const s=lsSettings;
+  const colors=[
+    {key:'color1',label:'Primary',val:s.color1||'#1a2744'},
+    {key:'color2',label:'Accent',val:s.color2||'#7dd4a8'},
+    {key:'color3',label:'Highlight',val:s.color3||'#8b1a1a'},
+    {key:'pageBg',label:'Page Background',val:s.pageBg||'#ffffff'},
+    {key:'textColor',label:'Text Color',val:s.textColor||'#1c1c1e'}
+  ];
+  c.innerHTML=colors.map(cl=>`<div class="ws-color-row">
+    <input type="color" class="ws-color-swatch" value="${cl.val}" onchange="wsUpdateColor('${cl.key}',this.value)" style="background:${cl.val};"/>
+    <span class="ws-color-label">${cl.label}</span>
+    <span class="ws-color-val">${cl.val}</span>
+  </div>`).join('');
+}
+function wsUpdateColor(key,val){
+  wsUndoPush();
+  lsSettings[key]=val;
+  saveLsSettingsToStorage(lsSettings);
+  applyLsColors(lsSettings);
+  wsRenderColorPanel();
+  wsRenderCurrentPage();
+  wsMarkDirty();
+}
+
+/* ── Font Panel ── */
+function wsRenderFontPanel(){
+  if(!document.getElementById('wsFontSize'))return;
+  const s=lsSettings;
+  const hf=document.getElementById('wsHeadingFont');if(hf)hf.value=s.headingFont||"'Playfair Display',serif";
+  const bf=document.getElementById('wsBodyFont');if(bf)bf.value=s.bodyFont||"'Crimson Text',serif";
+  const fs=document.getElementById('wsFontSize');if(fs)fs.value=s.fontSize||'11px';
+}
+function wsUpdateFont(key,val){
+  wsUndoPush();
+  lsSettings[key]=val;
+  saveLsSettingsToStorage(lsSettings);
+  wsRenderCurrentPage();
+  wsMarkDirty();
+}
+
+/* ── Undo / Redo ── */
+function wsUndoPush(){wsUndoStack.push(JSON.stringify(lsSettings));if(wsUndoStack.length>30)wsUndoStack.shift();wsRedoStack=[];}
+function wsUndo(){
+  if(!wsUndoStack.length)return;
+  wsRedoStack.push(JSON.stringify(lsSettings));
+  lsSettings=JSON.parse(wsUndoStack.pop());
+  saveLsSettingsToStorage(lsSettings);
+  applyLsColors(lsSettings);
+  wsRenderColorPanel();wsRenderFontPanel();wsRenderCurrentPage();
+}
+function wsRedo(){
+  if(!wsRedoStack.length)return;
+  wsUndoStack.push(JSON.stringify(lsSettings));
+  lsSettings=JSON.parse(wsRedoStack.pop());
+  saveLsSettingsToStorage(lsSettings);
+  applyLsColors(lsSettings);
+  wsRenderColorPanel();wsRenderFontPanel();wsRenderCurrentPage();
+}
+
+/* ── Autosave ── */
+function wsStartAutoSave(){wsClearAutoSave();wsAutoSaveTimer=setInterval(()=>{wsAutoSave();},30000);}
+function wsClearAutoSave(){if(wsAutoSaveTimer){clearInterval(wsAutoSaveTimer);wsAutoSaveTimer=null;}}
+function wsAutoSave(){
+  saveLsSettingsToStorage(lsSettings);
+  dbSaveSettings('ls_settings',lsSettings);
+  const ind=document.getElementById('wsSaveIndicator');
+  if(ind){ind.textContent='● Saved';ind.style.color='var(--ws-green)';ind.style.animation='none';setTimeout(()=>{ind.style.animation='';},100);}
+}
+function wsMarkDirty(){
+  const ind=document.getElementById('wsSaveIndicator');
+  if(ind){ind.textContent='○ Unsaved';ind.style.color='var(--ws-yellow)';}
+}
+
+/* ── AI Terminal ── */
+function wsAIAddMsg(role,text,html){
+  wsAIChatHistory.push({role,text:text||'',html:html||'',time:new Date().toLocaleTimeString()});
+  wsAIRenderChat();
+}
+function wsAIRenderChat(){
+  const box=document.getElementById('wsAIChat');if(!box)return;
+  if(!wsAIChatHistory.length){box.innerHTML='<div class="ws-ai-msg system">Start a conversation — describe what you want to change.</div>';return;}
+  box.innerHTML=wsAIChatHistory.map(m=>{
+    const content=m.html||esc(m.text);
+    if(m.role==='system')return `<div class="ws-ai-msg system">${content}</div>`;
+    return `<div class="ws-ai-msg ${m.role}">${content}<div class="ws-ai-msg-time">${m.time}</div></div>`;
+  }).join('');
+  box.scrollTop=box.scrollHeight;
+}
+function wsAIQuick(cmd){document.getElementById('wsAIInput').value=cmd;wsAISend();}
+
+/* ── AI Sample Upload ── */
+function wsAIUploadSample(event){
+  const file=event.target.files?.[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    wsAISampleBase64=e.target.result.split(',')[1];
+    wsAISampleMime=file.type||'image/jpeg';
+    document.getElementById('wsAISampleImg').src=e.target.result;
+    document.getElementById('wsAISamplePreview').style.display='block';
+    wsAIAddMsg('system','📎 Design sample uploaded — reference it with "Match the uploaded sample style"');
+  };
+  reader.readAsDataURL(file);
+  event.target.value='';
+}
+
+/* ── AI Send Message ── */
+async function wsAISend(){
+  const input=document.getElementById('wsAIInput');
+  const query=(input?.value||'').trim();if(!query)return;
+  input.value='';
+  const s=lsSettings;
+  const apiKey=s.apiKey;
+  const model=document.getElementById('wsAIModel')?.value||'google/gemini-2.0-flash-001';
+  const task=document.getElementById('wsAITask')?.value||'design';
+
+  if(!apiKey){
+    wsAIAddMsg('assistant','',`<strong style="color:var(--ws-red);">No API key set.</strong> To enable AI:<br>1. Go to <strong>Production Admin → Settings → 🤖 AI API Key</strong><br>2. Enter your OpenRouter key (get one free at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--ws-accent);">openrouter.ai/keys</a>)<br>3. Click <strong>Save API Key</strong> — then come back here and try again.`);
+    return;
+  }
+
+  wsAIAddMsg('user',query);
+
+  /* Thinking indicator */
+  const thinkIdx=wsAIChatHistory.length;
+  wsAIChatHistory.push({role:'assistant',text:'',html:'<em style="color:var(--ws-text3);">✦ Thinking…</em>',time:''});
+  wsAIRenderChat();
+
+  /* Build context */
+  const finalized=loadAll().filter(x=>x.status==='finalized');
+  const counts=CATEGORY_KEYS.map(k=>`  ${CATEGORIES[k].label}: ${finalized.filter(x=>x.category===k).length}`).join('\n');
+  const ctx=`MAGAZINE: ${s.magTitle||'The Torch'} | ${s.schoolName||'Way To Success Standard Schools'} | ${s.edition||'1st Edition'} ${s.year||'2025/2026'}
+FINALIZED CONTENT:\n${counts}
+TOTAL FINALIZED: ${finalized.length}
+COLOURS: Primary:${s.color1||'#1a2744'} Accent:${s.color2||'#7dd4a8'} Highlight:${s.color3||'#8b1a1a'} PageBG:${s.pageBg||'#fff'} Text:${s.textColor||'#1c1c1e'}
+TYPOGRAPHY: Heading:${s.headingFont||'Playfair Display'} Body:${s.bodyFont||'Crimson Text'} Size:${s.fontSize||'11px'}
+CURRENT PAGE: ${wsPageIdx+1} of ${wsPages.length} — ${wsPages[wsPageIdx]?.label||'none'}`;
+
+  const taskPrompts={
+    design:`You are a DIRECT-ACTION AGENT controlling a magazine design system. You do NOT suggest changes — you EXECUTE them.
+
+CRITICAL RULES — follow these EXACTLY:
+1. For ANY design change, you MUST output a [FORMAT:customCSS:] block containing valid CSS.
+   Example: [FORMAT:customCSS: .mag-item-name { font-size:14px; color:#2d1b4e; } ]
+2. For colour/font/layout changes, you MUST output a settings block:
+   \`\`\`settings
+   {"color1":"#1a2744","color2":"#7dd4a8"}
+   \`\`\`
+3. NEVER respond with only text advice. EVERY response MUST have at least one [FORMAT:customCSS:...] block OR a settings block.
+4. Make designs PREMIUM: rich colours, elegant typography, professional spacing, print-quality.
+5. Respond briefly explaining what you did, then include the executable blocks.`,
+    reasoning:`You are a production strategist AND agent. Analyze the magazine, then EXECUTE changes directly.
+You MUST output a settings block or [FORMAT:customCSS:...] block with every response.
+\`\`\`settings
+{"teachersPerPage":9}
+\`\`\``,
+    proofread:`You are a professional proofreader for a Nigerian school graduation magazine.
+Check grammar, spelling, punctuation. Output corrections as [FORMAT:customCSS:...] to highlight errors.
+Also output any text fixes you find.`,
+    image:`You are a design replication agent. Analyze the uploaded image, then EXECUTE the same style by outputting:
+[FORMAT:customCSS: /* css that replicates the style */ ]
+and a settings block. Do NOT just describe — implement directly.`
+  };
+
+  const messages=[{role:'system',content:`${taskPrompts[task]||taskPrompts.design}
+
+FORMATTING COMMANDS (you MUST include these in every design response):
+\u2022 [FORMAT:customCSS:...css...] \u2014 inject CSS to restyle the magazine preview. This is MANDATORY for design tasks.
+\u2022 [FORMAT:action:approveAll] \u2014 Approve all pending submissions
+\u2022 [FORMAT:action:finalizeCategory:teachers] \u2014 Finalize approved submissions in a category (e.g. teachers, primary5, gallery)
+\u2022 [FORMAT:action:setSectionOrder:cover,toc,editorial-note,teachers,...] \u2014 Reorder the magazine sections
+\u2022 Target sections: .mag-page[data-category="teachers"], .mag-page[data-category="creative"], etc.
+\u2022 Classes: .mag-item, .mag-item-name, .mag-item-subtitle, .mag-item-photo, .mag-item-fields, .mag-item-body
+\u2022 Page structure: .mag-page > .mag-page-inner contains all content
+
+SETTINGS JSON (you MUST include this to change layout settings):
+\`\`\`settings
+{"color1":"#hex","teachersPerPage":9,...}
+\`\`\`
+Available keys: teachersPerPage, studentsPerPage, galleryPerPage, speechesPerPage, creativePerPage, orientation, pageSize, pageNums, autoTrim, color1, color2, color3, pageBg, textColor, headingFont, bodyFont, fontSize, magTitle, schoolName, edition, year, theme.
+
+You are an AGENT. Every response MUST contain at least one [FORMAT:customCSS:...] or settings block. Never respond with only text suggestions.
+
+Context:\n${ctx}`}];
+
+  /* Add recent chat history */
+  wsAIChatHistory.slice(-10,-1).filter(m=>m.text&&m.role!=='system').forEach(m=>{
+    messages.push({role:m.role,content:m.text});
+  });
+
+  /* Build user message — include image if available and task is image analysis */
+  if(wsAISampleBase64&&(task==='image'||query.toLowerCase().includes('sample')||query.toLowerCase().includes('match'))){
+    messages.push({role:'user',content:[
+      {type:'image_url',image_url:{url:`data:${wsAISampleMime};base64,${wsAISampleBase64}`}},
+      {type:'text',text:query}
+    ]});
+  } else {
+    messages.push({role:'user',content:query});
+  }
+
+  try{
+    const modelsToTry = [model, 'google/gemini-2.0-flash-lite-001', 'anthropic/claude-3-haiku'];
+    let result = '';
+    let lastErr = null;
+    
+    for(const tryModel of modelsToTry){
+      try{
+        const resp=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,
+            'HTTP-Referer':'https://magazine-teachers-profile.vercel.app','X-Title':'MagicEditor Workspace AI'},
+          body:JSON.stringify({model:tryModel,max_tokens:4000,messages})
+        });
+        if(resp.status===504||resp.status===503){throw new Error('timeout_'+resp.status);}
+        if(!resp.ok){const t=await resp.text();throw new Error(`HTTP ${resp.status}: ${t.substring(0,120)}`);}
+        const data=await resp.json();
+        if(data.error)throw new Error(data.error.message||'API error');
+        result=data.choices?.[0]?.message?.content||'No response.';
+        if(result)break;
+      }catch(e){
+        lastErr = e;
+        if(tryModel===modelsToTry[modelsToTry.length-1] || !e.message.startsWith('timeout_')){
+          throw e;
+        }
+      }
+    }
+
+    /* Remove thinking indicator */
+    wsAIChatHistory.splice(thinkIdx,1);
+
+    /* Parse formatting commands — [FORMAT:key:value] */
+    const fmtCommands={};
+    const fmtRegex2=/\[FORMAT:(\w+):([\s\S]*?)\]/g;
+    let fm2;
+    while((fm2=fmtRegex2.exec(result))!==null) fmtCommands[fm2[1]]=fm2[2];
+    let displayText=result.replace(/\[FORMAT:.*?\]/gs,'').trim();
+
+    /* ALSO extract CSS from ```css code blocks (AI often uses this format) */
+    const cssBlockMatch = displayText.match(/```css\s*([\s\S]*?)```/i);
+    if(cssBlockMatch && cssBlockMatch[1].trim() && !fmtCommands.customCSS){
+      fmtCommands.customCSS = cssBlockMatch[1].trim();
+    }
+
+    /* Extract settings from ```settings OR ```json blocks */
+    const settingsMatch = displayText.match(/```(?:settings|json)\s*([\s\S]*?)```/i);
+    const settingsObj = settingsMatch ? (() => { try{ return JSON.parse(settingsMatch[1].trim()); }catch(e){ return null; } })() : null;
+    const adviceText = displayText.replace(/```(?:settings|json|css)[\s\S]*?```/gi,'').trim();
+
+    /* ═══ AGENT MODE: Auto-apply all changes directly ═══ */
+    wsUndoPush(); /* Save state for undo */
+    const applied = [];
+
+    /* 1. Inject CSS directly */
+    if(fmtCommands.customCSS){
+      const aiStyle = document.getElementById('ai-custom-css');
+      if(aiStyle) aiStyle.textContent = fmtCommands.customCSS;
+      applied.push('🎨 CSS applied');
+    }
+
+    /* 2. Apply settings directly */
+    if(settingsObj){
+      try{
+        applyLayoutFromObject(settingsObj, null);
+        wsRenderColorPanel(); wsRenderFontPanel();
+        applied.push('⚙️ ' + Object.keys(settingsObj).length + ' settings changed');
+      }catch(e){ console.warn('[AI] Settings apply error:', e); }
+    }
+
+    /* 3. Execute action commands directly */
+    if(fmtCommands.action){
+      const action = fmtCommands.action.trim();
+      if(action === 'approveAll'){
+        const allSubs = loadAll(); let changed = 0;
+        allSubs.forEach(s => { if(s.status==='pending'){ s.status='approved'; changed++; }});
+        if(changed){ saveAll(allSubs); applied.push(`✅ Approved ${changed} submissions`); }
+      } else if(action.startsWith('finalizeCategory:')){
+        const cat = action.split(':')[1].trim();
+        const allSubs = loadAll(); let changed = 0;
+        allSubs.forEach(s => { if((s.category===cat||cat==='all')&&s.status==='approved'){ s.status='finalized'; changed++; }});
+        if(changed){ saveAll(allSubs); applied.push(`📌 Finalized ${changed} in ${cat}`); }
+      } else if(action.startsWith('setSectionOrder:')){
+        const keys = action.split(':')[1].split(',').map(k=>k.trim());
+        const oldOrder = [...sectionOrder];
+        sectionOrder = keys.map(k=>oldOrder.find(o=>o.key===k)).filter(Boolean);
+        oldOrder.forEach(o=>{ if(!sectionOrder.find(s=>s.key===o.key)) sectionOrder.push(o); });
+        saveLsSettingsToStorage(lsSettings);
+        dbSaveSettings('section_order', sectionOrder);
+        applied.push('📋 Sections reordered');
+      }
+    }
+
+    /* 4. Regenerate preview with changes */
+    if(applied.length > 0){
+      wsGeneratePreview();
+      wsRenderCurrentPage();
+      wsMarkDirty();
+    }
+
+    /* 5. Show response + what was applied + Undo button */
+    const appliedHtml = applied.length > 0
+      ? `<br><div class="ws-ai-apply-card" style="margin-top:8px;">
+          <div class="ws-ai-apply-title">✦ AGENT EXECUTED</div>
+          <div class="ws-ai-apply-summary">${applied.map(a=>'<span>'+a+'</span>').join('')}</div>
+          <div class="ws-ai-apply-btns">
+            <button class="ws-ai-apply-btn decline" onclick="wsUndo();wsGeneratePreview();wsRenderCurrentPage();this.closest('.ws-ai-apply-card').outerHTML='<em style=color:#aaa>Undone.</em>'">↶ Undo Changes</button>
+          </div>
+        </div>`
+      : '<br><em style="color:#aaa;font-size:11px;">No direct changes in this response. Try: "Make the cover page more premium" or "Change primary colour to navy blue".</em>';
+    
+    const htmlResp = esc(adviceText).replace(/\n/g,'<br>') + appliedHtml;
+    wsAIAddMsg('assistant', adviceText, htmlResp);
+
+  }catch(e){
+    wsAIChatHistory.splice(thinkIdx,1);
+    wsAIAddMsg('assistant','','<strong style="color:var(--ws-red);">Error:</strong> '+esc(e.message));
+  }
+}
+
+/* ── Export: Print-Ready PDF ── */
+function wsExportPrintPDF(){
+  /* Temporarily set magPages to workspace pages and use existing openPrintView */
+  const origPages=magPages;const origIdx=currentPageIdx;
+  magPages=wsPages;currentPageIdx=0;
+  openPrintView();
+  magPages=origPages;currentPageIdx=origIdx;
+}
+
+/* ── Export: Editable Package (SVG + JSON) ── */
+function wsExportEditable(){
+  if(typeof JSZip==='undefined'){alert('ZIP library not loaded.');return;}
+  const zip=new JSZip();
+  const s=lsSettings;
+
+  /* Project JSON */
+  const project={
+    version:'1.0',
+    title:s.magTitle||'The Torch',
+    school:s.schoolName||'Way To Success Standard Schools',
+    edition:s.edition||'1st Edition',
+    year:s.year||'2025/2026',
+    settings:s,
+    sectionOrder:sectionOrder,
+    pageCount:wsPages.length,
+    exportedAt:new Date().toISOString()
+  };
+  zip.file('project.json',JSON.stringify(project,null,2));
+
+  /* Page data */
+  const pagesFolder=zip.folder('pages');
+  wsPages.forEach((p,i)=>{
+    const num=String(i+1).padStart(3,'0');
+    pagesFolder.file(`page_${num}.json`,JSON.stringify({
+      index:i,type:p.type,label:p.label||'',
+      section:p.sec?.key||'',
+      items:p.items?.map(it=>({id:it.id,category:it.category,data:it.data}))||[]
+    },null,2));
+  });
+
+  /* Finalized submissions */
+  const subsFolder=zip.folder('submissions');
+  const finalized=loadAll().filter(x=>x.status==='finalized');
+  finalized.forEach(sub=>{
+    subsFolder.file(`${sub.category}_${slugify(sub.data.name?.value||sub.id)}.json`,JSON.stringify(sub,null,2));
+  });
+
+  /* Labels & config */
+  zip.file('labels.json',JSON.stringify(labelOverrides,null,2));
+  zip.file('README.txt',`MagicEditor Editable Package\n${project.title} — ${project.school}\n${project.edition} ${project.year}\nExported: ${project.exportedAt}\n\nThis package contains:\n- project.json: Full project settings\n- pages/: Individual page data\n- submissions/: All finalized submissions\n- labels.json: Custom label overrides\n\nRe-import this package or edit submissions for manual press adjustments.`);
+
+  zip.generateAsync({type:'blob'}).then(blob=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`${slugify(s.magTitle||'magazine')}_editable_${new Date().toISOString().slice(0,10)}.zip`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }).catch(err=>alert('Export failed: '+err.message));
+}
+
+/* ── Export: Word Document for Printing Press ── */
+function wsExportWord(){
+  const s = lsSettings;
+  const allSubs = loadAll();
+  const approved = allSubs.filter(x => x.status==='approved' || x.status==='finalized');
+  const magTitle = s.magTitle || 'The Torch';
+  const schoolName = s.schoolName || 'Way To Success Standard Schools';
+  const edition = s.edition || '1st Edition';
+  const year = s.year || '2025/2026';
+  const c1 = s.color1 || '#1a2744';
+  const c2 = s.color2 || '#7dd4a8';
+
+  /* Helper: escape HTML */
+  function e(str){ return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  /* Helper: render all fields from a submission */
+  function renderFields(sub){
+    return Object.entries(sub.data||{}).map(([k,fc]) => {
+      if(!fc || !fc.value) return '';
+      return `<tr><td style="font-weight:bold;color:#555;padding:4px 12px 4px 0;vertical-align:top;white-space:nowrap;font-size:10pt;">${e(fc.label)}</td><td style="padding:4px 0;font-size:11pt;line-height:1.6;">${e(fc.value).replace(/\n/g,'<br>')}</td></tr>`;
     }).join('');
   }
-  return '<div class="ep-q-obj'+(compact?' compact':'')+'">'
-    +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t+opts
-    +(q._svgDiagram?'<div style="margin:3pt 0;text-align:center;">'+q._svgDiagram+'</div>':'')
-    +'</div>';
-}
 
-/* ── NORMAL MODE PRINT ── */
-function buildNormalPrintHtml(p,adm){
-  var cfg=ADMIN.labConfig;
-  var fontMap={'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'};
-  var fontFam=fontMap[cfg.fontFamily]||'"Times New Roman",serif';
-  var logo=adm.logo?'<img style="width:48pt;height:48pt;object-fit:contain;border-radius:5pt;" src="'+adm.logo+'"/>':'';
-  var school=adm.school||p.school||'School';
-  var address=adm.address||'';
-  var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var wm=adm.watermark||'ExamEngine';
-  var qs=p.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
-  var use2col=objs.length>=30;
+  /* Build sections */
+  let bodyHtml = '';
 
-  var h='<div class="ep" style="font-family:'+fontFam+';">'
-    +'<div class="ep-wm">'+esc(wm)+'</div>'
-    +'<div class="ep-header">'
-    +(logo?logo:'<div class="ep-crest">'+initials+'</div>')
-    +'<div class="ep-school">'+esc(school)+'</div>'
-    +(address?'<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>':'')
-    +'<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+'</div>'
-    +'<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span>'
-    +'<span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>'
-    +'<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span>'
-    +'<span>Standard: '+esc(p.std||'')+'</span><span>Ref: '+esc(p.ref)+'</span></div>'
-    +'</div>';
+  /* Title Page */
+  bodyHtml += `<div style="text-align:center;page-break-after:always;padding:120px 40px;">
+    <h1 style="font-size:36pt;color:${c1};margin-bottom:8px;">${e(magTitle)}</h1>
+    <p style="font-size:16pt;color:${c2};margin-bottom:4px;">${e(schoolName)}</p>
+    <p style="font-size:14pt;color:#666;">${e(edition)} &mdash; ${e(year)}</p>
+    <hr style="border:none;border-top:3px solid ${c2};width:200px;margin:30px auto;">
+    <p style="font-size:11pt;color:#999;margin-top:40px;">Full Content Document for Printing Press<br>Exported: ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</p>
+    <p style="font-size:10pt;color:#aaa;margin-top:8px;">Total approved submissions: ${approved.length}</p>
+  </div>`;
 
-  if(objs.length){
-    h+='<div class="ep-sec">Section A &mdash; Objectives ('+objs.length+' Questions)</div>'
-      +'<div class="ep-sec-note">Circle the letter of the correct answer. Each question = 1 mark.</div>'
-      +'<div class="'+(use2col?'ep-obj-2col':'ep-obj-block')+'">';
-    objs.forEach(function(q,i){
-      var compact=(q.layout==='compact');
-      h+=buildObjInlineHtml(q,i,compact);
-    });
-    h+='</div>';
+  /* Editorial Note */
+  const edNote = approved.find(x => x.category==='editorial-note');
+  if(edNote){
+    bodyHtml += `<div style="page-break-before:always;">
+      <h2 style="color:${c1};border-bottom:3px solid ${c2};padding-bottom:8px;font-size:18pt;">EDITORIAL NOTE</h2>
+      ${edNote.data.title?.value ? '<h3 style="color:#333;margin:12px 0 8px;">'+e(edNote.data.title.value)+'</h3>' : ''}
+      <div style="font-size:11pt;line-height:1.8;white-space:pre-line;">${e(edNote.data.body?.value||'')}</div>
+      ${edNote.photoData ? '<p style="margin-top:16px;"><img src="'+edNote.photoData+'" style="max-width:200px;border:1px solid #ccc;"></p>' : ''}
+    </div>`;
   }
 
-  if(fitbs.length){
-    var fSec=objs.length?'B':'A';
-    h+='<div class="ep-sec">Section '+fSec+' &mdash; Fill in the Blank ('+fitbs.length+' Questions)</div>'
-      +'<div class="ep-sec-note">Complete each sentence with the correct word or phrase.</div>';
-    fitbs.forEach(function(q,i){
-      var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank"></span>');
-      var cls=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
-      h+='<div class="ep-q'+( cls?' '+cls:'')+'">'
-        +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
-        +(q._svgDiagram?'<div style="margin:3pt 0;">'+q._svgDiagram+'</div>':'')
-        +'</div>';
-    });
+  /* Appreciation */
+  const appr = approved.find(x => x.category==='appreciation');
+  if(appr){
+    bodyHtml += `<div style="page-break-before:always;">
+      <h2 style="color:${c1};border-bottom:3px solid ${c2};padding-bottom:8px;font-size:18pt;">APPRECIATION</h2>
+      ${appr.data.title?.value ? '<h3 style="color:#333;margin:12px 0 8px;">'+e(appr.data.title.value)+'</h3>' : ''}
+      <div style="font-size:11pt;line-height:1.8;white-space:pre-line;">${e(appr.data.body?.value||'')}</div>
+    </div>`;
   }
 
-  if(ths.length){
-    var tSec=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
-    var tInstr=p.theoryPaperInstr||'Answer all theory questions. Show all workings where applicable.';
-    h+='<div class="ep-sec">Section '+tSec+' &mdash; Theory / Essay ('+ths.length+' Questions)</div>'
-      +'<div class="ep-sec-note">'+esc(tInstr)+'</div>';
-    ths.forEach(function(q,i){
-      var ansClass=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
-      h+='<div class="ep-q'+(q.layout==='compact'?' compact':q.layout==='wide'?' wide':'')+'">'
-        +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
-        +(q._svgDiagram?'<div style="margin:4pt 0;">'+q._svgDiagram+'</div>':'')
-        +'<div class="ep-ans'+(ansClass?' '+ansClass:'')+'"></div></div>';
-    });
-  }
+  /* Each category section */
+  sectionOrder.filter(sec => sec.visible && CATEGORIES[sec.key]).forEach(sec => {
+    const catDef = CATEGORIES[sec.key];
+    const catSubs = approved.filter(x => x.category === sec.key);
+    if(!catSubs.length) return;
 
-  h+='<div class="ep-footer">'+esc(school)+' &bull; '+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12</div>';
-  h+='</div>';
-  return h;
-}
+    bodyHtml += `<div style="page-break-before:always;">
+      <h2 style="color:${c1};border-bottom:3px solid ${c2};padding-bottom:8px;font-size:18pt;">${e(catDef.label.toUpperCase())}</h2>
+      <p style="font-size:10pt;color:#888;margin:4px 0 16px;">${e(catDef.subtitle||'')} &mdash; ${catSubs.length} submission${catSubs.length>1?'s':''}</p>`;
 
-// Alias for compatibility
-function buildStandardPrintHtml(p,adm){ return buildNormalPrintHtml(p,adm); }
+    catSubs.forEach((sub, idx) => {
+      const name = sub.data.name?.value || sub.data.speakerName?.value || sub.data.contribName?.value ||
+                   sub.data.authorName?.value || sub.data.intervieweeName?.value || sub.data.submitterName?.value ||
+                   sub.data.eventName?.value || 'Submission '+(idx+1);
 
-/* ── ECONOMY MODE PRINT — A4 Landscape, 2-in-1 Duplex ── */
-function buildEconomyPrintHtml(papers,adm){
-  var school=adm.school||'School';
-  var address=adm.address||'';
-  var logo=adm.logo;
-  var wm=adm.watermark||'';
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var html='';
+      bodyHtml += `<div style="margin-bottom:24px;padding:16px;border:1px solid #e0e0e0;border-radius:4px;background:#fafafa;">
+        <h3 style="color:${c1};font-size:14pt;margin:0 0 8px;border-left:4px solid ${c2};padding-left:10px;">${e(name)}</h3>`;
 
-  // Pair papers: [A|B] front page, [B|A] back page
-  for(var i=0;i<papers.length;i+=2){
-    var pA=papers[i];
-    var pB=papers[i+1]||papers[i];
-    var sameDouble=!papers[i+1];
-
-    var colA=buildEcoColumn(pA,adm,today,wm,'left');
-    var colB=buildEcoColumn(pB,adm,today,wm,'right');
-
-    // FRONT: [A | B]
-    html+='<div class="ep-page">'
-      +'<div class="ep-col ep-col-left">'+colA+'</div>'
-      +'<div class="ep-col">'+colB+'</div>'
-      +'</div>';
-
-    // BACK: [B | A] — flipped for duplex alignment after cutting
-    if(!sameDouble){
-      html+='<div class="ep-page">'
-        +'<div class="ep-col ep-col-left">'+colB+'</div>'
-        +'<div class="ep-col">'+colA+'</div>'
-        +'</div>';
-    }
-  }
-  return html;
-}
-
-function buildEcoColumn(p,adm,today,wm,side){
-  var school=adm.school||p.school||'School';
-  var address=adm.address||'';
-  var logo=adm.logo;
-  var qs=p.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
-
-  var h='';
-  if(wm) h+='<div class="eco-wm'+(side==='right'?' eco-wm-r':'')+'" style="left:'+(side==='right'?'50%':'50%')+';">'+esc(wm)+'</div>';
-
-  // Compact header
-  h+='<div style="border-bottom:0.4mm solid #000;margin-bottom:4mm;padding-bottom:2mm;display:flex;align-items:center;gap:3mm;">';
-  if(logo) h+='<img src="'+logo+'" style="width:14mm;height:14mm;object-fit:contain;flex-shrink:0;"/>';
-  h+='<div style="flex:1;min-width:0;">'
-    +'<div class="ep-school" style="font-size:8.5pt!important;">'+esc(school)+'</div>'
-    +(address?'<div style="font-size:6.5pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
-    +'<div class="ep-title" style="font-size:8pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+'</div>'
-    +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span> &bull; <span>'+esc(p.cls)+'</span> &bull; <span>'+total+' marks</span></div>'
-    +'</div></div>';
-
-  // Objectives — ultra compact inline
-  if(objs.length){
-    h+='<div class="ep-sec" style="font-size:7.5pt!important;">Section A &mdash; Objectives ('+objs.length+')</div>';
-    objs.forEach(function(q,i){
-      var opts=q.o&&q.o.length
-        ? q.o.map(function(o,oi){ return '('+L[oi]+') '+esc(o); }).join(' ')
-        : '';
-      h+='<div class="ep-q-obj compact" style="font-size:8.5pt;">'+(i+1)+'. '+q.t+(opts?' '+opts:'')+'</div>';
-    });
-  }
-
-  // Fill-in-blank
-  if(fitbs.length){
-    var fSec=objs.length?'B':'A';
-    h+='<div class="ep-sec" style="font-size:7.5pt!important;">Section '+fSec+' &mdash; Fill in Blank</div>';
-    fitbs.forEach(function(q,i){
-      var t=q.t.replace(/_{2,}/g,'________');
-      h+='<div class="ep-q compact" style="font-size:8.5pt;">'+(i+1)+'. '+esc(t)
-        +(q.marks?' <span style="float:right;">['+q.marks+'m]</span>':'')+'</div>';
-    });
-  }
-
-  // Theory
-  if(ths.length){
-    var tSec=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
-    h+='<div class="ep-sec" style="font-size:7.5pt!important;">Section '+tSec+' &mdash; Theory</div>';
-    ths.forEach(function(q,i){
-      h+='<div class="ep-q" style="font-size:8.5pt;">'+(i+1)+'. '+esc(q.t)
-        +(q.marks?' <span style="float:right;">['+q.marks+'m]</span>':'')
-        +'<div class="ep-ans compact"></div></div>';
-    });
-  }
-
-  h+='<div class="ep-footer" style="font-size:6pt!important;">'+esc(p.ref)+' &bull; '+today+'</div>';
-  return h;
-}
-
-/* ── Mirror Print — Horizontal 2-column, front & back ── */
-function buildMirrorPrintFrame(papers,adm){
-  var logo=adm.logo;
-  var school=adm.school||'School';
-  var address=adm.address||'';
-  var wm=adm.watermark||'ExamEngine';
-  var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-
-  // We pair papers: Paper A left + Paper B right (front page)
-  // Back page: Paper B left + Paper A right (interchanged)
-  var html='';
-
-  for(var i=0;i<papers.length;i+=2){
-    var pA=papers[i];
-    var pB=papers[i+1]||papers[i]; // If odd number, duplicate last
-
-    var colA=buildMirrorColumn(pA,adm,today);
-    var colB=(papers[i+1])?buildMirrorColumn(pB,adm,today):colA;
-
-    // FRONT PAGE: A left | B right
-    html+='<div class="mirror-page">'
-      +'<div class="mirror-col mirror-col-left">'+colA+'</div>'
-      +'<div class="mirror-col">'+colB+'</div>'
-      +'</div>';
-
-    // BACK PAGE: B left | A right (interchanged)
-    if(papers[i+1]){
-      html+='<div class="mirror-page">'
-        +'<div class="mirror-col mirror-col-left">'+colB+'</div>'
-        +'<div class="mirror-col">'+colA+'</div>'
-        +'</div>';
-    }
-  }
-
-  $('pp').innerHTML=html;
-}
-
-function buildMirrorColumn(p,adm,today){
-  var logo=adm.logo;
-  var school=adm.school||p.school||'School';
-  var address=adm.address||'';
-  var wm=adm.watermark||'';
-  var qs=p.questions||[];
-  var objs=qs.filter(function(q){ return q.k==='obj'; });
-  var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
-  var ths=qs.filter(function(q){ return q.k==='theory'; });
-
-  var h='';
-  if(wm) h+='<div class="eco-watermark">'+esc(wm)+'</div>';
-
-  // Header
-  h+='<div class="eco-header">';
-  if(logo) h+='<img class="eco-logo" src="'+logo+'"/>';
-  h+='<div><div class="eco-school-name" style="font-size:9pt;font-weight:900;text-transform:uppercase;">'+esc(school)+'</div>';
-  if(address) h+='<div style="font-size:6.5pt;text-transform:uppercase;">'+esc(address)+'</div>';
-  h+='<div class="eco-paper-title">'+esc(p.subj)+' · '+esc(p.cls)+' · '+esc(p.term)+'</div>'
-    +'</div></div>';
-
-  // Questions — horizontal compact format
-  if(objs.length){
-    h+='<div class="eco-section-head">Section A — Objectives ('+objs.length+')</div>';
-    objs.forEach(function(q,i){
-      h+='<div class="eco-q" style="margin-bottom:1.5mm;">'+(i+1)+'. '+esc(q.t);
-      if(q.o&&q.o.length) h+='<br/><span style="margin-left:3mm;">'+q.o.map(function(o,oi){ return L[oi]+'. '+esc(o); }).join(' &nbsp; ')+'</span>';
-      h+='</div>';
-    });
-  }
-  if(fitbs.length){
-    var fLbl=objs.length?'B':'A';
-    h+='<div class="eco-section-head">Section '+fLbl+' — Fill in the Blank ('+fitbs.length+')</div>';
-    fitbs.forEach(function(q,i){
-      h+='<div class="eco-q">'+(i+1)+'. '+esc((q.t||'').replace(/_{2,}/g,'____________'))+'</div>';
-    });
-  }
-  if(ths.length){
-    var tLbl=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
-    h+='<div class="eco-section-head">Section '+tLbl+' — Theory ('+ths.length+')</div>';
-    ths.forEach(function(q,i){
-      h+='<div class="eco-q">'+(i+1)+'. '+esc(q.t)+(q.marks?' ['+q.marks+'m]':'')+'</div>';
-    });
-  }
-  h+='<div class="eco-footer"><span>'+esc(p.ref)+'</span><span>'+today+'</span><span>ExamEngine Pro v10</span></div>';
-  return h;
-}
-
-/* ── ADMIN SETTINGS ──────────────────── */
-function renderAdminSett(){
-  var el=$('screen-admin-sett');
-  el.style.display='block';
-  var adm=getAdminSettings();
-  var deadline=adm.deadline||'';
-  var school=adm.school||'';
-  var watermark=adm.watermark||'';
-  var address=adm.address||'';
-
-  el.innerHTML='<div class="pg fade">'
-    +'<div class="ptl">Admin Settings</div>'
-    +'<div class="pst">Configure exam deadlines, branding, and auto-generation triggers.</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">Exam Submission Deadline</div>'
-    +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:14px;line-height:1.7;">'
-    +'Set the final deadline for teachers to submit exam papers. After the deadline, the system can auto-generate any missing papers using OpenRouter.'
-    +'</div>'
-    +'<div class="fl"><label>Deadline Date &amp; Time</label>'
-    +'<input type="datetime-local" class="fi" id="adminDeadlineInp" value="'+esc(deadline)+'" style="font-family:var(--mono);"/>'
-    +'</div>'
-    +'<div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap;">'
-    +'<button class="btn bp" onclick="saveDeadline()">💾 Save Deadline</button>'
-    +'<button class="btn bq" onclick="clearDeadline()">🗑 Clear Deadline</button>'
-    +'</div>'
-    +'<div class="api-note" style="margin-top:12px;">⚡ When the deadline passes, go to the <strong>Production Queue</strong> and click <strong>Auto-Generate Missing</strong>.</div>'
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">School Branding</div>'
-    +'<div class="fl"><label>School / Admin Name</label>'
-    +'<input type="text" class="fi" id="adminSchNm" value="'+esc(school)+'" placeholder="e.g. Way To Success Standard Schools"/>'
-    +'</div>'
-    +'<div class="fl"><label>School Address</label>'
-    +'<input type="text" class="fi" id="adminAddrInp" value="'+esc(address)+'" placeholder="e.g. Ifedapo Community, Oko/Ijado Road, Ejigbo Osun State"/>'
-    +'</div>'
-    +'<div class="fl"><label>Watermark Text</label>'
-    +'<input type="text" class="fi" id="adminWmInp" value="'+esc(watermark)+'" placeholder="e.g. CONFIDENTIAL or School Name" maxlength="30"/>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Appears as a diagonal ghost text on all printed papers.</div>'
-    +'</div>'
-    +'<button class="btn bp" onclick="saveAdminBranding()">💾 Save Branding</button>'
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">\ud83c\udfa8 House Style Template <span style="font-size:11px;font-weight:400;color:var(--mute);margin-left:8px;">(Blank slate \u2014 applies to every printed paper)</span></div>'
-    +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:14px;line-height:1.7;">'
-    +'Define your school\u2019s uniform exam paper layout. Leave fields blank until you\u2019re ready. <strong>All heading text you enter will render in <b>BOLD</b> automatically</strong> on every printed paper across all four modes (Split 2-in-1, Landscape, Portrait, Multi-Subject).'
-    +'</div>'
-    +(function(){
-      var hs=getHouseStyle();
-      return ''
-      +'<div class="fl"><label>Top Heading (rendered bold, uppercase)</label>'
-      +'<input type="text" class="fi" id="hsHeaderTop" value="'+esc(hs.headerTop)+'" placeholder="e.g. Federal Ministry of Education"/>'
-      +'</div>'
-      +'<div class="fl"><label>Extra Header Line (rendered bold)</label>'
-      +'<input type="text" class="fi" id="hsHeaderExtra" value="'+esc(hs.headerExtra)+'" placeholder="e.g. West African Examinations Council"/>'
-      +'</div>'
-      +'<div class="fl"><label>Exam Title Override (rendered bold)</label>'
-      +'<input type="text" class="fi" id="hsExamTitle" value="'+esc(hs.examTitle)+'" placeholder="e.g. Third Term Examination 2025/2026 Academic Session"/>'
-      +'</div>'
-      +'<div class="fl"><label>Student Info Strip (comma-separated fields)</label>'
-      +'<input type="text" class="fi" id="hsStudentStrip" value="'+esc(hs.studentStrip)+'" placeholder="e.g. Name, Class, Adm No, Date"/>'
-      +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Each field renders with a blank line for the student to fill in. Field labels render bold.</div>'
-      +'</div>'
-      +'<div class="fl"><label>General Instructions</label>'
-      +'<textarea class="fi" id="hsInstructions" rows="3" placeholder="e.g. Answer ALL questions in Section A. Section B: attempt any FIVE questions. Time allowed: 2 hours." style="resize:vertical;">'+esc(hs.instructions)+'</textarea>'
-      +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Body text \u2014 appears below the header on every paper. Use line breaks for multiple instructions.</div>'
-      +'</div>'
-      +'<div class="r2">'
-      +'<div class="fl"><label>Footer Left (bold)</label>'
-      +'<input type="text" class="fi" id="hsFooterLeft" value="'+esc(hs.footerLeft)+'" placeholder="e.g. Principal"/>'
-      +'</div>'
-      +'<div class="fl"><label>Footer Center (bold)</label>'
-      +'<input type="text" class="fi" id="hsFooterCenter" value="'+esc(hs.footerCenter)+'" placeholder="e.g. School Motto"/>'
-      +'</div>'
-      +'</div>'
-      +'<div class="fl"><label>Footer Right (bold)</label>'
-      +'<input type="text" class="fi" id="hsFooterRight" value="'+esc(hs.footerRight)+'" placeholder="e.g. END OF PAPER"/>'
-      +'</div>'
-      +'<div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap;">'
-      +'<button class="btn bp" onclick="saveHouseStyleForm()">\ud83d\udcbe Save House Style</button>'
-      +'<button class="btn bq" onclick="clearHouseStyleForm()">\ud83d\uddd1 Clear All Fields</button>'
-      +'</div>';
-    }())
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">OpenRouter API Key</div>'
-    +'<div class="fl"><div class="key-row">'
-    +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-…" value="'+esc(API_KEY||'')+'"/>'
-    +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp2\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
-    +'</div></div>'
-    +'<div class="api-note">Used for auto-generation when teachers miss the deadline.<br/>Primary: <strong>'+MODELS.primary+'</strong></div>'
-    +'<div style="margin-top:12px;display:flex;gap:9px;">'
-    +'<button class="btn bq" onclick="clearApiKey()">🗑 Clear</button>'
-    +'<button class="btn bp" onclick="saveApiKeyAdmin()">💾 Save Key</button>'
-    +'</div></div>'
-
-
-    +'<div class="card">'
-    +'<div class="ct">👥 User Management</div>'
-    +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:14px;line-height:1.7;">Invite teachers and manage admin roles. Only admins can access Production Queue and Digital Lab.</div>'
-    +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">'
-    +'<div class="fl" style="flex:1;margin:0;"><label>Email Address</label><input type="email" class="fi" id="inviteEmail" placeholder="teacher@school.edu.ng"/></div>'
-    +'<div class="fl" style="margin:0;"><label>Role</label><select class="fs" id="inviteRole"><option value="teacher">Teacher</option><option value="admin">Admin</option></select></div>'
-    +'<button class="btn bp bsm" onclick="inviteUser()">➕ Invite</button>'
-    +'</div>'
-    +'<div id="userMgmtArea"><div style="color:var(--mute);font-size:12px;">Loading…</div></div>'
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">Data Management</div>'
-    +'<div style="display:flex;gap:9px;flex-wrap:wrap;">'
-    +'<button class="btn bred bsm" onclick="clearAllData()">🗑 Clear All Papers</button>'
-    +'<button class="btn bq bsm" onclick="navTo(\'admin-dash\')">← Back to Production Queue</button>'
-    +'</div></div>'
-
-    +'</div>';
-  // Load users after render
-  setTimeout(function(){ renderUserManagement(); }, 100);
-}
-
-window.saveDeadline=function(){
-  var v=($('adminDeadlineInp')||{}).value||'';
-  if(!v){ toast('Pick a deadline date and time','warn'); return; }
-  if(window._adminSettingsCache) window._adminSettingsCache.deadline=v;
-  _supabase.from('admin_settings').upsert({key:'deadline',value:v},{onConflict:'key'});
-  toast('Deadline saved: '+new Date(v).toLocaleString(),'ok');
-  startDeadlineWatcher();
-};
-window.clearDeadline=function(){
-  if(window._adminSettingsCache) window._adminSettingsCache.deadline='';
-  _supabase.from('admin_settings').upsert({key:'deadline',value:''},{onConflict:'key'});
-  clearTimeout(ADMIN._deadlineTimer);
-  toast('Deadline cleared','ok');
-  renderAdminSett();
-};
-window.saveAdminBranding=function(){
-  var sc=($('adminSchNm')||{}).value||'';
-  var wm=($('adminWmInp')||{}).value||'';
-  var addr=($('adminAddrInp')||{}).value||'';
-  var br={school:sc.trim(),watermark:wm.trim(),address:addr.trim()};
-  if(window._adminSettingsCache) Object.assign(window._adminSettingsCache,br);
-  ['school','watermark','address'].forEach(function(k){
-    _supabase.from('admin_settings').upsert({key:k,value:br[k]},{onConflict:'key'});
-  });
-  toast('Admin branding saved ✓','ok');
-};
-window.saveHouseStyleForm=function(){
-  var hs={
-    headerTop:(($('hsHeaderTop')||{}).value||'').trim(),
-    headerExtra:(($('hsHeaderExtra')||{}).value||'').trim(),
-    examTitle:(($('hsExamTitle')||{}).value||'').trim(),
-    studentStrip:(($('hsStudentStrip')||{}).value||'').trim(),
-    instructions:(($('hsInstructions')||{}).value||'').trim(),
-    sectionLabel:'',
-    footerLeft:(($('hsFooterLeft')||{}).value||'').trim(),
-    footerCenter:(($('hsFooterCenter')||{}).value||'').trim(),
-    footerRight:(($('hsFooterRight')||{}).value||'').trim()
-  };
-  if(saveHouseStyle(hs)){
-    toast('\ud83c\udfa8 House Style saved \u2014 applies to ALL papers on next print','ok',4500);
-  } else {
-    toast('Could not save House Style','err');
-  }
-};
-window.clearHouseStyleForm=function(){
-  if(!confirm('Clear all House Style fields? This cannot be undone.')) return;
-  ['hsHeaderTop','hsHeaderExtra','hsExamTitle','hsStudentStrip','hsInstructions','hsFooterLeft','hsFooterCenter','hsFooterRight'].forEach(function(id){
-    var el=$(id); if(el) el.value='';
-  });
-  try{ window._houseStyleCache={}; _supabase.from('admin_settings').upsert({key:'house_style',value:'{}'},{onConflict:'key'}); }catch(e){}
-  toast('House Style cleared','ok');
-};
-window.saveApiKeyAdmin=function(){
-  var v=($('settKeyInp2')||{}).value||''; v=v.trim();
-  API_KEY=v;
-  _saveSetting('api_key', v);
-  refreshApiStatus(); toast('API key saved ✓','ok');
-};
-
-/* ── Deadline Watcher ────────────────── */
-function startDeadlineWatcher(){
-  clearTimeout(ADMIN._deadlineTimer);
-  var dl=(window._adminSettingsCache&&window._adminSettingsCache.deadline)||''; if(!dl) return;
-  var target=new Date(dl).getTime();
-  function check(){
-    var now=Date.now();
-    if(now>=target){
-      if(ROLE==='admin'&&S.screen==='admin-dash') renderAdminDash();
-      return;
-    }
-    ADMIN._deadlineTimer=setTimeout(check, Math.min(target-now, 60000));
-  }
-  check();
-}
-
-/* ══════════════════════════════════════
-   BOOT — Supabase Auth Gated
-══════════════════════════════════════ */
-window.addEventListener('DOMContentLoaded', function(){
-  // Enter key handlers
-  ['authEmail','authPass'].forEach(function(id){
-    var el=$(id); if(!el) return;
-    el.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
-  });
-  ['regName','regEmail','regPass'].forEach(function(id){
-    var el=$(id); if(!el) return;
-    el.addEventListener('keydown', function(e){ if(e.key==='Enter') doRegister(); });
-  });
-
-  // Small delay to ensure Supabase SDK is ready
-  setTimeout(function(){
-    if(!_supabase){
-      showAuthScreen();
-      showAuthErr('Could not connect to database. Check your internet and refresh.');
-      return;
-    }
-    _supabase.auth.getSession().then(function(res){
-      var session = res.data && res.data.session;
-      if(session && session.user){
-        _loadUserAndBoot(session.user);
-      } else {
-        showAuthScreen();
+      /* Photo */
+      if(sub.photoData){
+        bodyHtml += `<p><img src="${sub.photoData}" style="max-width:180px;max-height:220px;object-fit:cover;border:1px solid #ccc;margin:8px 0;"></p>`;
       }
-    }).catch(function(e){
-      showAuthScreen();
-      showAuthErr('Session check failed: '+e.message);
-    });
-
-    _supabase.auth.onAuthStateChange(function(event, session){
-      if(event === 'SIGNED_OUT' && !session){
-        CURRENT_USER = null;
-        showAuthScreen();
+      /* Multi photos */
+      if(Array.isArray(sub.photos) && sub.photos.length){
+        bodyHtml += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;">';
+        sub.photos.forEach(p => {
+          if(p.data) bodyHtml += `<img src="${p.data}" style="max-width:120px;max-height:140px;object-fit:cover;border:1px solid #ccc;">`;
+        });
+        bodyHtml += '</div>';
       }
+
+      /* All fields in table */
+      bodyHtml += `<table style="width:100%;border-collapse:collapse;margin-top:8px;">${renderFields(sub)}</table>`;
+      bodyHtml += `<p style="font-size:9pt;color:#aaa;margin-top:8px;">Status: ${sub.status} | Submitted: ${sub.ts || 'N/A'}</p>`;
+      bodyHtml += '</div>';
     });
-  }, 100);
-});
-
-/* ══════════════════════════════════════
-   ADMIN — USER MANAGEMENT
-══════════════════════════════════════ */
-window.renderUserManagement = async function(){
-  var el=$('userMgmtArea'); if(!el) return;
-  el.innerHTML='<div style="color:var(--mute);font-size:12px;">Loading users…</div>';
-  var res = await _supabase.from('profiles').select('*').order('created_at',{ascending:true});
-  if(res.error){ el.innerHTML='<div style="color:var(--red);font-size:12px;">Error loading users: '+res.error.message+'</div>'; return; }
-  var users = res.data||[];
-  el.innerHTML = users.map(function(u){
-    var isMe = CURRENT_USER && u.id === CURRENT_USER.id;
-    return '<div class="user-row">'
-      +'<div class="user-row-email">'+esc(u.email||u.name||u.id)+(isMe?' <span style="font-size:10px;color:var(--mute);">(you)</span>':'')+'</div>'
-      +'<span class="user-row-role '+u.role+'">'+esc(u.role)+'</span>'
-      +(!isMe ? '<button class="btn bq bsm" style="font-size:11px;padding:5px 10px;" onclick="toggleUserRole(\''+u.id+'\',\''+u.role+'\')">Make '+(u.role==='admin'?'Teacher':'Admin')+'</button>' : '')
-      +'</div>';
-  }).join('') || '<div style="color:var(--mute);font-size:12px;">No users found.</div>';
-};
-
-window.toggleUserRole = async function(uid, currentRole){
-  var newRole = currentRole === 'admin' ? 'teacher' : 'admin';
-  var res = await _supabase.from('profiles').update({role: newRole}).eq('id', uid);
-  if(res.error){ toast('Failed: '+res.error.message,'err'); return; }
-  toast('Role updated to '+newRole+' ✓','ok');
-  renderUserManagement();
-};
-
-window.inviteUser = async function(){
-  var email = ($('inviteEmail')||{}).value||'';
-  email = email.trim().toLowerCase();
-  if(!email){ toast('Enter an email address','warn'); return; }
-  var role = ($('inviteRole')||{}).value||'teacher';
-  // Create auth user via admin signup — user sets own password via email
-  var res = await _supabase.auth.signUp({
-    email: email,
-    password: Math.random().toString(36).slice(-10)+'Aa1!', // temp password
-    options: { data: { role: role } }
+    bodyHtml += '</div>';
   });
-  if(res.error){ toast('Invite failed: '+res.error.message,'err'); return; }
-  if(res.data && res.data.user){
-    await _supabase.from('profiles').upsert({
-      id: res.data.user.id,
-      email: email,
-      name: email.split('@')[0],
-      role: role
-    });
-  }
-  toast('✓ User invited: '+email+' ('+role+')','ok',5000);
-  var inp=$('inviteEmail'); if(inp) inp.value='';
-  renderUserManagement();
-};
 
+  /* Assemble full HTML document that Word can open */
+  const docHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="UTF-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="MagicEditor v2.0">
+  <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+  <style>
+    @page { size: A4 portrait; margin: 2cm 2.5cm; }
+    body { font-family: 'Calibri', 'Segoe UI', sans-serif; font-size: 11pt; color: #1c1c1e; line-height: 1.5; }
+    h1, h2, h3 { font-family: 'Cambria', 'Georgia', serif; }
+    table { border-collapse: collapse; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>
+  ${bodyHtml}
+  <div style="page-break-before:always;text-align:center;padding:60px 40px;">
+    <hr style="border:none;border-top:2px solid ${c2};width:200px;margin:0 auto 20px;">
+    <p style="font-size:12pt;color:#999;">End of Document</p>
+    <p style="font-size:10pt;color:#aaa;">${e(magTitle)} &mdash; ${e(edition)} ${e(year)}<br>${e(schoolName)}</p>
+    <p style="font-size:9pt;color:#bbb;margin-top:12px;">Generated by MagicEditor v2.0 on ${new Date().toLocaleString()}</p>
+  </div>
+</body>
+</html>`;
+
+  /* Download as .doc file */
+  const blob = new Blob([docHtml], {type:'application/msword'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${slugify(magTitle||'magazine')}_content_${new Date().toISOString().slice(0,10)}.doc`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* UTILITY */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* URL ROUTING — Admin access via ?admin or ?editor in URL */
+function checkUrlRouting(){try{const params=new URLSearchParams(window.location.search);const fp=params.get('form');const ap=params.get('admin');const ep=params.get('editor');if(ap!==null){openPIN('admin');return true;}if(ep!==null){openPIN('editor');return true;}if(fp&&CATEGORIES[fp]){return fp;}/* return form key, not open yet */}catch(e){console.warn('[MagicEditor] URL routing:',e.message);}return false;}
+
+/* KEYBOARD SHORTCUT — type "admin" or "editor" on landing page */
+let keyBuffer='';
+document.addEventListener('keydown',function(e){if(document.querySelector('.view.active')?.id!=='viewLanding')return;keyBuffer+=e.key.toLowerCase();if(keyBuffer.length>8)keyBuffer=keyBuffer.slice(-8);if(keyBuffer.endsWith('admin')){keyBuffer='';openPIN('admin');}if(keyBuffer.endsWith('editor')){keyBuffer='';openPIN('editor');}});
+
+/* PURGE LOCAL CACHE */
+function purgeLocalCache(){
+  if(!confirm('This will clear ALL local cached data (submissions, settings, labels).\nCloud data will remain safe.\n\nContinue?'))return;
+  const keys=['me_subs','me_cfg','me_ls_settings','me_labels','me_section_order','me_form_config'];
+  let removed=0;
+  keys.forEach(k=>{if(localStorage.getItem(k)){localStorage.removeItem(k);removed++;}});
+  const st=document.getElementById('purgeStatus');
+  if(st)st.textContent=`✓ Cleared ${removed} cached items. Reloading from cloud…`;
+  setTimeout(()=>{
+    initCloudSync().then(()=>{
+      subs=loadAll();
+      renderAdmin();
+      if(st)st.textContent=`✓ Done! Now showing ${subs.length} items from cloud.`;
+    });
+  },500);
+}
+
+/* INIT */
+renderLandingCards();
+applyLsColors(lsSettings);
+const _pendingFormKey=checkUrlRouting();
+
+/* Boot cloud sync — waits for async Supabase CDN, then syncs settings & data */
+setTimeout(async () => {
+  console.log('[BOOT] Waiting for Supabase CDN...');
+  const statusEl = document.getElementById('bootLoadingStatus');
+  if(statusEl) statusEl.textContent = 'Loading libraries…';
+
+  try {
+    /* Wait for the async-loaded Supabase CDN (max 6s) */
+    const supaReady = await waitForSupabase(6000);
+    if(!supaReady){
+      console.warn('[BOOT] Supabase CDN did not load in time');
+      if(statusEl) statusEl.textContent = 'Cloud unavailable — opening offline';
+    } else {
+      console.log('[BOOT] Supabase CDN loaded. Starting cloud sync...');
+      /* Strict timeout for the entire sync process */
+      await Promise.race([
+        initCloudSync(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Boot timeout')), 8000))
+      ]);
+      console.log('[BOOT] Cloud sync finished.');
+    }
+  } catch (e) {
+    console.warn('[BOOT] Sync failed or timed out:', e.message);
+    showSync('err', 'Running offline — check internet');
+  } finally {
+    try {
+      /* If a ?form= link was shared externally, open it now with up-to-date cloud settings */
+      if(_pendingFormKey && typeof _pendingFormKey === 'string' && CATEGORIES[_pendingFormKey]){
+        openForm(_pendingFormKey);
+      }
+      /* Ensure UI is rendered with latest data */
+      renderLandingCards();
+    } catch (err) {
+      console.error('[BOOT] Render error:', err.message);
+    }
+    
+    /* REMOVE OVERLAY REGARDLESS OF ERRORS — uses the inline function from HTML */
+    if(typeof removeBootOverlay === 'function') removeBootOverlay();
+  }
+}, 100);
+
+let footerClicks = 0;
+let footerClickTimer = null;
+function handleFooterClick(){
+  footerClicks++;
+  if(footerClicks >= 4){
+    footerClicks = 0;
+    openPIN('unified');
+  }
+  clearTimeout(footerClickTimer);
+  footerClickTimer = setTimeout(() => { footerClicks = 0; }, 1000);
+}
 
