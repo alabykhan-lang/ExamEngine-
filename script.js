@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /* ══════════════════════════════════════
    MODELS
@@ -13,6 +13,8 @@ var MODELS = {
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var OR_REFERER = 'https://examengine.pro';
 var OR_TITLE   = 'ExamEngine Pro v12.5';
+// Hardcoded fallback key — used when no key exists in admin_settings or user_settings
+var FALLBACK_API_KEY = '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';
 
 /* ══════════════════════════════════════
    SUPABASE INIT
@@ -196,29 +198,56 @@ async function _loadUserSettings(){
         }
       }catch(e){}
     }
-    // Store per-user api_key temporarily; will be overridden by global key below if set
-    window._userApiKey = m.api_key || '';
+    // Store per-user api_key + term/session temporarily
+    window._userApiKey      = m.api_key     || '';
+    window._userDefTerm     = m.defterm     || '';
+    window._userDefSession  = m.defsession  || '';
   }catch(e){ console.warn('_loadUserSettings exception:', e.message); }
+
   // Pre-load admin settings (shared across all devices — sets API key, term, branding)
   await _fetchAdminSettings();
-  // After admin settings load: apply global API key (admin_settings overrides per-user)
   var adm = getAdminSettings();
-  
-  // Auto-promote admin's device key to global if global is missing
+
+  // ── API KEY: admin_settings > user_settings > hardcoded fallback ──
+  // Auto-promote admin's device key to global if global slot is empty
   if(CURRENT_USER && CURRENT_USER.role==='admin' && window._userApiKey && !adm.api_key){
     adm.api_key = window._userApiKey;
     _supabase.from('admin_settings').upsert({key:'api_key',value:window._userApiKey},{onConflict:'key'});
+    if(window._adminSettingsCache) window._adminSettingsCache.api_key = window._userApiKey;
+  }
+  // Apply key: global > per-user > hardcoded fallback
+  API_KEY = adm.api_key || window._userApiKey || FALLBACK_API_KEY;
+
+  // ── TERM: admin_settings > user_settings > '1st Term' ──
+  // Priority: global admin setting first, then what the user personally saved
+  if(adm.selected_term){
+    S.cfg.term = adm.selected_term;
+  } else if(window._userDefTerm){
+    S.cfg.term = window._userDefTerm;
+    // Push user's saved term up to global so all devices sync
+    if(CURRENT_USER && CURRENT_USER.role==='admin'){
+      _supabase.from('admin_settings').upsert({key:'selected_term',value:window._userDefTerm},{onConflict:'key'});
+      if(window._adminSettingsCache) window._adminSettingsCache.selected_term=window._userDefTerm;
+    }
+  } else {
+    S.cfg.term = '1st Term';
   }
 
-  if(adm.api_key){ API_KEY = adm.api_key; }
-  else { API_KEY = window._userApiKey || ''; }
-  // Apply global default term and session for all users
-  if(adm.selected_term){ S.cfg.term = adm.selected_term; }
-  else { S.cfg.term = '1st Term'; }
-  if(adm.selected_session){ S.cfg.session = adm.selected_session; }
-  else { S.cfg.session = '2025/2026'; }
+  // ── SESSION: admin_settings > user_settings > '2025/2026' ──
+  if(adm.selected_session){
+    S.cfg.session = adm.selected_session;
+  } else if(window._userDefSession){
+    S.cfg.session = window._userDefSession;
+    if(CURRENT_USER && CURRENT_USER.role==='admin'){
+      _supabase.from('admin_settings').upsert({key:'selected_session',value:window._userDefSession},{onConflict:'key'});
+      if(window._adminSettingsCache) window._adminSettingsCache.selected_session=window._userDefSession;
+    }
+  } else {
+    S.cfg.session = '2025/2026';
+  }
+
   if(CURRENT_USER && CURRENT_USER.role==='admin'){
-    ADMIN.selectedTerm = adm.selected_term || S.cfg.term || '1st Term';
+    ADMIN.selectedTerm = S.cfg.term;
   }
 }
 
@@ -3196,31 +3225,35 @@ function getAdminSettings(){
   return window._adminSettingsCache || {
     deadline:'', logo:'', watermark:'ExamEngine',
     school:'School Administration', address:'', motto:'',
-    api_key:'', selected_term:''
+    api_key:'', selected_term:'1st Term', selected_session:'2025/2026'
   };
 }
 async function _fetchAdminSettings(){
-  var res=await _supabase.from('admin_settings').select('*');
-  var m={};
-  (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
-  window._adminSettingsCache={
-    deadline:m.deadline||'',
-    logo:m.logo||'',
-    watermark:m.watermark||'ExamEngine',
-    school:m.school||'School Administration',
-    address:m.address||'',
-    motto:m.motto||'',
-    api_key:m.api_key||'',
-    selected_term:m.selected_term||'',
-    selected_session:m.selected_session||''
-  };
-  // Also load lab_config and lab_queue into ADMIN
-  if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
-  if(m.lab_queue){  try{ window._labQueue=JSON.parse(m.lab_queue);  }catch(e){} }
-  if(m.house_style){ try{ window._houseStyleCache=JSON.parse(m.house_style); }catch(e){} }
-  if(m.design_template){ ADMIN.designTemplate=m.design_template; }
-  if(m.selected_term){ ADMIN.selectedTerm=m.selected_term; }
-  return window._adminSettingsCache;
+  try{
+    var res=await _supabase.from('admin_settings').select('*');
+    if(res.error){ console.warn('admin_settings fetch error:',res.error.message); return window._adminSettingsCache||{}; }
+    var m={};
+    (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
+    window._adminSettingsCache={
+      deadline:m.deadline||'',
+      logo:m.logo||'',
+      watermark:m.watermark||'ExamEngine',
+      school:m.school||'School Administration',
+      address:m.address||'',
+      motto:m.motto||'',
+      api_key:m.api_key||'',
+      selected_term:m.selected_term||'',
+      selected_session:m.selected_session||''
+    };
+    // Also load lab_config and lab_queue into ADMIN
+    if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
+    if(m.lab_queue){  try{ window._labQueue=JSON.parse(m.lab_queue);  }catch(e){} }
+    if(m.house_style){ try{ window._houseStyleCache=JSON.parse(m.house_style); }catch(e){} }
+    if(m.design_template){ ADMIN.designTemplate=m.design_template; }
+    if(m.selected_term){ ADMIN.selectedTerm=m.selected_term; }
+    if(m.selected_session){ /* stored for use in S.cfg.session at boot */ }
+  }catch(e){ console.warn('_fetchAdminSettings exception:',e.message); }
+  return window._adminSettingsCache||{};
 }
 
 /* ── Status Board Data ───────────────── */
@@ -6062,18 +6095,40 @@ window.addEventListener('DOMContentLoaded', function(){
 ══════════════════════════════════════ */
 window.renderUserManagement = async function(){
   var el=$('userMgmtArea'); if(!el) return;
-  el.innerHTML='<div style="color:var(--mute);font-size:12px;">Loading users…</div>';
+  el.innerHTML='<div style="color:var(--mute);font-size:12px;">Loading all registered users\u2026</div>';
   var res = await _supabase.from('profiles').select('*').order('created_at',{ascending:true});
-  if(res.error){ el.innerHTML='<div style="color:var(--red);font-size:12px;">Error loading users: '+res.error.message+'</div>'; return; }
-  var users = res.data||[];
-  el.innerHTML = users.map(function(u){
-    var isMe = CURRENT_USER && u.id === CURRENT_USER.id;
-    return '<div class="user-row">'
-      +'<div class="user-row-email">'+esc(u.email||u.name||u.id)+(isMe?' <span style="font-size:10px;color:var(--mute);">(you)</span>':'')+'</div>'
-      +'<span class="user-row-role '+u.role+'">'+esc(u.role)+'</span>'
-      +(!isMe ? '<button class="btn bq bsm" style="font-size:11px;padding:5px 10px;" onclick="toggleUserRole(\''+u.id+'\',\''+u.role+'\')">Make '+(u.role==='admin'?'Teacher':'Admin')+'</button>' : '')
+  if(res.error){
+    el.innerHTML='<div class="banner b-warn" style="font-size:12px;margin:0;">'
+      +'<strong>\u26a0 Database policy blocks full user list.</strong><br/>'
+      +'Run the updated <strong>supabase_fix.sql</strong> in Supabase SQL Editor to allow admins to read all profiles.<br/>'
+      +'<span style="opacity:.7">Error: '+esc(res.error.message)+'</span>'
       +'</div>';
-  }).join('') || '<div style="color:var(--mute);font-size:12px;">No users found.</div>';
+    return;
+  }
+  var users = res.data||[];
+  if(!users.length){
+    el.innerHTML='<div style="color:var(--mute);font-size:12px;">No registered users found.</div>';
+    return;
+  }
+  el.innerHTML='<div style="font-size:11px;color:var(--mute);margin-bottom:10px;">'+users.length+' registered user'+(users.length!==1?'s':'')+' across all devices</div>'
+    +users.map(function(u){
+      var isMe = CURRENT_USER && u.id === CURRENT_USER.id;
+      var joined = u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '';
+      return '<div class="user-row" style="gap:8px;flex-wrap:wrap;align-items:center;">'
+        +'<div class="user-row-email" style="flex:1;min-width:140px;">'
+        +esc(u.email||u.id)
+        +(u.name&&u.name!==(u.email||'').split('@')[0]?' <span style="font-size:10.5px;color:var(--mute);">'+esc(u.name)+'</span>':'')
+        +(isMe?' <span style="font-size:10px;color:var(--blue);font-weight:700;">\u2605 you</span>':'')
+        +(joined?' <span style="font-size:10px;color:var(--mute);display:block;">Joined '+joined+'</span>':'')
+        +'</div>'
+        +'<span class="user-row-role '+esc(u.role)+'">'+esc(u.role)+'</span>'
+        +(!isMe
+          ?'<button class="btn bq bsm" style="font-size:11px;padding:5px 10px;" onclick="toggleUserRole(\''+u.id+'\',\''+u.role+'\')">'
+            +(u.role==='admin'?'\u2192 Teacher':'\u2192 Admin')
+            +'</button>'
+          :'')
+        +'</div>';
+    }).join('');
 };
 
 window.toggleUserRole = async function(uid, currentRole){
