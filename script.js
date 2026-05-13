@@ -175,7 +175,7 @@ async function _loadUserSettings(){
     if(res.error){ console.warn('user_settings load error:', res.error.message); }
     var m = {};
     (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
-    
+
     // Migrate localStorage to Supabase
     var oldKey = localStorage.getItem('ee_api_key') || localStorage.getItem('api_key');
     if (oldKey && !m.api_key) {
@@ -187,8 +187,6 @@ async function _loadUserSettings(){
 
     S.tradeSubject  = m.trade    || DEFAULT_TRADE;
     S.cfg.school    = m.school   || '';
-    S.cfg.term      = m.defterm  || '1st Term';
-    API_KEY         = m.api_key  || '';
     // Restore in-progress draft if present
     if(m.current_draft){
       try{
@@ -198,14 +196,21 @@ async function _loadUserSettings(){
         }
       }catch(e){}
     }
+    // Store per-user api_key temporarily; will be overridden by global key below if set
+    window._userApiKey = m.api_key || '';
   }catch(e){ console.warn('_loadUserSettings exception:', e.message); }
-  // Pre-load admin settings cache for everyone (needed for school name etc.)
+  // Pre-load admin settings (shared across all devices — sets API key, term, branding)
   await _fetchAdminSettings();
+  // After admin settings load: apply global API key (admin_settings overrides per-user)
+  // If no global key, fall back to user's own stored key
+  var adm = getAdminSettings();
+  if(adm.api_key){ API_KEY = adm.api_key; }
+  else { API_KEY = window._userApiKey || ''; }
+  // Apply global default term for all users
+  if(adm.selected_term){ S.cfg.term = adm.selected_term; }
+  else { S.cfg.term = '1st Term'; }
   if(CURRENT_USER.role==='admin'){
-    try{
-      var res2=await _supabase.from('user_settings').select('value').eq('user_id',CURRENT_USER.id).eq('key','defterm').single();
-      if(res2.data) ADMIN.selectedTerm=res2.data.value||'1st Term';
-    }catch(e){}
+    ADMIN.selectedTerm = adm.selected_term || S.cfg.term || '1st Term';
   }
 }
 
@@ -278,6 +283,7 @@ async function bootApp(){
   // Force role based on DB profile — admins cannot be faked
   ROLE = CURRENT_USER.role === 'admin' ? 'admin' : 'teacher';
   _applyRoleUI(ROLE);
+  _applyRoleSidebarLinks(ROLE);
   refreshApiStatus();
   startDeadlineWatcher();
 
@@ -307,6 +313,7 @@ function _applyRoleUI(role){
   var st=$('swTeacher'),    sa=$('swAdmin');
   var bm=$('sbBrandMark'),  bn=$('sbBrandName');
   var rb=$('navRoleBadge');
+  var rs=$('roleSwitcher'); // role-switcher container
   if(role==='admin'){
     if(nt) nt.style.display='none';
     if(na) na.style.display='block';
@@ -315,6 +322,8 @@ function _applyRoleUI(role){
     if(bm){ bm.style.background='var(--admin)'; bm.style.boxShadow='var(--sh-admin)'; }
     if(bn){ bn.style.color='var(--admin)'; }
     if(rb){ rb.className='role-badge admin'; rb.textContent='Admin'; }
+    // Show role-switcher only for admins
+    if(rs) rs.style.display='';
   } else {
     if(nt) nt.style.display='block';
     if(na) na.style.display='none';
@@ -323,6 +332,8 @@ function _applyRoleUI(role){
     if(bm){ bm.style.background='var(--blue)'; bm.style.boxShadow='var(--sh-blue)'; }
     if(bn){ bn.style.color='var(--blue)'; }
     if(rb){ rb.className='role-badge teacher'; rb.textContent='Teacher'; }
+    // Hide role-switcher from teachers
+    if(rs) rs.style.display='none';
   }
 }
 
@@ -595,8 +606,23 @@ function setSbActive(id){
   var el=$(id); if(el) el.classList.add('active');
 }
 
+/* Hide teacher-inaccessible sidebar links based on role */
+function _applyRoleSidebarLinks(role){
+  var sbSett=$('sbSett');
+  if(sbSett) sbSett.style.display=(role==='admin')?'':'none';
+}
+
 window.navTo = function(screen){
   closeSidebar();
+  // Guard: Settings screens are admin-only
+  if(screen==='sett' && CURRENT_USER && CURRENT_USER.role!=='admin'){
+    toast('⛔ Settings are managed by your administrator','err',4000);
+    return;
+  }
+  if((screen==='admin-dash'||screen==='admin-print'||screen==='admin-sett') && CURRENT_USER && CURRENT_USER.role!=='admin'){
+    toast('⛔ Admin access only — contact your administrator','err',4000);
+    return;
+  }
   // Push to browser history so back button works
   try{ history.pushState({screen:screen},'','#'+screen); }catch(e){}
   _navInternal(screen);
@@ -614,7 +640,15 @@ function _navInternal(screen){
   else if(screen==='new')        { setSbActive('sbNew');         showGate(); }
   else if(screen==='load')       { setSbActive('sbLoad');        renderLoad(); }
   else if(screen==='arch')       { setSbActive('sbArch');        renderArch(); }
-  else if(screen==='sett')       { setSbActive('sbSett');        renderSett(); }
+  else if(screen==='sett'){
+    // Admin-only settings screen
+    if(CURRENT_USER && CURRENT_USER.role==='admin'){
+      setSbActive('sbSett'); renderSett();
+    } else {
+      toast('⛔ Settings are managed by your administrator','err',4000);
+      _navInternal('dash');
+    }
+  }
   else if(screen==='admin-dash') { setSbActive('sbAdminDash');   renderAdminDash(); }
   else if(screen==='admin-print'){ setSbActive('sbAdminPrint');  renderAdminPrint(); }
   else if(screen==='admin-sett') { setSbActive('sbAdminSett');   renderAdminSett(); }
@@ -929,11 +963,16 @@ window.saveApiKey = function(){
   var v=($('settKeyInp')||{}).value||''; v=v.trim();
   API_KEY=v;
   _saveSetting('api_key', v);
-  refreshApiStatus(); toast('API key saved ✓','ok');
+  // Also push to admin_settings so it works across all devices
+  _supabase.from('admin_settings').upsert({key:'api_key',value:v},{onConflict:'key'});
+  if(window._adminSettingsCache) window._adminSettingsCache.api_key=v;
+  refreshApiStatus(); toast('API key saved ✓ — active across all devices','ok',3500);
 };
 window.clearApiKey = function(){
   API_KEY='';
   _saveSetting('api_key','');
+  _supabase.from('admin_settings').upsert({key:'api_key',value:''},{onConflict:'key'});
+  if(window._adminSettingsCache) window._adminSettingsCache.api_key='';
   refreshApiStatus(); toast('API key cleared','ok');
   renderSett();
 };
@@ -942,9 +981,12 @@ window.saveSchool = function(){
   var t=($('settTerm')||{}).value||'1st Term';
   _saveSetting('school', s.trim());
   _saveSetting('defterm', t);
-  if(CURRENT_USER && CURRENT_USER.role==='admin') ADMIN.selectedTerm=t;
+  // Persist default term globally in admin_settings so ALL devices/users pick it up
+  _supabase.from('admin_settings').upsert({key:'selected_term',value:t},{onConflict:'key'});
+  if(window._adminSettingsCache) window._adminSettingsCache.selected_term=t;
+  ADMIN.selectedTerm=t;
   S.cfg.school=s.trim(); S.cfg.term=t;
-  toast('School details saved ✓','ok');
+  toast('School details saved ✓ — default term enforced system-wide','ok',3500);
 };
 window.setTrade = function(id){
   S.tradeSubject=id;
@@ -3128,7 +3170,8 @@ function getAdminSettings(){
   // Returns cached admin settings (loaded async on boot/admin nav)
   return window._adminSettingsCache || {
     deadline:'', logo:'', watermark:'ExamEngine',
-    school:'School Administration', address:'', motto:''
+    school:'School Administration', address:'', motto:'',
+    api_key:'', selected_term:''
   };
 }
 async function _fetchAdminSettings(){
@@ -3141,7 +3184,9 @@ async function _fetchAdminSettings(){
     watermark:m.watermark||'ExamEngine',
     school:m.school||'School Administration',
     address:m.address||'',
-    motto:m.motto||''
+    motto:m.motto||'',
+    api_key:m.api_key||'',
+    selected_term:m.selected_term||''
   };
   // Also load lab_config and lab_queue into ADMIN
   if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
@@ -3400,6 +3445,9 @@ async function renderAdminDash(){
 
 window.setAdminTerm=function(term){
   ADMIN.selectedTerm=term;
+  // Persist term selection globally so all users/devices share the same active term
+  _supabase.from('admin_settings').upsert({key:'selected_term',value:term},{onConflict:'key'});
+  if(window._adminSettingsCache) window._adminSettingsCache.selected_term=term;
   renderAdminDash();
 };
 
@@ -5917,8 +5965,12 @@ window.clearHouseStyleForm=function(){
 window.saveApiKeyAdmin=function(){
   var v=($('settKeyInp2')||{}).value||''; v=v.trim();
   API_KEY=v;
+  // Save to user_settings for this admin user
   _saveSetting('api_key', v);
-  refreshApiStatus(); toast('API key saved ✓','ok');
+  // ALSO save to admin_settings so ALL devices/teachers share the same key
+  _supabase.from('admin_settings').upsert({key:'api_key',value:v},{onConflict:'key'});
+  if(window._adminSettingsCache) window._adminSettingsCache.api_key=v;
+  refreshApiStatus(); toast('API key saved ✓ — active across all devices','ok',3500);
 };
 
 /* ── Deadline Watcher ────────────────── */
