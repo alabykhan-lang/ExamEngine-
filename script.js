@@ -202,14 +202,22 @@ async function _loadUserSettings(){
   // Pre-load admin settings (shared across all devices — sets API key, term, branding)
   await _fetchAdminSettings();
   // After admin settings load: apply global API key (admin_settings overrides per-user)
-  // If no global key, fall back to user's own stored key
   var adm = getAdminSettings();
+  
+  // Auto-promote admin's device key to global if global is missing
+  if(CURRENT_USER && CURRENT_USER.role==='admin' && window._userApiKey && !adm.api_key){
+    adm.api_key = window._userApiKey;
+    _supabase.from('admin_settings').upsert({key:'api_key',value:window._userApiKey},{onConflict:'key'});
+  }
+
   if(adm.api_key){ API_KEY = adm.api_key; }
   else { API_KEY = window._userApiKey || ''; }
-  // Apply global default term for all users
+  // Apply global default term and session for all users
   if(adm.selected_term){ S.cfg.term = adm.selected_term; }
   else { S.cfg.term = '1st Term'; }
-  if(CURRENT_USER.role==='admin'){
+  if(adm.selected_session){ S.cfg.session = adm.selected_session; }
+  else { S.cfg.session = '2025/2026'; }
+  if(CURRENT_USER && CURRENT_USER.role==='admin'){
     ADMIN.selectedTerm = adm.selected_term || S.cfg.term || '1st Term';
   }
 }
@@ -332,8 +340,10 @@ function _applyRoleUI(role){
     if(bm){ bm.style.background='var(--blue)'; bm.style.boxShadow='var(--sh-blue)'; }
     if(bn){ bn.style.color='var(--blue)'; }
     if(rb){ rb.className='role-badge teacher'; rb.textContent='Teacher'; }
-    // Hide role-switcher from teachers
-    if(rs) rs.style.display='none';
+  }
+  // Show role-switcher only for users who are true admins in the DB
+  if(rs){
+    rs.style.display = (CURRENT_USER && CURRENT_USER.role==='admin') ? '' : 'none';
   }
 }
 
@@ -446,7 +456,7 @@ var S = {
   difficultyLevel: 'Balanced',
   tradeSubject: DEFAULT_TRADE,
   cfg: {
-    cls:'', term:'1st Term', subj:'', std:'WAEC',
+    cls:'', term:'1st Term', session:'2025/2026', subj:'', std:'WAEC',
     topics:[], topicText:'',
     objN:10, fitbN:0, thN:5,
     instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',
@@ -877,7 +887,7 @@ function renderArchList(papers){
       +'<div class="arch-ico">📄</div>'
       +'<div class="arch-body">'
       +'<div class="arch-title">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-      +'<div class="arch-meta">'+esc(p.term)+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
+      +'<div class="arch-meta">'+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
       +'<div class="arch-meta">'+(p.objCount||0)+' obj · '+(p.fitbCount||0)+' fill-in-blank · '+(p.thCount||0)+' theory</div>'
       +'<div class="arch-ref">📋 '+esc(p.ref)+' · '+esc(p.date||'')+'</div>'
       +(st==='rejected'&&p.correctionNote?'<div style="margin-top:6px;font-size:11.5px;color:var(--red);font-style:italic;">↩ '+esc(p.correctionNote)+'</div>':'')
@@ -932,11 +942,16 @@ function renderSett(){
     +'<div class="fl"><label>School Name</label>'
     +'<input type="text" class="fi" id="settSchool" value="'+esc(school)+'" placeholder="e.g. Government Secondary School, Ikeja"/>'
     +'</div>'
+    +'<div class="r2">'
+    +'<div class="fl"><label>Academic Session</label>'
+    +'<input type="text" class="fi" id="settSession" value="'+esc(S.cfg.session||'2025/2026')+'" placeholder="e.g. 2025/2026"/>'
+    +'</div>'
     +'<div class="fl"><label>Default Term</label>'
     +'<select class="fs" id="settTerm">'
     +TERMS.map(function(t){ return '<option'+(t===defTerm?' selected':'')+'>'+t+'</option>'; }).join('')
     +'</select></div>'
-    +'<button class="btn bp" onclick="saveSchool()">💾 Save Details</button>'
+    +'</div>'
+    +'<button class="btn bp" onclick="saveSchool()" style="margin-top:10px;">💾 Save Details</button>'
     +'</div>'
 
     +'<div class="card">'
@@ -979,14 +994,20 @@ window.clearApiKey = function(){
 window.saveSchool = function(){
   var s=($('settSchool')||{}).value||'';
   var t=($('settTerm')||{}).value||'1st Term';
+  var sess=($('settSession')||{}).value||'2025/2026';
   _saveSetting('school', s.trim());
   _saveSetting('defterm', t);
+  _saveSetting('defsession', sess.trim());
   // Persist default term globally in admin_settings so ALL devices/users pick it up
   _supabase.from('admin_settings').upsert({key:'selected_term',value:t},{onConflict:'key'});
-  if(window._adminSettingsCache) window._adminSettingsCache.selected_term=t;
+  _supabase.from('admin_settings').upsert({key:'selected_session',value:sess.trim()},{onConflict:'key'});
+  if(window._adminSettingsCache){
+    window._adminSettingsCache.selected_term=t;
+    window._adminSettingsCache.selected_session=sess.trim();
+  }
   ADMIN.selectedTerm=t;
-  S.cfg.school=s.trim(); S.cfg.term=t;
-  toast('School details saved ✓ — default term enforced system-wide','ok',3500);
+  S.cfg.school=s.trim(); S.cfg.term=t; S.cfg.session=sess.trim();
+  toast('School details saved ✓ — default term & session enforced system-wide','ok',3500);
 };
 window.setTrade = function(id){
   S.tradeSubject=id;
@@ -1009,7 +1030,7 @@ window.clearAllData = async function(){
 };
 window.restoreDraft=function(){
   var d=window._savedDraft; if(!d||!d.slots) return;
-  S.cfg=Object.assign({cls:'',term:'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
+  S.cfg=Object.assign({cls:'',term:'1st Term',session:'2025/2026',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
   S.at=d.at||'Examination';
   S.path=d.path||'auto';
   S.tradeSubject=d.tradeSubject||DEFAULT_TRADE;
@@ -1406,7 +1427,8 @@ function s1Auto(){
 
     // Step 1
     +'<div class="card"><div class="ct">Step 1 — Term &amp; Class</div>'
-    +'<div class="r2">'
+    +'<div class="r3">'
+    +'<div class="fl"><label>Academic Session</label><input type="text" class="fi" id="fsess" value="'+esc(c.session||'2025/2026')+'"/></div>'
     +'<div class="fl"><label>NERDC Term</label><select class="fs" id="fterm">'
     +TERMS.map(function(x){ return '<option'+(x===c.term?' selected':'')+'>'+x+'</option>'; }).join('')
     +'</select></div>'
@@ -1547,6 +1569,7 @@ function s1Auto(){
   if(S.at!=='Examination'){ var sub2=$('caSubOpts'); if(sub2) sub2.style.display='flex'; }
   if(S.at==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
   if(S.at==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
+  $('fsess').oninput=function(e){ S.cfg.session=e.target.value; };
   $('fterm').onchange=function(e){ S.cfg.term=e.target.value; onClassTermChange(); };
   $('fcl').onchange=function(e){ S.cfg.cls=e.target.value; onClassTermChange(); };
   $('fst').onchange=function(e){
@@ -2176,7 +2199,8 @@ function s2Manual(){
     +'</select></div>'
     +'<div class="fl"><label>Subject</label><input type="text" class="fi" id="mfsubj" value="'+esc(S.cfg.subj)+'" placeholder="e.g. Livestock Farming…"/></div>'
     +'</div>'
-    +'<div class="r2" style="margin-top:0;">'
+    +'<div class="r3" style="margin-top:0;">'
+    +'<div class="fl"><label>Academic Session</label><input type="text" class="fi" id="mfsess" value="'+esc(S.cfg.session||'2025/2026')+'"/></div>'
     +'<div class="fl"><label>Term</label><select class="fs" id="mfterm">'
     +TERMS.map(function(x){ return '<option'+(x===S.cfg.term?' selected':'')+'>'+x+'</option>'; }).join('')
     +'</select></div>'
@@ -2275,6 +2299,7 @@ function s2Manual(){
 
   $('mfcl').onchange  =function(e){ S.cfg.cls  =e.target.value; };
   $('mfsubj').oninput =function(e){ S.cfg.subj =e.target.value; };
+  $('mfsess').oninput =function(e){ S.cfg.session=e.target.value; };
   $('mfterm').onchange=function(e){ S.cfg.term =e.target.value; };
   $('mfsc').oninput   =function(e){ S.cfg.school=e.target.value; };
 }
@@ -2847,7 +2872,7 @@ function goReview(){
       ts.map(function(s){ return {k:'theory',t:s.q.t,marks:s.q.marks||10,s:s.q.s,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; })
     );
     var paper={
-      ref:ref, cls:c.cls, subj:dispSubj2, term:c.term,
+      ref:ref, cls:c.cls, subj:dispSubj2, term:c.term, session:c.session||'2025/2026',
       std:c.std, at:S.at, school:c.school||S.cfg.school||'',
       objCount:os.length, fitbCount:fs.length, thCount:ts.length,
       instr:c.instr||'', theoryPaperInstr:c.theoryPaperInstr||'',
@@ -3049,7 +3074,7 @@ function buildPrint(os,fs,ts,includeGuide){
 ══════════════════════════════════════ */
 function resetAll(){
   S.path=null; S.scr=0; S.at='Examination'; S.difficultyLevel='Balanced';
-  S.cfg={cls:'',term:S.cfg.term||'1st Term',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''};
+  S.cfg={cls:'',term:S.cfg.term||'1st Term',session:S.cfg.session||'2025/2026',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''};
   S.subjects=[]; S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false;
   S.slots=[]; S.ocrSlots=[]; S.ntxSlots=[]; S.generating=false; S.cam=null;
   S._imgQueue=[]; S._ntxQueue=[];
@@ -3186,7 +3211,8 @@ async function _fetchAdminSettings(){
     address:m.address||'',
     motto:m.motto||'',
     api_key:m.api_key||'',
-    selected_term:m.selected_term||''
+    selected_term:m.selected_term||'',
+    selected_session:m.selected_session||''
   };
   // Also load lab_config and lab_queue into ADMIN
   if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
@@ -4107,7 +4133,7 @@ function renderDigitalLabPreview(papers,adm){
     mh+='<div style="text-align:center;border-bottom:1.5px double #000;padding-bottom:5px;margin-bottom:6px;">';
     if(logo) mh+='<img src="'+logo+'" style="width:32px;height:32px;object-fit:contain;display:block;margin:0 auto 2px;"/>';
     mh+='<div style="font-size:11pt;font-weight:700;text-transform:uppercase;">'+esc(school)+'</div>';
-    mh+='<div style="font-size:8pt;font-weight:600;">'+(p.at==='C.A.'?'Continuous Assessment':'Examination')+' &mdash; '+esc(p.term)+'</div>';
+    mh+='<div style="font-size:8pt;font-weight:600;">'+(p.at==='C.A.'?'Continuous Assessment':'Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
     mh+='</div>';
     papers.forEach(function(sp,si){
       var sqs=sp.questions||[];
@@ -4159,7 +4185,7 @@ function renderDigitalLabPreview(papers,adm){
   if(logo2) h+='<img src="'+logo2+'" style="width:44px;height:44px;object-fit:contain;display:block;margin:0 auto 3px;"/>';
   h+='<div style="font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;">'+esc(school2)+'</div>';
   if(address2) h+='<div style="font-size:7.5pt;text-transform:uppercase;opacity:.7;">'+esc(address2)+'</div>';
-  h+='<div style="font-size:10pt;font-weight:600;margin-top:3px;">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+'</div>';
+  h+='<div style="font-size:10pt;font-weight:600;margin-top:3px;">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
   h+='<div style="font-size:9pt;margin-top:2px;">Subject: <strong>'+esc(p.subj)+'</strong> &nbsp; Class: <strong>'+esc(p.cls)+'</strong> &nbsp; Total: <strong>'+total+' marks</strong></div>';
   h+='</div>';
   if(objs.length){
@@ -4431,7 +4457,7 @@ function buildPaperHeader(p,adm,compact){
     h+='<div style="flex:1;text-align:left;">'
       +'<div class="ep-school" style="font-size:8.5pt!important;letter-spacing:.2px;">'+esc(school)+'</div>'
       +(address?'<div style="font-size:6pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
-      +'<div class="ep-title" style="font-size:7.5pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+'</div>'
+      +'<div class="ep-title" style="font-size:7.5pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
       +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>&bull;<span>'+total+' marks</span>&bull;<span>'+today+'</span></div>'
       +'</div></div>';
   } else {
@@ -4440,7 +4466,7 @@ function buildPaperHeader(p,adm,compact){
     else h+='<div class="ep-crest">'+initials+'</div>';
     h+='<div class="ep-school">'+esc(school)+'</div>';
     if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
-    h+='<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+'</div>';
+    h+='<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
     h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>';
     h+='<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span><span>Standard: '+esc(p.std||'')+'</span><span>Ref: '+esc(p.ref)+'</span></div>';
   }
@@ -5551,7 +5577,7 @@ function buildNormalPrintHtml(p,adm){
     +(logo?logo:'<div class="ep-crest">'+initials+'</div>')
     +'<div class="ep-school">'+esc(school)+'</div>'
     +(address?'<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>':'')
-    +'<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+'</div>'
+    +'<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
     +'<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span>'
     +'<span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>'
     +'<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span>'
@@ -5661,7 +5687,7 @@ function buildEcoColumn(p,adm,today,wm,side){
   h+='<div style="flex:1;min-width:0;">'
     +'<div class="ep-school" style="font-size:8.5pt!important;">'+esc(school)+'</div>'
     +(address?'<div style="font-size:6.5pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
-    +'<div class="ep-title" style="font-size:8pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+'</div>'
+    +'<div class="ep-title" style="font-size:8pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
     +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span> &bull; <span>'+esc(p.cls)+'</span> &bull; <span>'+total+' marks</span></div>'
     +'</div></div>';
 
