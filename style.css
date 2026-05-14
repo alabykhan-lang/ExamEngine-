@@ -569,6 +569,10 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 .visual-card{border:1.5px solid var(--bdr);border-radius:8px;background:var(--surf2);padding:10px 12px;margin:8px 0;font-size:12px;line-height:1.55;break-inside:avoid;page-break-inside:avoid;}
 .graph-card{border-color:#93C5FD;background:#EFF6FF;color:#1E3A8A;}
 .shape-card{border-color:#A7F3D0;background:#ECFDF5;color:#065F46;}
+.visual-editor{margin:10px 0;padding:10px;border:1.5px solid var(--bdr);border-radius:8px;background:var(--surf2);}
+.visual-editor-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--mute);}
+.visual-editor-input{min-height:54px!important;font-size:12px!important;background:#fff!important;}
+.visual-editor-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px;}
 .exam-inline-table{border-collapse:collapse;width:100%;max-width:520px;margin:8px 0;font-size:12px;break-inside:avoid;page-break-inside:avoid;}
 .exam-inline-table th,.exam-inline-table td{border:1px solid var(--bdr2);padding:6px 8px;text-align:left;vertical-align:top;}
 .exam-inline-table th{background:var(--surf3);font-weight:800;}

@@ -11,6 +11,7 @@ var MODELS = {
   drawing:  'google/gemini-2.5-flash'
 };
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
+var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 var OR_REFERER = 'https://examengine.pro';
 var OR_TITLE   = 'ExamEngine Pro v12.5';
 // No bundled production key: the admin OpenRouter key must come from admin_settings.
@@ -504,7 +505,13 @@ function cleanApiKey(v){
 var _badApiKeys={};
 function looksLikeOpenRouterKey(v){
   v=cleanApiKey(v);
-  return !!(v && /^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v));
+  return !!(v && (/^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v)||/^AIza[0-9A-Za-z_-]{20,}$/.test(v)));
+}
+function apiProviderForKey(v){
+  v=cleanApiKey(v);
+  if(/^AIza[0-9A-Za-z_-]{20,}$/.test(v)) return 'google';
+  if(/^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v)) return 'openrouter';
+  return '';
 }
 function isUsableApiKey(v){
   v=cleanApiKey(v);
@@ -596,10 +603,63 @@ function renderQuestionText(q){
   var html=renderRichText(q.t||q.q||'');
   if(q.svgInline) html+='<div class="gen-svg-wrap">'+q.svgInline+'</div>';
   if(q._svgDiagram) html+='<div class="gen-svg-wrap">'+q._svgDiagram+'</div>';
+  if(q.svgHint&&!q.svgInline&&!q._svgDiagram) html+='<div class="visual-card shape-card"><strong>Visual:</strong> '+esc(q.svgHint)+'</div>';
   if(q.diagImg) html+='<div class="diagram-box"><img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/><span class="diagram-label">Source diagram</span></div>';
   else if(q.diagDesc) html+='<div class="visual-card shape-card"><strong>Diagram:</strong> '+esc(q.diagDesc)+'</div>';
   return html;
 }
+function renderVisualEditor(kind,id,q){
+  q=q||{};
+  var hint=esc(q.svgHint||q.diagDesc||'');
+  return '<div class="visual-editor">'
+    +'<div class="visual-editor-head"><span>Diagram / Shape</span>'
+    +(q.svgInline||q._svgDiagram?'<span class="tag t-ai">Rendered</span>':hint?'<span class="tag t-cust">Description ready</span>':'<span class="tag">Optional</span>')
+    +'</div>'
+    +'<textarea class="fta visual-editor-input" placeholder="Describe a diagram, graph, table, apparatus, shape, labelled figure, axes, measurements..." oninput="updVisualHint(\''+kind+'\','+id+',this.value)">'+hint+'</textarea>'
+    +'<div class="visual-editor-actions">'
+    +'<button class="btn bq bsm" onclick="drawVisualForSlot(\''+kind+'\','+id+')">▣ Render visual</button>'
+    +'<button class="btn bq bsm" onclick="clearVisualForSlot(\''+kind+'\','+id+')">Clear visual</button>'
+    +'</div></div>';
+}
+function persistQuestion(q,kind){
+  q=q||{};
+  var out={k:kind||q.k||'theory',t:q.t||q.q||'',marks:q.marks||null,topic:q.topic||'',layout:q.layout||'standard',
+    svgInline:q.svgInline||q._svgDiagram||null,svgHint:q.svgHint||q.diagDesc||null,diagDesc:q.diagDesc||'',diagImg:q.diagImg||null};
+  if(out.k==='obj'){ out.o=q.o||q.options||[]; out.a=q.a!==undefined?q.a:q.answer; out.marks=q.marks||1; }
+  if(out.k==='fitb'){ out.answer=q.answer||''; out.marks=q.marks||2; }
+  if(out.k==='theory'){ out.s=q.s||q.showSteps; out.marks=q.marks||10; }
+  return out;
+}
+function findQuestionSlot(kind,id){
+  var arr=kind==='auto'?S.slots:kind==='scan'?S.ocrSlots:S.ntxSlots;
+  return (arr||[]).find(function(x){ return x.id===id; });
+}
+window.updVisualHint=function(kind,id,v){
+  var s=findQuestionSlot(kind,id); if(!s||!s.q) return;
+  s.q.svgHint=v; s.q.diagDesc=v;
+};
+window.clearVisualForSlot=function(kind,id){
+  var s=findQuestionSlot(kind,id); if(!s||!s.q) return;
+  s.q.svgHint=''; s.q.diagDesc=''; s.q.svgInline=null; s.q._svgDiagram=null;
+  if(kind==='auto'){ var el=$('slot_'+id); if(el) el.outerHTML=renderSlot(s); }
+  else if(kind==='scan') renderScanSlots();
+  else renderNtxSlots();
+};
+window.drawVisualForSlot=async function(kind,id){
+  var s=findQuestionSlot(kind,id); if(!s||!s.q) return;
+  var desc=(s.q.svgHint||s.q.diagDesc||'').trim();
+  if(!desc){ toast('Describe the diagram or shape first','warn'); return; }
+  ensureApiKey();
+  toast('Rendering diagram/shape...','info',4500);
+  try{
+    s.q.svgInline=await callGeminiDraw(desc,{width:420,height:250});
+    s.q.svgHint=desc;
+    if(kind==='auto'){ var el=$('slot_'+id); if(el) el.outerHTML=renderSlot(s); }
+    else if(kind==='scan') renderScanSlots();
+    else renderNtxSlots();
+    setTimeout(function(){ math(document.body); },200);
+  }catch(e){ toast('Visual render failed: '+e.message,'err',5500); }
+};
 function getAdminTerm(){
   var adm=getAdminSettings?getAdminSettings():{};
   return (adm&&adm.selected_term)||ADMIN.selectedTerm||S.cfg.term||'1st Term';
@@ -1083,8 +1143,8 @@ function renderSett(){
     +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
-    +'<div class="api-note">🔑 Get your key at <strong>openrouter.ai/keys</strong>.<br/>'
-    +'Primary: <strong>google/gemini-3-flash-preview</strong> · Fallback: <strong>google/gemini-2.5-flash</strong><br/>'
+    +'<div class="api-note">🔑 Accepts <strong>OpenRouter</strong> keys (<code>sk-or-v1-...</code>) or <strong>Google Gemini</strong> keys (<code>AIza...</code>).<br/>'
+    +'Primary: <strong>Gemini</strong> · Fallback model: <strong>gemini-2.5-flash</strong><br/>'
     +'Scheme Engine: <strong>google/gemini-2.5-flash</strong><br/>'
     +'Lab Agent: <strong>anthropic/claude-3.5-sonnet</strong><br/>'
     +'Costs pennies per full exam paper.</div>'
@@ -1132,7 +1192,7 @@ function renderSett(){
 
 window.saveApiKey = async function(){
   var v=cleanApiKey(($('settKeyInp')||{}).value||'');
-  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter key starting with sk-or-v1-','err',4500); return; }
+  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter sk-or-v1- key or Gemini AIza key','err',4500); return; }
   if(v) delete _badApiKeys[v];
   API_KEY=v;
   window._userApiKey=v;
@@ -1325,7 +1385,7 @@ async function extractApiError(resp){
     var msg=(j&&j.error&&j.error.message)?j.error.message:'';
     if(resp.status===429||(msg&&msg.toLowerCase().includes('rate')))
       return{is429:true,seconds:10,msg:'Rate limit hit. Retrying shortly…'};
-    if(resp.status===401) return{is429:false,msg:'Invalid API key.'};
+    if(resp.status===401) return{is429:false,msg:'Invalid OpenRouter API key.'};
     if(resp.status===402) return{is429:false,msg:'Insufficient OpenRouter credits. Top up at openrouter.ai/credits.'};
     return{is429:false,msg:msg||('API error '+resp.status)};
   }catch(e){ return{is429:resp.status===429,seconds:10,msg:'API error '+resp.status}; }
@@ -1333,6 +1393,7 @@ async function extractApiError(resp){
 async function _fetchOR(messages,model,isJson){
   var key=ensureApiKey();
   if(!key) throw new Error('No API key configured.');
+  if(apiProviderForKey(key)==='google') return _fetchGoogleGemini(messages,model,isJson,key);
   var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
   if(isJson) body.response_format={type:'json_object'};
   var r;
@@ -1350,6 +1411,61 @@ async function _fetchOR(messages,model,isJson){
   if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; e.status=r.status; e.apiKey=key; throw e; }
   var data=await r.json();
   return(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
+}
+function googleModelName(model){
+  model=String(model||MODELS.fallback);
+  if(model.indexOf('gemini')>=0) return model.replace(/^google\//,'');
+  return MODELS.fallback.replace(/^google\//,'');
+}
+function googlePartFromContent(part){
+  if(typeof part==='string') return [{text:part}];
+  if(!Array.isArray(part)) return [{text:String(part||'')}];
+  return part.map(function(p){
+    if(p.type==='text') return {text:p.text||''};
+    if(p.type==='image_url'&&p.image_url&&p.image_url.url){
+      var m=String(p.image_url.url).match(/^data:([^;]+);base64,(.+)$/);
+      if(m) return {inlineData:{mimeType:m[1],data:m[2]}};
+    }
+    return {text:''};
+  }).filter(function(p){ return p.text||p.inlineData; });
+}
+async function _fetchGoogleGemini(messages,model,isJson,key){
+  var sys='';
+  var contents=[];
+  (messages||[]).forEach(function(m){
+    if(m.role==='system'){ sys+=(sys?'\n':'')+(typeof m.content==='string'?m.content:JSON.stringify(m.content)); return; }
+    contents.push({role:m.role==='assistant'?'model':'user',parts:googlePartFromContent(m.content)});
+  });
+  var body={
+    contents:contents,
+    generationConfig:{temperature:0.7,maxOutputTokens:4096}
+  };
+  if(sys) body.systemInstruction={parts:[{text:sys}]};
+  if(isJson) body.generationConfig.responseMimeType='application/json';
+  var gm=googleModelName(model);
+  var r;
+  try{
+    r=await fetch(GEMINI_BASE+encodeURIComponent(gm)+':generateContent?key='+encodeURIComponent(key),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+  }catch(fetchErr){
+    var fe=new Error(fetchErr.message||'Network fetch failed');
+    fe.isTransient=/fetch|network|timeout|failed/i.test(fe.message);
+    throw fe;
+  }
+  if(!r.ok){
+    var msg='Gemini API error '+r.status;
+    try{ var j=await r.json(); msg=(j.error&&j.error.message)||msg; }catch(e){}
+    var er=new Error(r.status===400&&/API key/i.test(msg)?'Invalid Google Gemini API key.':msg);
+    er.status=(r.status===400&&/API key/i.test(msg))?401:r.status;
+    er.apiKey=key;
+    throw er;
+  }
+  var data=await r.json();
+  var parts=(((data.candidates||[])[0]||{}).content||{}).parts||[];
+  return parts.map(function(p){ return p.text||''; }).join('');
 }
 async function _callWithRetry(messages,isJson){
   var models=[MODELS.primary,MODELS.fallback];
@@ -1369,7 +1485,7 @@ async function _callWithRetry(messages,isJson){
         } else if(e.status===401 && e.apiKey && !_badApiKeys[e.apiKey]){
           await markApiKeyInvalid(e.apiKey);
           refreshApiStatus();
-          toast('OpenRouter rejected the key being sent. Re-save a working Admin Settings key.','err',7000);
+          toast('The API provider rejected the key being sent. Re-save a working OpenRouter or Gemini key in Admin Settings.','err',7000);
           attempts=0;
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
@@ -1429,38 +1545,11 @@ async function callGeminiVision(base64Image,mimeType,prompt){
    temperature 0.05 for maximum consistency
 ══════════════════════════════════════ */
 async function callGeminiScheme(prompt){
-  var key=ensureApiKey();
-  if(!key) throw new Error('No API key configured.');
   var messages=[
     {role:'system',content:'You are a Nigerian curriculum specialist with authoritative knowledge of the NERDC 2026 Basic and Secondary Education syllabuses. You produce only verified, real curriculum data as valid JSON. Never invent topics. Never include administrative or non-teaching weeks.'},
     {role:'user',content:prompt}
   ];
-  var body={model:MODELS.scheme,messages:messages,max_tokens:4096,temperature:0.05,response_format:{type:'json_object'}};
-  var r,lastFetchErr;
-  for(var attempt=0; attempt<3; attempt++){
-    try{
-      r=await fetch(OR_BASE,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-        body:JSON.stringify(body)
-      });
-      break;
-    }catch(fe){
-      lastFetchErr=fe;
-      if(attempt<2) await _wait(2000+(attempt*2000));
-    }
-  }
-  if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
-  if(!r.ok){
-    var info=await extractApiError(r);
-    if(r.status===401 && key && !_badApiKeys[key]){
-      await markApiKeyInvalid(key);
-      refreshApiStatus();
-    }
-    var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e;
-  }
-  var data=await r.json();
-  var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
+  var text=await(_apiQueue=_apiQueue.then(function(){ return _fetchOR(messages,MODELS.scheme,true); }));
   return parseJsonText(text);
 }
 
@@ -1506,8 +1595,6 @@ async function callLabNL(command){
    DRAWING API — SVG generation via Gemini
 ══════════════════════════════════════ */
 async function callGeminiDraw(description, targetDims){
-  var key=ensureApiKey();
-  if(!key) throw new Error('No API key configured.');
   // Default to medium size; caller can specify dimensions based on host layout
   var td = targetDims || {width:420, height:300, context:'standard A4 portrait'};
   var w = td.width, h = td.height, ctx = td.context || 'standard A4 portrait';
@@ -1529,32 +1616,7 @@ async function callGeminiDraw(description, targetDims){
     {role:'system',content:'You are a scientific diagram generator for educational exam papers. Produce accurate, clean, labeled SVG diagrams sized EXACTLY to the specified dimensions. Return SVG code only — no prose, no markdown fences.'},
     {role:'user',content:prompt}
   ];
-  var body={model:MODELS.drawing,messages:messages,max_tokens:3500,temperature:0.15};
-  var r,lastFetchErr;
-  for(var attempt=0; attempt<3; attempt++){
-    try{
-      r=await fetch(OR_BASE,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-        body:JSON.stringify(body)
-      });
-      break;
-    }catch(fe){
-      lastFetchErr=fe;
-      if(attempt<2) await _wait(2000+(attempt*2000));
-    }
-  }
-  if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
-  if(!r.ok){
-    var info=await extractApiError(r);
-    if(r.status===401 && key && !_badApiKeys[key]){
-      await markApiKeyInvalid(key);
-      refreshApiStatus();
-    }
-    throw new Error(info.msg);
-  }
-  var data=await r.json();
-  var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
+  var text=await(_apiQueue=_apiQueue.then(function(){ return _fetchOR(messages,MODELS.drawing,false); }));
   // Strip markdown fences if present
   text=text.replace(/^```[a-z]*\s*/i,'').replace(/```\s*$/,'').trim();
   var svgMatch=text.match(/<svg[\s\S]*?<\/svg>/i);
@@ -2005,8 +2067,8 @@ window.doLoadScheme=async function(){
 
   var sa=$('schemeArea');
   if(!getEffectiveApiKey()){
-    if(sa) sa.innerHTML='<div class="banner b-warn">⚠ No valid OpenRouter API key is saved in Admin Settings. Paste a working <strong>sk-or-v1-...</strong> key in Admin Settings, then retry.<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below in the meantime.</div></div>'+renderSchemePrompt();
-    toast('No valid OpenRouter API key saved','err',4500);
+    if(sa) sa.innerHTML='<div class="banner b-warn">⚠ No valid API key is saved in Admin Settings. Paste a working <strong>OpenRouter sk-or-v1-...</strong> key or <strong>Gemini AIza...</strong> key, then retry.<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below in the meantime.</div></div>'+renderSchemePrompt();
+    toast('No valid API key saved','err',4500);
     return;
   }
   if(sa) sa.innerHTML='<div class="banner b-info"><span class="spin">⟳</span> Fetching NERDC 2026 Scheme of Work via Gemini 2.5 Flash…</div>';
@@ -2203,6 +2265,7 @@ function renderSlot(s){
         return '<div class="sopt'+(oi===q.a?' correct':'')+'"><span class="sok">'+L[oi]+'.</span><span>'+esc(opt)+'</span></div>';
       }).join('')+'</div>';
     }
+    body+=renderVisualEditor('auto',s.id,q);
     body+='<div class="smeta">'
       +'<span class="tag '+(isFitb?'t-fitb':q.k==='obj'?'t-obj':'t-th')+'">'+(isFitb?'Fill-in-Blank':q.k==='obj'?'Objective':'Theory')+'</span>'
       +(q.g?'<span class="tag '+stdTagCls(q.g)+'">'+esc(q.g)+'</span>':'')
@@ -2741,7 +2804,8 @@ window.transcribeAll=async function(){
         marks:raw.marks||null,
         tr:true,
         diagImg:raw.hasDiagram&&raw._sourceImg?raw._sourceImg:null,
-        diagDesc:raw.hasDiagram?(raw.diagramDescription||''):''
+        diagDesc:raw.hasDiagram?(raw.diagramDescription||''):'',
+        svgHint:raw.svgDescription||raw.diagramDescription||''
       },
       included:true
     });
@@ -2831,6 +2895,7 @@ function renderScanSlots(){
       +'<div class="stx" style="margin-bottom:7px;">'+renderQuestionText(s.q)+'</div>'
       +'<textarea class="fta" style="min-height:50px;" oninput="updScanSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
       +diagHtml
+      +renderVisualEditor('scan',s.id,s.q)
       +'<div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">'
       +'<select class="fs" style="max-width:140px;" onchange="setScanType('+s.id+',this.value)">'
       +'<option value="theory"'+(s.q.k==='theory'?' selected':'')+'>Theory</option>'
@@ -2944,6 +3009,7 @@ window.convertWordTextQuestions=async function(){
         answer:raw.answerText||raw.answer||'',
         marks:raw.marks||(kind==='obj'?1:10),
         topic:raw.topic||'',
+        svgHint:raw.svgDescription||raw.diagramDescription||'',
         structured:true,
         ai:true
       },included:true});
@@ -2973,11 +3039,12 @@ async function structureQuestionsFromWordText(text,customInstr){
     +'5. Classify A-D option questions as k="obj"; questions with blanks as k="fitb"; all others as k="theory".\n'
     +'6. Convert math/science notation to readable LaTeX where appropriate, e.g. $x^2$, $\\frac{1}{2}$, $H_2SO_4$.\n'
     +'7. Extract marks only when already present. Do not invent marks.\n'
-    +(customInstr?'8. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
+    +'8. If the pasted text references a diagram, figure, graph, shape, table, map or apparatus, add svgDescription with a precise redraw description. Do not invent a visual where none is implied.\n'
+    +(customInstr?'9. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
     +'\nPASTED WORD TEXT:\n'+text.substring(0,18000)+'\n\n'
     +'Return ONLY a valid JSON array:\n'
-    +'[{"q":"complete question text","k":"obj","options":["A","B","C","D"],"answer":"","marks":1},'
-    +'{"q":"complete theory question with sub-parts preserved","k":"theory","options":null,"answer":"","marks":10}]\n'
+    +'[{"q":"complete question text","k":"obj","options":["A","B","C","D"],"answer":"","marks":1,"svgDescription":""},'
+    +'{"q":"complete theory question with sub-parts preserved","k":"theory","options":null,"answer":"","marks":10,"svgDescription":"diagram redraw description if present"}]\n'
     +'JSON array ONLY. No explanation.';
   var result=await callGemini(prompt,{temperature:0.1});
   if(Array.isArray(result)) return result;
@@ -3093,6 +3160,7 @@ function renderNtxSlots(){
       +'<textarea class="fta" style="min-height:50px;" oninput="updNtxSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
       +(s.q.k==='obj'&&s.q.o?'<div style="font-size:11px;color:var(--green);margin-top:4px;">✓ Answer: '+esc(L[s.q.a]||'—')+'</div>':'')
       +(s.q.k==='fitb'&&s.q.answer?'<div style="font-size:11px;color:var(--purple);margin-top:4px;">✓ Answer: '+esc(s.q.answer)+'</div>':'')
+      +renderVisualEditor('ntx',s.id,s.q)
       +'<div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">'
       +'<select class="fs" style="max-width:140px;" onchange="setNtxType('+s.id+',this.value)">'
       +'<option value="theory"'+(s.q.k==='theory'?' selected':'')+'>Theory</option>'
@@ -3226,9 +3294,9 @@ function goReview(){
     var ref='EE-'+Date.now().toString(36).toUpperCase().slice(-6);
     var dispSubj2=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
     var allQs=[].concat(
-      os.map(function(s){ return {k:'obj',t:s.q.t,o:s.q.o,a:s.q.a,marks:s.q.marks||1,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; }),
-      fs.map(function(s){ return {k:'fitb',t:s.q.t,answer:s.q.answer,marks:s.q.marks||2,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; }),
-      ts.map(function(s){ return {k:'theory',t:s.q.t,marks:s.q.marks||10,s:s.q.s,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; })
+      os.map(function(s){ return persistQuestion(s.q,'obj'); }),
+      fs.map(function(s){ return persistQuestion(s.q,'fitb'); }),
+      ts.map(function(s){ return persistQuestion(s.q,'theory'); })
     );
     var paper={
       ref:ref, cls:c.cls, subj:dispSubj2, term:c.term, session:c.session||'2025/2026',
@@ -4809,8 +4877,7 @@ function formatObjective(q,i,extraCls){
     }).join('');
   }
   return '<div class="objective-item'+(extraCls?' '+extraCls:'')+'">'
-    +(i+1)+'. '+q.t+opts
-    +(q._svgDiagram?'<div style="margin:2pt 0;text-align:center;">'+q._svgDiagram+'</div>':'')
+    +(i+1)+'. '+renderQuestionText(q)+opts
     +'</div>';
 }
 
@@ -4883,12 +4950,11 @@ function buildSectionsHtml(p,compact){
     h+='<div class="ep-sec">Section '+fSec+' &mdash; Fill in the Blank ('+fitbs.length+')</div>';
     if(!compact) h+='<div class="ep-sec-note">Complete each sentence with the correct word or phrase.</div>';
     fitbs.forEach(function(q,i){
-      var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank"></span>');
+      var qtxt=renderQuestionText(q).replace(/_{2,}/g,'<span class="ep-fitb-blank"></span>');
       var cls=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
       h+='<div class="ep-q'+(cls?' '+cls:'')+'">'
         +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
         +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')
-        +(q._svgDiagram?'<div style="margin:2pt 0;">'+q._svgDiagram+'</div>':'')
         +'</div>';
     });
   }
@@ -4902,9 +4968,8 @@ function buildSectionsHtml(p,compact){
     ths.forEach(function(q,i){
       var ansClass=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
       h+='<div class="ep-q'+(q.layout==='compact'?' compact':q.layout==='wide'?' wide':'')+'">'
-        +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t
+        +'<span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q)
         +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
-        +(q._svgDiagram?'<div style="margin:3pt 0;">'+q._svgDiagram+'</div>':'')
         +'<div class="ep-ans'+(ansClass?' '+ansClass:'')+'"></div></div>';
     });
   }
@@ -6375,7 +6440,7 @@ window.clearHouseStyleForm=function(){
 };
 window.saveApiKeyAdmin=async function(){
   var v=cleanApiKey(($('settKeyInp2')||{}).value||'');
-  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter key starting with sk-or-v1-','err',4500); return; }
+  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter sk-or-v1- key or Gemini AIza key','err',4500); return; }
   if(v) delete _badApiKeys[v];
   API_KEY=v;
   window._userApiKey=v;
