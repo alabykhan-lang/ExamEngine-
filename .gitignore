@@ -1,0 +1,17 @@
+# Environment secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.suo
+.vscode/
+.idea/
+
+# Patch/temp scripts
+patch.js
+patch2.js
+patch.py
+_p.ps1

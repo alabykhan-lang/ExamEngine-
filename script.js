@@ -21,8 +21,8 @@ var FALLBACK_API_KEY = '';
    SUPABASE INIT
 ══════════════════════════════════════ */
 var _supabase;
-var _supabaseUrl = 'https://qbjtiximcchhnxhttogq.supabase.co';
-var _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
+var _supabaseUrl = '%%SUPABASE_URL%%';
+var _supabaseKey = '%%SUPABASE_ANON_KEY%%';
 
 function _initSupabase(){
   var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
@@ -1549,11 +1549,13 @@ async function callGeminiVision(base64Image,mimeType,prompt){
    temperature 0.05 for maximum consistency
 ══════════════════════════════════════ */
 async function callGeminiScheme(prompt){
+  ensureApiKey();
   var messages=[
     {role:'system',content:'You are a Nigerian curriculum specialist with authoritative knowledge of the NERDC 2026 Basic and Secondary Education syllabuses. You produce only verified, real curriculum data as valid JSON. Never invent topics. Never include administrative or non-teaching weeks.'},
     {role:'user',content:prompt}
   ];
-  var text=await(_apiQueue=_apiQueue.then(function(){ return _fetchOR(messages,MODELS.scheme,true); }));
+  // Route through _callWithRetry so 401s are caught, key is blacklisted and user is prompted
+  var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true); }));
   return parseJsonText(text);
 }
 
@@ -2160,6 +2162,14 @@ window.doLoadScheme=async function(){
           var rem=secs;
           var cd=setInterval(function(){ rem--; var el=$('schemeCountdown'); if(el) el.textContent=rem; if(rem<=0){ clearInterval(cd); doLoadScheme(); } },1000);
         }
+      } else if(e.status===401 || /invalid.*key|api key|unauthorized/i.test(e.message)){
+        // Key was rejected — blacklist it and guide admin to re-enter
+        if(API_KEY){ markApiKeyInvalid(API_KEY); refreshApiStatus(); }
+        if(sa) sa.innerHTML='<div class="banner b-warn">'
+          +'<strong>🔑 Invalid API Key</strong> — OpenRouter rejected the key. '
+          +'An admin must re-save a valid key in <strong>Admin Settings → OpenRouter API Key</strong>.'
+          +retryBtn
+          +'</div>'+renderSchemePrompt();
       } else {
         if(sa) sa.innerHTML='<div class="banner b-warn">⚠ Could not load scheme: '+esc(e.message.substring(0,120))
           +retryBtn+'<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below.</div></div>'+renderSchemePrompt();
