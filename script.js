@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /* ══════════════════════════════════════
    MODELS
@@ -286,6 +286,10 @@ async function markApiKeyInvalid(key){
   if(!key) return;
   _badApiKeys[key]=true;
   if(cleanApiKey(API_KEY)===key) API_KEY='';
+  // Also clear from admin cache so applyAdminSettings() won't re-inject the bad key
+  if(window._adminSettingsCache && cleanApiKey(window._adminSettingsCache.api_key)===key){
+    window._adminSettingsCache.api_key='';
+  }
 }
 
 /* ── Auto-save draft to Supabase ── */
@@ -1486,7 +1490,7 @@ async function _callWithRetry(messages,isJson){
           await markApiKeyInvalid(e.apiKey);
           refreshApiStatus();
           toast('The API provider rejected the key being sent. Re-save a working OpenRouter or Gemini key in Admin Settings.','err',7000);
-          attempts=0;
+          break; // exit inner while — no valid key remains; outer loop will also fail fast
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
           toast('Network hiccup — retrying in '+tw+'s…','warn',(tw+1)*1000);
@@ -3632,15 +3636,26 @@ function applyAdminSettings(){
   if(adm.selected_session) S.cfg.session=adm.selected_session;
   if(adm.school && adm.school!=='School Administration') S.cfg.school=adm.school;
   if(adm.trade_subject) S.tradeSubject=adm.trade_subject;
-  if(adm.api_key) API_KEY=cleanApiKey(adm.api_key);
+  // Only apply the admin key if it passes the usability check (not blank, not blacklisted)
+  if(adm.api_key && isUsableApiKey(adm.api_key)) API_KEY=cleanApiKey(adm.api_key);
   if(adm.selected_term) ADMIN.selectedTerm=adm.selected_term;
 }
 async function _fetchAdminSettings(){
   try{
     var res=await _supabase.from('admin_settings').select('*');
-    if(res.error){ console.warn('admin_settings fetch error:',res.error.message); return window._adminSettingsCache||{}; }
+    if(res.error){
+      console.warn('admin_settings fetch error:',res.error.message);
+      // Retry once after a short delay before giving up
+      await new Promise(function(r){ setTimeout(r,1200); });
+      var res2=await _supabase.from('admin_settings').select('*');
+      if(res2.error){ console.warn('admin_settings retry also failed:',res2.error.message); return window._adminSettingsCache||{}; }
+      res=res2;
+    }
     var m={};
     (res.data||[]).forEach(function(r){ m[r.key]=r.value; });
+    // Strip any key that is currently blacklisted so it never enters the cache
+    var rawKey=cleanApiKey(m.api_key||'');
+    if(_badApiKeys[rawKey]) rawKey='';
     window._adminSettingsCache={
       deadline:m.deadline||'',
       logo:m.logo||'',
@@ -3648,7 +3663,7 @@ async function _fetchAdminSettings(){
       school:m.school||'School Administration',
       address:m.address||'',
       motto:m.motto||'',
-      api_key:m.api_key||'',
+      api_key:rawKey,
       selected_term:m.selected_term||'',
       selected_session:m.selected_session||'',
       trade_subject:m.trade_subject||''
