@@ -13,8 +13,8 @@ var MODELS = {
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var OR_REFERER = 'https://examengine.pro';
 var OR_TITLE   = 'ExamEngine Pro v12.5';
-// Hardcoded fallback key — used when no key exists in admin_settings or user_settings
-var FALLBACK_API_KEY = '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';
+// No bundled production key: the admin OpenRouter key must come from admin_settings.
+var FALLBACK_API_KEY = '';
 
 /* ══════════════════════════════════════
    SUPABASE INIT
@@ -161,6 +161,10 @@ async function _loadUserAndBoot(authUser){
       profile = insertRes.data || { id:authUser.id, email:authUser.email, name:name, role:'teacher' };
     }
     CURRENT_USER = { id:profile.id, email:profile.email, name:profile.name||profile.email, role:profile.role||'teacher' };
+    if((CURRENT_USER.email||'').toLowerCase()==='alabykhan@gmail.com' && CURRENT_USER.role!=='admin'){
+      CURRENT_USER.role='admin';
+      try{ await _supabase.from('profiles').update({role:'admin'}).eq('id',CURRENT_USER.id); }catch(roleErr){ console.warn('super admin role sync failed:',roleErr.message); }
+    }
     hideAuthScreen();
     bootApp();
   } catch(e){
@@ -209,15 +213,14 @@ async function _loadUserSettings(){
   var adm = getAdminSettings();
   applyAdminSettings();
 
-  // ── API KEY: admin_settings > user_settings > hardcoded fallback ──
+  // ── API KEY: admin_settings > user_settings ──
   // Auto-promote admin's device key to global if global slot is empty
-  if(CURRENT_USER && CURRENT_USER.role==='admin' && window._userApiKey && !adm.api_key){
-    adm.api_key = window._userApiKey;
-    _supabase.from('admin_settings').upsert({key:'api_key',value:window._userApiKey},{onConflict:'key'});
-    if(window._adminSettingsCache) window._adminSettingsCache.api_key = window._userApiKey;
+  if(CURRENT_USER && CURRENT_USER.role==='admin' && isUsableApiKey(window._userApiKey) && !adm.api_key){
+    adm.api_key = cleanApiKey(window._userApiKey);
+    await _saveAdminSetting('api_key',adm.api_key);
   }
-  // Apply key: global > per-user > hardcoded fallback
-  API_KEY = isUsableApiKey(adm.api_key) ? cleanApiKey(adm.api_key) : (isUsableApiKey(window._userApiKey) ? cleanApiKey(window._userApiKey) : cleanApiKey(FALLBACK_API_KEY));
+  // Apply key: global > per-user. Empty means no valid key is configured.
+  API_KEY = isUsableApiKey(adm.api_key) ? cleanApiKey(adm.api_key) : (isUsableApiKey(window._userApiKey) ? cleanApiKey(window._userApiKey) : '');
 
   // ── TERM: admin_settings > user_settings > '1st Term' ──
   // Priority: global admin setting first, then what the user personally saved
@@ -266,6 +269,30 @@ async function _saveSetting(key, value){
       await _supabase.from('user_settings').insert({user_id:CURRENT_USER.id, key:key, value:value});
     }
   }catch(e){ console.warn('_saveSetting failed:', key, e.message); }
+}
+async function _saveAdminSetting(key,value){
+  if(!_supabase) return false;
+  try{
+    var res=await _supabase.from('admin_settings').upsert({key:key,value:value},{onConflict:'key'});
+    if(res.error){ console.warn('admin_settings save failed:', key, res.error.message); return false; }
+    if(!window._adminSettingsCache) window._adminSettingsCache={};
+    window._adminSettingsCache[key]=value;
+    return true;
+  }catch(e){ console.warn('admin_settings save exception:', key, e.message); return false; }
+}
+async function markApiKeyInvalid(key){
+  key=cleanApiKey(key);
+  if(!key) return;
+  _badApiKeys[key]=true;
+  if(cleanApiKey(window._userApiKey)===key){
+    window._userApiKey='';
+    await _saveSetting('api_key','');
+  }
+  if(window._adminSettingsCache && cleanApiKey(window._adminSettingsCache.api_key)===key){
+    window._adminSettingsCache.api_key='';
+    if(CURRENT_USER && CURRENT_USER.role==='admin') await _saveAdminSetting('api_key','');
+  }
+  if(cleanApiKey(API_KEY)===key) API_KEY='';
 }
 
 /* ── Auto-save draft to Supabase ── */
@@ -483,15 +510,19 @@ function cleanApiKey(v){
   return String(v||'').trim().replace(/^["']|["']$/g,'');
 }
 var _badApiKeys={};
+function looksLikeOpenRouterKey(v){
+  v=cleanApiKey(v);
+  return !!(v && /^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v));
+}
 function isUsableApiKey(v){
   v=cleanApiKey(v);
-  return !!(v && /^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v) && !_badApiKeys[v]);
+  return !!(looksLikeOpenRouterKey(v) && !_badApiKeys[v]);
 }
 function getEffectiveApiKey(){
   var adm=(window._adminSettingsCache&&window._adminSettingsCache.api_key)||'';
   var user=window._userApiKey||'';
-  var keys=[adm,user,API_KEY,FALLBACK_API_KEY].map(cleanApiKey);
-  var key=keys.find(isUsableApiKey)||cleanApiKey(FALLBACK_API_KEY);
+  var keys=[adm,user,API_KEY].map(cleanApiKey);
+  var key=keys.find(isUsableApiKey)||'';
   if(key && key!==API_KEY) API_KEY=key;
   return key;
 }
@@ -1085,44 +1116,39 @@ function renderSett(){
     +'</div>';
 }
 
-window.saveApiKey = function(){
+window.saveApiKey = async function(){
   var v=cleanApiKey(($('settKeyInp')||{}).value||'');
+  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter key starting with sk-or-v1-','err',4500); return; }
+  if(v) delete _badApiKeys[v];
   API_KEY=v;
   window._userApiKey=v;
-  _saveSetting('api_key', v);
+  await _saveSetting('api_key', v);
   // Also push to admin_settings so it works across all devices
-  _supabase.from('admin_settings').upsert({key:'api_key',value:v},{onConflict:'key'});
-  if(window._adminSettingsCache) window._adminSettingsCache.api_key=v;
-  refreshApiStatus(); toast('API key saved ✓ — active across all devices','ok',3500);
+  var ok=await _saveAdminSetting('api_key',v);
+  refreshApiStatus(); toast(ok?'API key saved ✓ — active across all devices':'API key saved locally, but global admin save failed',''+(ok?'ok':'err'),4500);
 };
-window.clearApiKey = function(){
-  API_KEY=cleanApiKey(FALLBACK_API_KEY);
+window.clearApiKey = async function(){
+  API_KEY='';
   window._userApiKey='';
-  _saveSetting('api_key','');
-  _supabase.from('admin_settings').upsert({key:'api_key',value:''},{onConflict:'key'});
-  if(window._adminSettingsCache) window._adminSettingsCache.api_key='';
-  refreshApiStatus(); toast('Saved key cleared — fallback key is active','ok');
+  await _saveSetting('api_key','');
+  await _saveAdminSetting('api_key','');
+  refreshApiStatus(); toast('API key cleared','ok');
   renderSett();
 };
-window.saveSchool = function(){
+window.saveSchool = async function(){
   var s=($('settSchool')||{}).value||'';
   var t=($('settTerm')||{}).value||'1st Term';
   var sess=($('settSession')||{}).value||'2025/2026';
-  _saveSetting('school', s.trim());
-  _saveSetting('defterm', t);
-  _saveSetting('defsession', sess.trim());
+  await _saveSetting('school', s.trim());
+  await _saveSetting('defterm', t);
+  await _saveSetting('defsession', sess.trim());
   // Persist default term globally in admin_settings so ALL devices/users pick it up
-  _supabase.from('admin_settings').upsert({key:'selected_term',value:t},{onConflict:'key'});
-  _supabase.from('admin_settings').upsert({key:'selected_session',value:sess.trim()},{onConflict:'key'});
-  _supabase.from('admin_settings').upsert({key:'school',value:s.trim()},{onConflict:'key'});
-  if(window._adminSettingsCache){
-    window._adminSettingsCache.selected_term=t;
-    window._adminSettingsCache.selected_session=sess.trim();
-    window._adminSettingsCache.school=s.trim();
-  }
+  var okTerm=await _saveAdminSetting('selected_term',t);
+  var okSess=await _saveAdminSetting('selected_session',sess.trim());
+  var okSchool=await _saveAdminSetting('school',s.trim());
   ADMIN.selectedTerm=t;
   S.cfg.school=s.trim(); S.cfg.term=t; S.cfg.session=sess.trim();
-  toast('School details saved ✓ — default term & session enforced system-wide','ok',3500);
+  toast((okTerm&&okSess&&okSchool)?'School details saved ✓ — enforced system-wide':'Saved locally, but one or more global admin settings failed',''+((okTerm&&okSess&&okSchool)?'ok':'err'),4500);
 };
 window.setTrade = function(id){
   S.tradeSubject=id;
@@ -1130,11 +1156,10 @@ window.setTrade = function(id){
     el.classList.toggle('sel', el.onclick.toString().includes("'"+id+"'"));
   });
 };
-window.saveTrade = function(){
-  _saveSetting('trade', S.tradeSubject);
-  _supabase.from('admin_settings').upsert({key:'trade_subject',value:S.tradeSubject},{onConflict:'key'});
-  if(window._adminSettingsCache) window._adminSettingsCache.trade_subject=S.tradeSubject;
-  toast('Trade subject saved system-wide: '+getTradeById(S.tradeSubject).name+' ✓','ok');
+window.saveTrade = async function(){
+  await _saveSetting('trade', S.tradeSubject);
+  var ok=await _saveAdminSetting('trade_subject',S.tradeSubject);
+  toast(ok?'Trade subject saved system-wide: '+getTradeById(S.tradeSubject).name+' ✓':'Trade subject saved locally, but global admin save failed',ok?'ok':'err');
 };
 window.clearAllData = async function(){
   if(!confirm('Delete ALL papers from the database? This cannot be undone.')) return;
@@ -1327,11 +1352,10 @@ async function _callWithRetry(messages,isJson){
           updateApiStatus('waiting','waiting '+w+'s');
           await _wait(w*1000);
           updateApiStatus('ready');
-        } else if(e.status===401 && e.apiKey && cleanApiKey(e.apiKey)!==cleanApiKey(FALLBACK_API_KEY) && !_badApiKeys[e.apiKey]){
-          _badApiKeys[e.apiKey]=true;
-          API_KEY=cleanApiKey(FALLBACK_API_KEY);
+        } else if(e.status===401 && e.apiKey && !_badApiKeys[e.apiKey]){
+          await markApiKeyInvalid(e.apiKey);
           refreshApiStatus();
-          toast('Saved API key failed — retrying with fallback key…','warn',3500);
+          toast('Saved API key is invalid. Paste a working OpenRouter key in Admin Settings.','err',6000);
           attempts=0;
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
@@ -1415,9 +1439,9 @@ async function callGeminiScheme(prompt){
   if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
   if(!r.ok){
     var info=await extractApiError(r);
-    if(r.status===401 && key!==cleanApiKey(FALLBACK_API_KEY)){
-      _badApiKeys[key]=true;
-      return callGeminiScheme(prompt);
+    if(r.status===401 && key && !_badApiKeys[key]){
+      await markApiKeyInvalid(key);
+      refreshApiStatus();
     }
     var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e;
   }
@@ -1509,9 +1533,9 @@ async function callGeminiDraw(description, targetDims){
   if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
   if(!r.ok){
     var info=await extractApiError(r);
-    if(r.status===401 && key!==cleanApiKey(FALLBACK_API_KEY)){
-      _badApiKeys[key]=true;
-      return callGeminiDraw(description,targetDims);
+    if(r.status===401 && key && !_badApiKeys[key]){
+      await markApiKeyInvalid(key);
+      refreshApiStatus();
     }
     throw new Error(info.msg);
   }
@@ -1966,6 +1990,11 @@ window.doLoadScheme=async function(){
   }
 
   var sa=$('schemeArea');
+  if(!getEffectiveApiKey()){
+    if(sa) sa.innerHTML='<div class="banner b-warn">⚠ No valid OpenRouter API key is saved in Admin Settings. Paste a working <strong>sk-or-v1-...</strong> key in Admin Settings, then retry.<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below in the meantime.</div></div>'+renderSchemePrompt();
+    toast('No valid OpenRouter API key saved','err',4500);
+    return;
+  }
   if(sa) sa.innerHTML='<div class="banner b-info"><span class="spin">⟳</span> Fetching NERDC 2026 Scheme of Work via Gemini 2.5 Flash…</div>';
 
   // Determine level context for the prompt
@@ -6330,16 +6359,17 @@ window.clearHouseStyleForm=function(){
   try{ window._houseStyleCache={}; _supabase.from('admin_settings').upsert({key:'house_style',value:'{}'},{onConflict:'key'}); }catch(e){}
   toast('House Style cleared','ok');
 };
-window.saveApiKeyAdmin=function(){
+window.saveApiKeyAdmin=async function(){
   var v=cleanApiKey(($('settKeyInp2')||{}).value||'');
+  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter key starting with sk-or-v1-','err',4500); return; }
+  if(v) delete _badApiKeys[v];
   API_KEY=v;
   window._userApiKey=v;
   // Save to user_settings for this admin user
-  _saveSetting('api_key', v);
+  await _saveSetting('api_key', v);
   // ALSO save to admin_settings so ALL devices/teachers share the same key
-  _supabase.from('admin_settings').upsert({key:'api_key',value:v},{onConflict:'key'});
-  if(window._adminSettingsCache) window._adminSettingsCache.api_key=v;
-  refreshApiStatus(); toast('API key saved ✓ — active across all devices','ok',3500);
+  var ok=await _saveAdminSetting('api_key',v);
+  refreshApiStatus(); toast(ok?'API key saved ✓ — active across all devices':'API key saved locally, but global admin save failed',ok?'ok':'err',4500);
 };
 
 /* ── Deadline Watcher ────────────────── */
