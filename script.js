@@ -1260,7 +1260,7 @@ function parseJsonText(text){
 }
 async function callGemini(prompt,opts){
   opts=opts||{};
-  if(!API_KEY) throw new Error('No API key.');
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   var sysInstr = opts.systemInstruction
     ? opts.systemInstruction
     : 'You are an expert Nigerian curriculum exam question generator. Always respond with valid JSON only — no explanation, no markdown, no code fences.';
@@ -1272,7 +1272,7 @@ async function callGemini(prompt,opts){
   return parseJsonText(result);
 }
 async function callGeminiVision(base64Image,mimeType,prompt){
-  if(!API_KEY) throw new Error('No API key configured.');
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   mimeType=mimeType||'image/jpeg';
   var messages=[{role:'user',content:[{type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64Image}},{type:'text',text:prompt}]}];
   var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false); }));
@@ -1284,7 +1284,7 @@ async function callGeminiVision(base64Image,mimeType,prompt){
    temperature 0.05 for maximum consistency
 ══════════════════════════════════════ */
 async function callGeminiScheme(prompt){
-  if(!API_KEY) throw new Error('No API key.');
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   var messages=[
     {role:'system',content:'You are a Nigerian curriculum specialist with authoritative knowledge of the NERDC 2026 Basic and Secondary Education syllabuses. You produce only verified, real curriculum data as valid JSON. Never invent topics. Never include administrative or non-teaching weeks.'},
     {role:'user',content:prompt}
@@ -1305,7 +1305,7 @@ async function callGeminiScheme(prompt){
    LAB NL COMMAND — Claude Sonnet via OpenRouter
 ══════════════════════════════════════ */
 async function callLabNL(command){
-  if(!API_KEY) throw new Error('No API key.');
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   var prompt='You are a layout formatting assistant for a Nigerian school exam paper system.\n'
     +'Parse this admin command and return a JSON object with ONLY the fields the command explicitly mentions.\n\n'
     +'COMMAND: "'+command+'"\n\n'
@@ -1343,7 +1343,7 @@ async function callLabNL(command){
    DRAWING API — SVG generation via Gemini
 ══════════════════════════════════════ */
 async function callGeminiDraw(description, targetDims){
-  if(!API_KEY) throw new Error('No API key.');
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   // Default to medium size; caller can specify dimensions based on host layout
   var td = targetDims || {width:420, height:300, context:'standard A4 portrait'};
   var w = td.width, h = td.height, ctx = td.context || 'standard A4 portrait';
@@ -1598,8 +1598,8 @@ function s1Auto(){
   if(S.at!=='Examination'){ var sub2=$('caSubOpts'); if(sub2) sub2.style.display='flex'; }
   if(S.at==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
   if(S.at==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
-  $('fsess').oninput=function(e){ S.cfg.session=e.target.value; };
-  $('fterm').onchange=function(e){ S.cfg.term=e.target.value; onClassTermChange(); };
+  $('fsess').oninput=function(e){ S.cfg.session=e.target.value; _saveSetting('defsession', e.target.value); _saveSetting('defsession', e.target.value); };
+  $('fterm').onchange=function(e){ S.cfg.term=e.target.value; _saveSetting('defterm', e.target.value); onClassTermChange(); };
   $('fcl').onchange=function(e){ S.cfg.cls=e.target.value; onClassTermChange(); };
   $('fst').onchange=function(e){
     S.cfg.std=e.target.value;
@@ -1956,9 +1956,9 @@ function renderWorkshop(){
     +'<div class="m-trk"><div class="m-fil" id="mFil" style="width:'+pct+'%"></div></div>'
     +'<div class="m-msg" id="mMsg">'+progressMsg(filled,S.slots.length)+'</div>'
     +'</div>'
-    +(!API_KEY?'<div class="banner b-warn">⚠️ No API key — <a onclick="navTo(\'sett\')">add your OpenRouter key</a> to generate questions.</div>':'')
+    
     +'<div style="display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap;">'
-    +(API_KEY?'<button class="btn bp" id="genAllBtn" onclick="generateAll()">⚡ Generate All Questions</button>':'')
+    +('<button class="btn bp" id="genAllBtn" onclick="generateAll()">⚡ Generate All Questions</button>')
     +'<button class="btn bq" onclick="s1Auto()">← Back to Contract</button>'
     +'</div>'
 
@@ -2118,22 +2118,23 @@ function buildPrompt(cfg,type,count,extra){
 
   if(type==='obj'){
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for math)","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard"}\n'
+      +'{"q":"question text (LaTeX for math)","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   } else if(type==='fitb'){
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"sentence with ___________ at the end where the answer goes","answer":"expected answer","topic":"topic","difficulty":"easy|medium|hard","marks":2}\n'
+      +'{"q":"sentence with ___________ at the end where the answer goes","answer":"expected answer","topic":"topic","difficulty":"easy|medium|hard","marks":2,"svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   } else {
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for formulas)","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard"}\n'
+      +'{"q":"question text (LaTeX for formulas)","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   }
   return p;
 }
 
 async function generateAll(){
-  if(!API_KEY||S.generating) return;
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  if(S.generating) return;
   S.generating=true;
   var btn=$('genAllBtn');
   if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Generating…'; }
@@ -2149,19 +2150,29 @@ async function generateAll(){
     try{
       var qs=await callGemini(buildPrompt(S.cfg,type,slots.length));
       if(Array.isArray(qs)){
-        qs.forEach(function(raw,i){
-          var s=slots[i]; if(!s) return;
+        for(var i=0; i<qs.length; i++){
+          var raw=qs[i];
+          var s=slots[i]; if(!s) continue;
           s.loading=false; s.err=null;
+          
+          var qText = raw.q||raw.question||'';
+          if(raw.svgDescription){
+            try{
+              var svg=await callGeminiDraw(raw.svgDescription, {width:420, height:250});
+              if(svg) qText += '<br/><div class="gen-svg-wrap" style="text-align:center;margin:10px 0;">' + svg + '</div>';
+            }catch(e){ console.warn('SVG failed:', e.message); }
+          }
+          
           if(type==='obj'){
-            s.q={t:raw.q||raw.question||'',k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
+            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
           } else if(type==='fitb'){
-            s.q={t:raw.q||raw.question||'',k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
+            s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
           } else {
-            s.q={t:raw.q||raw.question||'',k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
+            s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
           }
           var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
           scheduleDraftSave();
-        });
+        }
       }
     } catch(e){
       slots.forEach(function(s){ s.loading=false; s.err=e.message; var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s); });
@@ -2180,7 +2191,7 @@ async function generateAll(){
 }
 
 async function genSingleSlot(s,isReload){
-  if(!API_KEY) return;
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   s.loading=true; s.q=null; s.err=null;
   var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
   try{
@@ -2188,12 +2199,21 @@ async function genSingleSlot(s,isReload){
     var res=await callGemini(buildPrompt(S.cfg,s.k,1,extra));
     var raw=Array.isArray(res)?res[0]:res;
     s.loading=false;
+    
+    var qText = raw.q||raw.question||'';
+    if(raw.svgDescription){
+      try{
+        var svg=await callGeminiDraw(raw.svgDescription, {width:420, height:250});
+        if(svg) qText += '<br/><div class="gen-svg-wrap" style="text-align:center;margin:10px 0;">' + svg + '</div>';
+      }catch(e){ console.warn('SVG failed:', e.message); }
+    }
+    
     if(s.k==='obj'){
-      s.q={t:raw.q||raw.question||'',k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
+      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
     } else if(s.k==='fitb'){
-      s.q={t:raw.q||raw.question||'',k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
+      s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
     } else {
-      s.q={t:raw.q||raw.question||'',k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
+      s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
     }
     s.err=null;
   } catch(e){ s.loading=false; s.err=e.message; toast('Failed: '+e.message,'err'); }
@@ -2218,7 +2238,7 @@ function s2Manual(){
   $('s2').innerHTML='<div class="pg fade">'
     +'<div class="ptl">Manual Path</div>'
     +'<div class="pst">Two independent tools. Use either or both.</div>'
-    +(!API_KEY?'<div class="banner b-warn">⚠️ No API key. <a onclick="navTo(\'sett\')">Add your OpenRouter key</a> to use these tools.</div>':'')
+    
 
     // ── Paper Details ──
     +'<div class="card"><div class="ct">Paper Details</div>'
@@ -2445,7 +2465,7 @@ window.snapScan=function(){
 window.transcribeAll=async function(){
   var images=S._imgQueue.filter(Boolean);
   if(!images.length){ toast('No files to transcribe','warn'); return; }
-  if(!API_KEY){ toast('Add your API key first','warn'); navTo('sett'); return; }
+  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
   var btn=$('transcribeBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> In queue…'; }
