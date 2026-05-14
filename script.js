@@ -4,7 +4,7 @@
    MODELS
 ══════════════════════════════════════ */
 var MODELS = {
-  primary:  'google/gemini-3-flash-preview',
+  primary:  'google/gemini-2.5-flash',
   fallback: 'google/gemini-2.5-flash',
   scheme:   'google/gemini-2.5-flash',
   lab:      'anthropic/claude-3.5-sonnet',
@@ -21,8 +21,8 @@ var FALLBACK_API_KEY = '';
    SUPABASE INIT
 ══════════════════════════════════════ */
 var _supabase;
-var _supabaseUrl = '%%SUPABASE_URL%%';
-var _supabaseKey = '%%SUPABASE_ANON_KEY%%';
+var _supabaseUrl = 'https://qbjtiximcchhnxhttogq.supabase.co';
+var _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
 
 function _initSupabase(){
   var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
