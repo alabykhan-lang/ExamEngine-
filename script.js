@@ -284,14 +284,6 @@ async function markApiKeyInvalid(key){
   key=cleanApiKey(key);
   if(!key) return;
   _badApiKeys[key]=true;
-  if(cleanApiKey(window._userApiKey)===key){
-    window._userApiKey='';
-    await _saveSetting('api_key','');
-  }
-  if(window._adminSettingsCache && cleanApiKey(window._adminSettingsCache.api_key)===key){
-    window._adminSettingsCache.api_key='';
-    if(CURRENT_USER && CURRENT_USER.role==='admin') await _saveAdminSetting('api_key','');
-  }
   if(cleanApiKey(API_KEY)===key) API_KEY='';
 }
 
@@ -507,7 +499,7 @@ function stdTagCls(s) {
 var API_KEY = '';
 
 function cleanApiKey(v){
-  return String(v||'').trim().replace(/^["']|["']$/g,'');
+  return String(v||'').trim().replace(/^["']|["']$/g,'').replace(/\s+/g,'');
 }
 var _badApiKeys={};
 function looksLikeOpenRouterKey(v){
@@ -518,7 +510,24 @@ function isUsableApiKey(v){
   v=cleanApiKey(v);
   return !!(looksLikeOpenRouterKey(v) && !_badApiKeys[v]);
 }
+function getVisibleApiKeyInput(){
+  var ids=['settKeyInp2','settKeyInp'];
+  for(var i=0;i<ids.length;i++){
+    var el=$(ids[i]);
+    if(el && el.value && el.getClientRects && el.getClientRects().length){
+      var v=cleanApiKey(el.value);
+      if(looksLikeOpenRouterKey(v)) return v;
+    }
+  }
+  return '';
+}
 function getEffectiveApiKey(){
+  var live=getVisibleApiKeyInput();
+  if(live){
+    delete _badApiKeys[live];
+    API_KEY=live;
+    return live;
+  }
   var adm=(window._adminSettingsCache&&window._adminSettingsCache.api_key)||'';
   var user=window._userApiKey||'';
   var keys=[adm,user,API_KEY].map(cleanApiKey);
@@ -528,6 +537,11 @@ function getEffectiveApiKey(){
 }
 function ensureApiKey(){
   var key=getEffectiveApiKey();
+  var visible=getVisibleApiKeyInput();
+  if(visible && visible!== (($('settKeyInp2')||$('settKeyInp')||{}).value||'')){
+    var inp=$('settKeyInp2')||$('settKeyInp');
+    if(inp) inp.value=visible;
+  }
   refreshApiStatus();
   return key;
 }
@@ -1355,7 +1369,7 @@ async function _callWithRetry(messages,isJson){
         } else if(e.status===401 && e.apiKey && !_badApiKeys[e.apiKey]){
           await markApiKeyInvalid(e.apiKey);
           refreshApiStatus();
-          toast('Saved API key is invalid. Paste a working OpenRouter key in Admin Settings.','err',6000);
+          toast('OpenRouter rejected the key being sent. Re-save a working Admin Settings key.','err',7000);
           attempts=0;
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
