@@ -505,6 +505,53 @@ function math(el){
   if(!window.renderMathInElement) return;
   try{ window.renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],throwOnError:false}); }catch(e){}
 }
+function renderRichText(s){
+  if(!s) return '';
+  var safe=esc(s);
+  safe=safe.replace(/\n/g,'<br/>');
+  safe=safe.replace(/\[TABLE:([\s\S]*?)\]/gi,function(_,body){ return renderInlineTable(body); });
+  safe=safe.replace(/\[GRAPH:([\s\S]*?)\]/gi,function(_,body){ return '<div class="visual-card graph-card">'+esc(body).replace(/\|/g,'<br/>')+'</div>'; });
+  safe=safe.replace(/\[SHAPE:([\s\S]*?)\]/gi,function(_,body){ return '<div class="visual-card shape-card">'+esc(body).replace(/\|/g,'<br/>')+'</div>'; });
+  return safe;
+}
+function renderInlineTable(body){
+  var rows=String(body||'').split('|').map(function(r){ return r.trim(); }).filter(Boolean);
+  if(!rows.length) return '';
+  return '<table class="exam-inline-table">'+rows.map(function(r,i){
+    var cells=r.split(';').map(function(c){ return '<'+(i===0?'th':'td')+'>'+esc(c.trim())+'</'+(i===0?'th':'td')+'>'; }).join('');
+    return '<tr>'+cells+'</tr>';
+  }).join('')+'</table>';
+}
+function renderQuestionText(q){
+  if(!q) return '';
+  var html=renderRichText(q.t||q.q||'');
+  if(q.svgInline) html+='<div class="gen-svg-wrap">'+q.svgInline+'</div>';
+  if(q._svgDiagram) html+='<div class="gen-svg-wrap">'+q._svgDiagram+'</div>';
+  if(q.diagImg) html+='<div class="diagram-box"><img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/><span class="diagram-label">Source diagram</span></div>';
+  else if(q.diagDesc) html+='<div class="visual-card shape-card"><strong>Diagram:</strong> '+esc(q.diagDesc)+'</div>';
+  return html;
+}
+function getAdminTerm(){
+  var adm=getAdminSettings?getAdminSettings():{};
+  return (adm&&adm.selected_term)||ADMIN.selectedTerm||S.cfg.term||'1st Term';
+}
+function enforceAdminTerm(){
+  var t=getAdminTerm();
+  if(t) S.cfg.term=t;
+  return t;
+}
+function getAssessmentTopicLimit(){
+  if(S.at==='C.A. Test 1'||S.at==='C.A.') return 3;
+  if(S.at==='C.A. Test 2') return 6;
+  return 0;
+}
+function applyAssessmentTopicScope(){
+  var weeks=S.schemeWeeks||[];
+  if(!weeks.length) return;
+  var limit=getAssessmentTopicLimit();
+  var scoped=limit?weeks.slice(0,limit):weeks;
+  S.cfg.topics=scoped.map(function(w){ return w.topic; }).filter(Boolean);
+}
 
 /* Diagram full-screen lightbox */
 window.showDiagramFull=function(src){
@@ -537,15 +584,24 @@ function schemeKey(cls,subj,term){
   return (cls||'')+'__'+(subj||'')+'__'+(term||'');
 }
 async function loadCommittedScheme(cls,subj,term){
-  if(!CURRENT_USER) return null;
-  var res=await _supabase.from('schemes').select('weeks').eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term)).single();
-  return res.data?res.data.weeks:null;
+  var key='ee_scheme__'+schemeKey(cls,subj,term);
+  try{
+    if(CURRENT_USER){
+      var res=await _supabase.from('schemes').select('weeks').eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term)).maybeSingle();
+      if(res&&res.data&&res.data.weeks) return res.data.weeks;
+    }
+  }catch(e){ console.warn('scheme load fallback:',e.message); }
+  try{ var local=localStorage.getItem(key); return local?JSON.parse(local):null; }catch(e2){ return null; }
 }
 async function commitScheme(cls,subj,term,weeks){
+  var key='ee_scheme__'+schemeKey(cls,subj,term);
+  try{ localStorage.setItem(key,JSON.stringify(weeks||[])); }catch(e){}
   if(!CURRENT_USER) return;
   await _supabase.from('schemes').upsert({user_id:CURRENT_USER.id,scheme_key:schemeKey(cls,subj,term),weeks:weeks},{onConflict:'user_id,scheme_key'});
 }
 async function clearCommittedScheme(cls,subj,term){
+  var key='ee_scheme__'+schemeKey(cls,subj,term);
+  try{ localStorage.removeItem(key); }catch(e){}
   if(!CURRENT_USER) return;
   await _supabase.from('schemes').delete().eq('user_id',CURRENT_USER.id).eq('scheme_key',schemeKey(cls,subj,term));
 }
@@ -1206,11 +1262,18 @@ async function extractApiError(resp){
 async function _fetchOR(messages,model,isJson){
   var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
   if(isJson) body.response_format={type:'json_object'};
-  var r=await fetch(OR_BASE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-    body:JSON.stringify(body)
-  });
+  var r;
+  try{
+    r=await fetch(OR_BASE,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
+      body:JSON.stringify(body)
+    });
+  }catch(fetchErr){
+    var fe=new Error(fetchErr.message||'Network fetch failed');
+    fe.isTransient=/fetch|network|timeout|failed/i.test(fe.message);
+    throw fe;
+  }
   if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e; }
   var data=await r.json();
   return(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -1230,8 +1293,12 @@ async function _callWithRetry(messages,isJson){
           updateApiStatus('waiting','waiting '+w+'s');
           await _wait(w*1000);
           updateApiStatus('ready');
+        } else if(e.isTransient&&attempts<max){
+          var tw=2+attempts*2;
+          toast('Network hiccup — retrying in '+tw+'s…','warn',(tw+1)*1000);
+          await _wait(tw*1000);
         } else if(e.is429&&mi===0){ toast('⚡ Trying fallback model…','warn',2500); break; }
-        else if(!e.is429){ break; }
+        else if(!e.is429&&!e.isTransient){ break; }
       }
     }
   }
@@ -1290,11 +1357,21 @@ async function callGeminiScheme(prompt){
     {role:'user',content:prompt}
   ];
   var body={model:MODELS.scheme,messages:messages,max_tokens:4096,temperature:0.05,response_format:{type:'json_object'}};
-  var r=await fetch(OR_BASE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-    body:JSON.stringify(body)
-  });
+  var r,lastFetchErr;
+  for(var attempt=0; attempt<3; attempt++){
+    try{
+      r=await fetch(OR_BASE,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
+        body:JSON.stringify(body)
+      });
+      break;
+    }catch(fe){
+      lastFetchErr=fe;
+      if(attempt<2) await _wait(2000+(attempt*2000));
+    }
+  }
+  if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
   if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e; }
   var data=await r.json();
   var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -1366,11 +1443,21 @@ async function callGeminiDraw(description, targetDims){
     {role:'user',content:prompt}
   ];
   var body={model:MODELS.drawing,messages:messages,max_tokens:3500,temperature:0.15};
-  var r=await fetch(OR_BASE,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
-    body:JSON.stringify(body)
-  });
+  var r,lastFetchErr;
+  for(var attempt=0; attempt<3; attempt++){
+    try{
+      r=await fetch(OR_BASE,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
+        body:JSON.stringify(body)
+      });
+      break;
+    }catch(fe){
+      lastFetchErr=fe;
+      if(attempt<2) await _wait(2000+(attempt*2000));
+    }
+  }
+  if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
   if(!r.ok){ var info=await extractApiError(r); throw new Error(info.msg); }
   var data=await r.json();
   var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -1423,6 +1510,7 @@ function advisDiagramFit(paper, mode){
 ══════════════════════════════════════ */
 function s1Auto(){
   S.scr=1; hdr();
+  enforceAdminTerm();
   $('s1').style.display='block';
   $('s2').style.display='none';
   $('s3').style.display='none';
@@ -1566,16 +1654,8 @@ function s1Auto(){
       else atd.innerHTML='<b style="color:var(--amber)">C.A.</b> — Select Test 1 or Test 2 above.';
     }
     // Apply topic limits for CA tests
-    if(val==='C.A. Test 1'&&S.schemeWeeks.length){
-      S.cfg.topics=S.schemeWeeks.slice(0,3).map(function(w){ return w.topic; });
-      var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
-    } else if(val==='C.A. Test 2'&&S.schemeWeeks.length){
-      S.cfg.topics=S.schemeWeeks.slice(0,6).map(function(w){ return w.topic; });
-      var tc2=$('tagCloud'); if(tc2) tc2.innerHTML=renderTagCloud();
-    } else if(val==='Examination'&&S.schemeWeeks.length){
-      S.cfg.topics=S.schemeWeeks.map(function(w){ return w.topic; });
-      var tc3=$('tagCloud'); if(tc3) tc3.innerHTML=renderTagCloud();
-    }
+    applyAssessmentTopicScope();
+    var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
     // C.A. tip banner
     var qCard=$('qCard');
     if(qCard){
@@ -1599,7 +1679,9 @@ function s1Auto(){
   if(S.at==='C.A. Test 1'&&$('acat1')) $('acat1').classList.add('on');
   if(S.at==='C.A. Test 2'&&$('acat2')) $('acat2').classList.add('on');
   $('fsess').oninput=function(e){ S.cfg.session=e.target.value; _saveSetting('defsession', e.target.value); _saveSetting('defsession', e.target.value); };
-  $('fterm').onchange=function(e){ S.cfg.term=e.target.value; _saveSetting('defterm', e.target.value); onClassTermChange(); };
+  $('fterm').disabled=true;
+  $('fterm').title='Term is controlled by Admin Settings';
+  $('fterm').onchange=function(e){ S.cfg.term=enforceAdminTerm(); e.target.value=S.cfg.term; onClassTermChange(); };
   $('fcl').onchange=function(e){ S.cfg.cls=e.target.value; onClassTermChange(); };
   $('fst').onchange=function(e){
     S.cfg.std=e.target.value;
@@ -1627,7 +1709,11 @@ function s1Auto(){
     S.slots=[]; goWorkshop();
   };
 
-  if(c.cls&&c.term) onClassTermChange();
+  if(c.cls&&c.term&&!S.subjects.length){
+    S.subjects=getSubjectList(c.cls).slice();
+    var sg0=$('subjGrid'); if(sg0) sg0.innerHTML=renderSubjectPills();
+    var note0=$('subjFetchNote'); if(note0) note0.innerHTML='<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded ('+S.subjects.length+')</span>';
+  }
 }
 
 /* ── Subject pills ── */
@@ -1741,7 +1827,7 @@ function renderSchemePanel(){
 }
 window.removeTag=function(i){ S.cfg.topics.splice(i,1); var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud(); };
 window.acceptScheme=async function(){
-  S.cfg.topics=S.schemeWeeks.map(function(w){ return w.topic; });
+  applyAssessmentTopicScope();
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
   await commitScheme(S.cfg.cls,actualSubj,S.cfg.term,S.schemeWeeks);
   S.schemeCommitted=true;
@@ -1768,6 +1854,7 @@ function checkS1Ready(){
 }
 
 function onClassTermChange(){
+  enforceAdminTerm();
   S.cfg.subj=''; S.subjects=[]; S.schemeWeeks=[];
   S.schemeLoaded=false; S.schemeCommitted=false; S.cfg.topics=[];
   if(S.cfg.cls){
@@ -1804,6 +1891,7 @@ window.doForceRefreshScheme=window.confirmChangeScheme; // legacy alias
 
 window.doLoadScheme=async function(){
   if(!S.cfg.subj){ toast('Select a subject first','warn'); return; }
+  enforceAdminTerm();
 
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
   var cls=S.cfg.cls; var term=S.cfg.term;
@@ -1812,7 +1900,7 @@ window.doLoadScheme=async function(){
   var committed=await loadCommittedScheme(cls,actualSubj,term);
   if(committed&&committed.length){
     S.schemeWeeks=committed; S.schemeLoaded=true; S.schemeCommitted=true;
-    S.cfg.topics=committed.map(function(w){ return w.topic; });
+    applyAssessmentTopicScope();
     var sa0=$('schemeArea'); if(sa0) sa0.innerHTML=renderSchemePanel();
     var tc0=$('tagCloud'); if(tc0) tc0.innerHTML=renderTagCloud();
     toast('🔒 Committed scheme restored ('+committed.length+' weeks)','ok',4000);
@@ -1886,7 +1974,9 @@ window.doLoadScheme=async function(){
       });
       S.schemeLoaded=S.schemeWeeks.length>0;
       S.schemeCommitted=false;
+      applyAssessmentTopicScope();
       if(sa) sa.innerHTML=renderSchemePanel();
+      var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
       checkS1Ready();
       if(S.schemeLoaded) toast('✓ Scheme loaded — '+S.schemeWeeks.length+' weeks. Click "Accept & Commit" to lock it.','ok',5000);
       else if(sa) sa.innerHTML='<div class="banner b-warn">⚠ AI returned an empty scheme. <button class="btn bq bsm" onclick="doLoadScheme()">↻ Retry</button></div>';
@@ -2003,15 +2093,8 @@ function renderSlot(s){
       +'<div class="sacts"><button class="rbtn" onclick="reloadSlot('+s.id+')">↻ Retry</button></div>';
   } else if(s.q){
     var q=s.q;
-    // Render question text (supports LaTeX via KaTeX)
-    body='<div class="stx">'+q.t+'</div>';
-    // Show diagram image if attached
-    if(q.diagImg){
-      body+='<div class="diagram-box">'
-        +'<img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/>'
-        +'<span class="diagram-label">📐 Diagram from source — click to expand</span>'
-        +'</div>';
-    }
+    // Render question text (supports LaTeX via KaTeX and structured visuals)
+    body='<div class="stx">'+renderQuestionText(q)+'</div>';
     if(isFitb&&q.answer){
       body+='<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>';
     }
@@ -2102,6 +2185,11 @@ function buildPrompt(cfg,type,count,extra){
     +'  Standard: '+cfg.std+'\n  Curriculum: NERDC 2026 (Nigeria)\n'
     +caNote+diffNote;
   if(topicStr) p+='  Topics covered: '+topicStr+'\n';
+  p+='\nOutput quality rules:\n'
+    +'  - Use perfect LaTeX for mathematics, chemistry and physics: $x^2$, $\\frac{a}{b}$, $H_2O$, $CO_2$, $F=ma$, $V=IR$.\n'
+    +'  - Include diagrams, shapes, graphs, tables or apparatus when educationally useful, especially in science, mathematics, geography, business and technical subjects.\n'
+    +'  - For any visual that should be drawn, fill svgDescription with a precise description of labels, axes, shapes, values and measurements.\n'
+    +'  - For tables inside question text, use [TABLE:Heading 1;Heading 2|Row 1A;Row 1B|Row 2A;Row 2B].\n';
 
   if(type==='theory'){
     if(cfg.theoryAiInstr&&cfg.theoryAiInstr.trim())
@@ -2118,15 +2206,15 @@ function buildPrompt(cfg,type,count,extra){
 
   if(type==='obj'){
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for math)","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
+      +'{"q":"question text (LaTeX for math/science; optional [TABLE:...])","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   } else if(type==='fitb'){
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"sentence with ___________ at the end where the answer goes","answer":"expected answer","topic":"topic","difficulty":"easy|medium|hard","marks":2,"svgDescription":""}\n'
+      +'{"q":"sentence with ___________ at the end where the answer goes; LaTeX if needed","answer":"expected answer","topic":"topic","difficulty":"easy|medium|hard","marks":2,"svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   } else {
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for formulas)","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
+      +'{"q":"question text (LaTeX for formulas; optional [TABLE:...])","marks":10,"showSteps":true,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   }
   return p;
@@ -2156,19 +2244,20 @@ async function generateAll(){
           s.loading=false; s.err=null;
           
           var qText = raw.q||raw.question||'';
+          var svgInline=null;
           if(raw.svgDescription){
             try{
               var svg=await callGeminiDraw(raw.svgDescription, {width:420, height:250});
-              if(svg) qText += '<br/><div class="gen-svg-wrap" style="text-align:center;margin:10px 0;">' + svg + '</div>';
+              if(svg) svgInline=svg;
             }catch(e){ console.warn('SVG failed:', e.message); }
           }
           
           if(type==='obj'){
-            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
+            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1,svgInline:svgInline,svgHint:raw.svgDescription||''};
           } else if(type==='fitb'){
-            s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
+            s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2,svgInline:svgInline,svgHint:raw.svgDescription||''};
           } else {
-            s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
+            s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgInline:svgInline,svgHint:raw.svgDescription||''};
           }
           var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
           scheduleDraftSave();
@@ -2201,19 +2290,20 @@ async function genSingleSlot(s,isReload){
     s.loading=false;
     
     var qText = raw.q||raw.question||'';
+    var svgInline=null;
     if(raw.svgDescription){
       try{
         var svg=await callGeminiDraw(raw.svgDescription, {width:420, height:250});
-        if(svg) qText += '<br/><div class="gen-svg-wrap" style="text-align:center;margin:10px 0;">' + svg + '</div>';
+        if(svg) svgInline=svg;
       }catch(e){ console.warn('SVG failed:', e.message); }
     }
     
     if(s.k==='obj'){
-      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1};
+      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1,svgInline:svgInline,svgHint:raw.svgDescription||''};
     } else if(s.k==='fitb'){
-      s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2};
+      s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2,svgInline:svgInline,svgHint:raw.svgDescription||''};
     } else {
-      s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true};
+      s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgInline:svgInline,svgHint:raw.svgDescription||''};
     }
     s.err=null;
   } catch(e){ s.loading=false; s.err=e.message; toast('Failed: '+e.message,'err'); }
@@ -2229,6 +2319,7 @@ async function genSingleSlot(s,isReload){
 ══════════════════════════════════════ */
 function s2Manual(){
   S.scr=2; hdr();
+  enforceAdminTerm();
   $('s1').style.display='none';
   $('s2').style.display='block';
   $('s3').style.display='none';
@@ -2349,7 +2440,9 @@ function s2Manual(){
   $('mfcl').onchange  =function(e){ S.cfg.cls  =e.target.value; };
   $('mfsubj').oninput =function(e){ S.cfg.subj =e.target.value; };
   $('mfsess').oninput =function(e){ S.cfg.session=e.target.value; };
-  $('mfterm').onchange=function(e){ S.cfg.term =e.target.value; };
+  $('mfterm').disabled=true;
+  $('mfterm').title='Term is controlled by Admin Settings';
+  $('mfterm').onchange=function(e){ S.cfg.term=enforceAdminTerm(); e.target.value=S.cfg.term; };
   $('mfsc').oninput   =function(e){ S.cfg.school=e.target.value; };
 }
 
@@ -2599,6 +2692,7 @@ function renderScanSlots(){
     }
     return '<div class="ocr-slot">'
       +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-tr">✏ Transcribed</span>'+(s.q.diagImg?'<span class="tag" style="background:#FEF3C7;color:#D97706;border-color:#FDE68A;">📐 Diagram</span>':'')+'</div>'
+      +'<div class="stx" style="margin-bottom:7px;">'+renderQuestionText(s.q)+'</div>'
       +'<textarea class="fta" style="min-height:50px;" oninput="updScanSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
       +diagHtml
       +'<div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">'
@@ -2610,6 +2704,7 @@ function renderScanSlots(){
       +'<button class="btn-ghost" style="color:var(--red);margin-left:auto;" onclick="delScanSlot('+s.id+')">🗑</button>'
       +'</div></div>';
   }).join('');
+  setTimeout(function(){ math(sl); },200);
 }
 window.updScanSlot=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
 window.setScanType=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
@@ -2728,9 +2823,15 @@ window.generateFromNotes=async function(){
   try{
     var questions=await generateQuestionsFromNotes(noteContent,objN,fitbN,thN,std,customInstr);
     S.ntxSlots=[];
-    questions.forEach(function(raw,idx){
-      S.ntxSlots.push({id:idx,q:{t:raw.q||'',k:raw.k||'theory',o:raw.options||null,a:raw.answer,answer:raw.answer,marks:raw.marks||10,ai:true,ntx:true},included:true});
-    });
+    for(var qi=0; qi<questions.length; qi++){
+      var raw=questions[qi]||{};
+      var svgInline=null;
+      if(raw.svgDescription){
+        try{ svgInline=await callGeminiDraw(raw.svgDescription,{width:420,height:250}); }
+        catch(svgErr){ console.warn('Note SVG failed:',svgErr.message); }
+      }
+      S.ntxSlots.push({id:qi,q:{t:raw.q||'',k:raw.k||raw.type||'theory',o:raw.options||raw.opts||null,a:raw.answer,answer:raw.answer,marks:raw.marks||10,topic:raw.topic||'',ai:true,ntx:true,svgInline:svgInline,svgHint:raw.svgDescription||''},included:true});
+    }
     if(S.ntxSlots.length){
       setStatus('<div class="banner b-ok">✅ <strong>'+S.ntxSlots.length+' questions</strong> generated from your content.</div>');
       renderNtxSlots();
@@ -2765,13 +2866,15 @@ async function generateQuestionsFromNotes(noteContent,objN,fitbN,thN,std,customI
     +'1. ONLY generate questions based on content in the notes provided.\n'
     +'2. Do NOT invent topics or facts not present in the notes.\n'
     +'3. Every question must be answerable from the notes.\n'
-    +(customInstr?'4. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
+    +'4. Render mathematics, chemistry and physics notation in valid LaTeX, e.g. $x^2$, $\\frac{1}{2}$, $H_2SO_4$, $v=\\frac{s}{t}$.\n'
+    +'5. You may include diagrams, shapes, tables, graphs and science apparatus when they help test the note content. For tables use [TABLE:Heading 1;Heading 2|Row A;Row B]. For graphs/shapes, put a precise drawing request in svgDescription.\n'
+    +(customInstr?'6. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
     +'\nGenerate:\n- '+typesReq.join('\n- ')+'\n\n'
     +'CLASS NOTES:\n'+noteContent+'\n\n'
     +'Return ONLY a valid JSON array:\n'
-    +'Objectives: {"q":"question","k":"obj","options":["A","B","C","D"],"answer":0,"marks":1,"topic":"topic"}\n'
-    +'Fill-in-blank: {"q":"sentence with ___________","k":"fitb","answer":"answer","marks":2,"topic":"topic"}\n'
-    +'Theory: {"q":"question","k":"theory","marks":10,"topic":"topic"}\n'
+    +'Objectives: {"q":"question with LaTeX where needed","k":"obj","options":["A","B","C","D"],"answer":0,"marks":1,"topic":"topic","svgDescription":""}\n'
+    +'Fill-in-blank: {"q":"sentence with ___________","k":"fitb","answer":"answer","marks":2,"topic":"topic","svgDescription":""}\n'
+    +'Theory: {"q":"question with LaTeX where needed","k":"theory","marks":10,"topic":"topic","svgDescription":""}\n'
     +'JSON array ONLY. No explanation.';
   var result=await callGemini(prompt,{temperature:0.3});
   if(Array.isArray(result)) return result;
@@ -2783,6 +2886,7 @@ function renderNtxSlots(){
   sl.innerHTML=S.ntxSlots.map(function(s){
     return '<div class="ocr-slot">'
       +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-ntx">📖 From Notes</span> <span class="tag t-ai">⚡ AI</span></div>'
+      +'<div class="stx" style="margin-bottom:7px;">'+renderQuestionText(s.q)+'</div>'
       +'<textarea class="fta" style="min-height:50px;" oninput="updNtxSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
       +(s.q.k==='obj'&&s.q.o?'<div style="font-size:11px;color:var(--green);margin-top:4px;">✓ Answer: '+esc(L[s.q.a]||'—')+'</div>':'')
       +(s.q.k==='fitb'&&s.q.answer?'<div style="font-size:11px;color:var(--purple);margin-top:4px;">✓ Answer: '+esc(s.q.answer)+'</div>':'')
@@ -2795,6 +2899,7 @@ function renderNtxSlots(){
       +'<button class="btn-ghost" style="color:var(--red);margin-left:auto;" onclick="delNtxSlot('+s.id+')">🗑</button>'
       +'</div></div>';
   }).join('');
+  setTimeout(function(){ math(sl); },200);
 }
 window.updNtxSlot=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
 window.setNtxType=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
@@ -2810,7 +2915,9 @@ window.finalizeNtx=function(){
 function syncManualPaperDetails(){
   var mfcl=$('mfcl'); if(mfcl&&mfcl.value) S.cfg.cls=mfcl.value;
   var mfsubj=$('mfsubj'); if(mfsubj&&mfsubj.value.trim()) S.cfg.subj=mfsubj.value.trim();
-  var mfterm=$('mfterm'); if(mfterm&&mfterm.value) S.cfg.term=mfterm.value;
+  var mfsess=$('mfsess'); if(mfsess&&mfsess.value) S.cfg.session=mfsess.value;
+  S.cfg.term=enforceAdminTerm();
+  var mfterm=$('mfterm'); if(mfterm) mfterm.value=S.cfg.term;
   var mfsc=$('mfsc'); if(mfsc) S.cfg.school=mfsc.value;
 }
 
@@ -2855,7 +2962,7 @@ function goReview(){
     +os.map(function(s,i){
       var q=s.q;
       return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+q.t+'</div>'
+        +'<div style="flex:1;"><div>'+renderQuestionText(q)+'</div>'
         +(q.o?'<div class="sopts" style="margin-top:7px;">'+q.o.map(function(o,oi){
           return '<div class="sopt '+(oi===q.a?'correct':'')+'"><span class="sok">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
         }).join('')+'</div>':'')
@@ -2869,7 +2976,7 @@ function goReview(){
     +fs.map(function(s,i){
       var q=s.q;
       return '<div class="qp fitb-qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+q.t+'</div>'
+        +'<div style="flex:1;"><div>'+renderQuestionText(q)+'</div>'
         +(q.answer?'<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>':'')
         +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
         +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
@@ -2881,7 +2988,7 @@ function goReview(){
     +ts.map(function(s,i){
       var q=s.q;
       return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
-        +'<div style="flex:1;"><div>'+q.t+'</div>'
+        +'<div style="flex:1;"><div>'+renderQuestionText(q)+'</div>'
         +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
         +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
         +(q.s?'<span class="tag t-marks">⚡ Step Marks</span>':'')
@@ -2917,7 +3024,7 @@ function goReview(){
     var dispSubj2=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
     var allQs=[].concat(
       os.map(function(s){ return {k:'obj',t:s.q.t,o:s.q.o,a:s.q.a,marks:s.q.marks||1,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; }),
-      fs.map(function(s){ return {k:'fitb',t:s.q.t,answer:s.q.answer,marks:s.q.marks||2,topic:s.q.topic,layout:'standard'}; }),
+      fs.map(function(s){ return {k:'fitb',t:s.q.t,answer:s.q.answer,marks:s.q.marks||2,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; }),
       ts.map(function(s){ return {k:'theory',t:s.q.t,marks:s.q.marks||10,s:s.q.s,topic:s.q.topic,layout:'standard',svgInline:s.q.svgInline||null,svgHint:s.q.svgHint||null}; })
     );
     var paper={
@@ -3015,7 +3122,7 @@ function buildPrint(os,fs,ts,includeGuide){
       +'<div class="ep-sec-note">Each question is worth 1 mark. Circle the letter of the correct answer.</div>';
     os.forEach(function(s,i){
       var q=s.q;
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+q.t;
+      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q);
       if(q.o&&q.o.length){
         h+='<div class="ep-opts">'+q.o.map(function(o,oi){
           return '<div class="ep-opt"><span class="ep-opt-k">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
@@ -3033,7 +3140,7 @@ function buildPrint(os,fs,ts,includeGuide){
     fs.forEach(function(s,i){
       var q=s.q;
       // Replace ___ in question text with a printed blank line
-      var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
+      var qtxt=renderQuestionText(q).replace(/_{2,}/g,'<span class="ep-fitb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
       h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+qtxt
         +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
         +'</div>';
@@ -3048,7 +3155,7 @@ function buildPrint(os,fs,ts,includeGuide){
       +'<div class="ep-sec-note">'+esc(tInstr)+'</div>';
     ts.forEach(function(s,i){
       var q=s.q;
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+q.t
+      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q)
         +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
         +'<div class="ep-ans"></div></div>';
     });
@@ -3095,7 +3202,7 @@ function buildPrint(os,fs,ts,includeGuide){
         var q=s.q; var qMarks=q.marks||10;
         h+='<div class="mg-th-q">'
           +'<div style="font-weight:700;font-size:10.5pt;">Q'+(i+1)+' <span style="float:right;">['+qMarks+' marks]</span></div>'
-          +'<div class="mg-th-q-text">'+q.t+'</div>'
+          +'<div class="mg-th-q-text">'+renderQuestionText(q)+'</div>'
           +'<div class="mg-mark-breakdown"><strong>Marking Points:</strong><br/>';
         if(q.s){
           h+='• Method / Working: '+Math.ceil(qMarks*.4)+' marks<br/>'
@@ -3650,10 +3757,11 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
   }
 
   prompt+='Generate:\n- '+objN+' multiple-choice objectives (options A-D)\n- '+fitbN+' fill-in-the-blank questions (sentence ending with ___________)\n- '+thN+' theory/essay questions\n\n'
+    +'Rules: use valid LaTeX for mathematics, chemistry and physics. Include diagrams, shapes, tables and graphs where educationally useful. For drawings, fill svgDescription precisely. For inline tables, use [TABLE:Heading 1;Heading 2|Row A;Row B].\n\n'
     +'Return ONLY a valid JSON object:\n'
-    +'{"objectives":[{"q":"...","options":["A","B","C","D"],"answer":0,"topic":"..."}],'
-    +'"fillInBlank":[{"q":"sentence with ___________","answer":"...","marks":2}],'
-    +'"theory":[{"q":"...","marks":10,"showSteps":true}]}';
+    +'{"objectives":[{"q":"...","options":["A","B","C","D"],"answer":0,"topic":"...","svgDescription":""}],'
+    +'"fillInBlank":[{"q":"sentence with ___________","answer":"...","marks":2,"svgDescription":""}],'
+    +'"theory":[{"q":"...","marks":10,"showSteps":true,"svgDescription":""}]}';
 
   try{
     var res=await callGemini(prompt);
@@ -3663,9 +3771,19 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
     var ths=obj.theory||obj.theoryQuestions||[];
 
     var allQs=[];
-    objs.forEach(function(q){ allQs.push({k:'obj',t:q.q||'',o:q.options||[],a:q.answer||0,marks:1,topic:q.topic||'',layout:'standard'}); });
-    fitbs.forEach(function(q){ allQs.push({k:'fitb',t:q.q||'',answer:q.answer||'',marks:q.marks||2,topic:'',layout:'standard'}); });
-    ths.forEach(function(q){ allQs.push({k:'theory',t:q.q||'',marks:q.marks||10,s:q.showSteps,topic:'',layout:'standard'}); });
+    async function pushAutoQ(kind,q){
+      var svgInline=null;
+      if(q.svgDescription){
+        try{ svgInline=await callGeminiDraw(q.svgDescription,{width:420,height:250}); }
+        catch(svgErr){ console.warn('Auto-gen SVG failed:',svgErr.message); }
+      }
+      if(kind==='obj') allQs.push({k:'obj',t:q.q||'',o:q.options||[],a:q.answer||0,marks:1,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
+      else if(kind==='fitb') allQs.push({k:'fitb',t:q.q||'',answer:q.answer||'',marks:q.marks||2,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
+      else allQs.push({k:'theory',t:q.q||'',marks:q.marks||10,s:q.showSteps,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
+    }
+    for(var oi=0; oi<objs.length; oi++) await pushAutoQ('obj',objs[oi]);
+    for(var fi=0; fi<fitbs.length; fi++) await pushAutoQ('fitb',fitbs[fi]);
+    for(var ti=0; ti<ths.length; ti++) await pushAutoQ('theory',ths[ti]);
 
     var ref='EE-AG-'+Date.now().toString(36).toUpperCase();
     var paper={
@@ -6183,5 +6301,3 @@ window.inviteUser = async function(){
   var inp=$('inviteEmail'); if(inp) inp.value='';
   renderUserManagement();
 };
-
-

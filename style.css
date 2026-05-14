@@ -564,6 +564,14 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 .b-teal{background:#ECFEFF;border:1.5px solid #67E8F9;color:#0E7490;}
 .bteal{background:#0E7490;color:#fff;}
 .bteal:hover{opacity:.88;transform:translateY(-1px);}
+.gen-svg-wrap{display:flex;justify-content:center;margin:10px 0;break-inside:avoid;page-break-inside:avoid;}
+.gen-svg-wrap svg{max-width:100%;height:auto;border:1px solid var(--bdr);border-radius:6px;background:#fff;}
+.visual-card{border:1.5px solid var(--bdr);border-radius:8px;background:var(--surf2);padding:10px 12px;margin:8px 0;font-size:12px;line-height:1.55;break-inside:avoid;page-break-inside:avoid;}
+.graph-card{border-color:#93C5FD;background:#EFF6FF;color:#1E3A8A;}
+.shape-card{border-color:#A7F3D0;background:#ECFDF5;color:#065F46;}
+.exam-inline-table{border-collapse:collapse;width:100%;max-width:520px;margin:8px 0;font-size:12px;break-inside:avoid;page-break-inside:avoid;}
+.exam-inline-table th,.exam-inline-table td{border:1px solid var(--bdr2);padding:6px 8px;text-align:left;vertical-align:top;}
+.exam-inline-table th{background:var(--surf3);font-weight:800;}
 
 /* ── PRODUCTION QUEUE ACCORDION ────────── */
 .pq-class-group{background:var(--surf);border:1.5px solid var(--bdr);border-radius:var(--r);margin-bottom:10px;overflow:hidden;box-shadow:var(--sh1);}
