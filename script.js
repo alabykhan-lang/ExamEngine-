@@ -216,7 +216,7 @@ async function _loadUserSettings(){
     if(window._adminSettingsCache) window._adminSettingsCache.api_key = window._userApiKey;
   }
   // Apply key: global > per-user > hardcoded fallback
-  API_KEY = adm.api_key || window._userApiKey || FALLBACK_API_KEY;
+  API_KEY = cleanApiKey(adm.api_key) || cleanApiKey(window._userApiKey) || cleanApiKey(FALLBACK_API_KEY);
 
   // ── TERM: admin_settings > user_settings > '1st Term' ──
   // Priority: global admin setting first, then what the user personally saved
@@ -476,6 +476,22 @@ function stdTagCls(s) {
    GLOBAL STATE
 ══════════════════════════════════════ */
 var API_KEY = '';
+
+function cleanApiKey(v){
+  return String(v||'').trim().replace(/^["']|["']$/g,'');
+}
+function getEffectiveApiKey(){
+  var adm=(window._adminSettingsCache&&window._adminSettingsCache.api_key)||'';
+  var user=window._userApiKey||'';
+  var key=cleanApiKey(API_KEY)||cleanApiKey(adm)||cleanApiKey(user)||cleanApiKey(FALLBACK_API_KEY);
+  if(key && key!==API_KEY) API_KEY=key;
+  return key;
+}
+function ensureApiKey(){
+  var key=getEffectiveApiKey();
+  refreshApiStatus();
+  return key;
+}
 
 var S = {
   screen: 'dash',   // dash | gate | app | load | arch | sett
@@ -777,7 +793,7 @@ window.addEventListener('load',function(){
 ══════════════════════════════════════ */
 function refreshApiStatus(){
   var dot=$('apiDot'), lbl=$('apiLbl'), sd=$('sbDot'), sl=$('sbApiLbl');
-  var ok=!!API_KEY;
+  var ok=!!getEffectiveApiKey();
   if(dot){ dot.className='api-dot'+(ok?' ok':''); }
   if(lbl){ lbl.textContent=ok?'OpenRouter Ready':'No API Key'; }
   if(sd) { sd.className='sb-dot'+(ok?' ok':''); }
@@ -882,7 +898,7 @@ function showGate(){
     +'<div class="gate-card" onclick="choosePath(\'manual\')">'
     +'<span class="gate-icon">📄</span>'
     +'<div class="gate-title">Manual Path</div>'
-    +'<div class="gate-desc">Upload images or documents. Choose exact transcription of question sheets, or AI generation from class notes.</div>'
+    +'<div class="gate-desc">Use exact transcription for question sheets, or paste copied Word text and convert it into well structured questions.</div>'
     +'<div class="gate-cta">Open manual tools →</div>'
     +'</div>'
     +'</div>';
@@ -1009,7 +1025,7 @@ function renderSett(){
     +'<div class="card">'
     +'<div class="ct">OpenRouter API Key</div>'
     +'<div class="fl"><div class="key-row">'
-    +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-…" value="'+esc(API_KEY||'')+'"/>'
+    +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
     +'<div class="api-note">🔑 Get your key at <strong>openrouter.ai/keys</strong>.<br/>'
@@ -1060,8 +1076,9 @@ function renderSett(){
 }
 
 window.saveApiKey = function(){
-  var v=($('settKeyInp')||{}).value||''; v=v.trim();
+  var v=cleanApiKey(($('settKeyInp')||{}).value||'');
   API_KEY=v;
+  window._userApiKey=v;
   _saveSetting('api_key', v);
   // Also push to admin_settings so it works across all devices
   _supabase.from('admin_settings').upsert({key:'api_key',value:v},{onConflict:'key'});
@@ -1069,11 +1086,12 @@ window.saveApiKey = function(){
   refreshApiStatus(); toast('API key saved ✓ — active across all devices','ok',3500);
 };
 window.clearApiKey = function(){
-  API_KEY='';
+  API_KEY=cleanApiKey(FALLBACK_API_KEY);
+  window._userApiKey='';
   _saveSetting('api_key','');
   _supabase.from('admin_settings').upsert({key:'api_key',value:''},{onConflict:'key'});
   if(window._adminSettingsCache) window._adminSettingsCache.api_key='';
-  refreshApiStatus(); toast('API key cleared','ok');
+  refreshApiStatus(); toast('Saved key cleared — fallback key is active','ok');
   renderSett();
 };
 window.saveSchool = function(){
@@ -1260,13 +1278,15 @@ async function extractApiError(resp){
   }catch(e){ return{is429:resp.status===429,seconds:10,msg:'API error '+resp.status}; }
 }
 async function _fetchOR(messages,model,isJson){
+  var key=ensureApiKey();
+  if(!key) throw new Error('No API key configured.');
   var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
   if(isJson) body.response_format={type:'json_object'};
   var r;
   try{
     r=await fetch(OR_BASE,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
       body:JSON.stringify(body)
     });
   }catch(fetchErr){
@@ -1327,7 +1347,7 @@ function parseJsonText(text){
 }
 async function callGemini(prompt,opts){
   opts=opts||{};
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  ensureApiKey();
   var sysInstr = opts.systemInstruction
     ? opts.systemInstruction
     : 'You are an expert Nigerian curriculum exam question generator. Always respond with valid JSON only — no explanation, no markdown, no code fences.';
@@ -1339,7 +1359,7 @@ async function callGemini(prompt,opts){
   return parseJsonText(result);
 }
 async function callGeminiVision(base64Image,mimeType,prompt){
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  ensureApiKey();
   mimeType=mimeType||'image/jpeg';
   var messages=[{role:'user',content:[{type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64Image}},{type:'text',text:prompt}]}];
   var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false); }));
@@ -1351,7 +1371,8 @@ async function callGeminiVision(base64Image,mimeType,prompt){
    temperature 0.05 for maximum consistency
 ══════════════════════════════════════ */
 async function callGeminiScheme(prompt){
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  var key=ensureApiKey();
+  if(!key) throw new Error('No API key configured.');
   var messages=[
     {role:'system',content:'You are a Nigerian curriculum specialist with authoritative knowledge of the NERDC 2026 Basic and Secondary Education syllabuses. You produce only verified, real curriculum data as valid JSON. Never invent topics. Never include administrative or non-teaching weeks.'},
     {role:'user',content:prompt}
@@ -1362,7 +1383,7 @@ async function callGeminiScheme(prompt){
     try{
       r=await fetch(OR_BASE,{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
         body:JSON.stringify(body)
       });
       break;
@@ -1382,7 +1403,7 @@ async function callGeminiScheme(prompt){
    LAB NL COMMAND — Claude Sonnet via OpenRouter
 ══════════════════════════════════════ */
 async function callLabNL(command){
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  ensureApiKey();
   var prompt='You are a layout formatting assistant for a Nigerian school exam paper system.\n'
     +'Parse this admin command and return a JSON object with ONLY the fields the command explicitly mentions.\n\n'
     +'COMMAND: "'+command+'"\n\n'
@@ -1420,7 +1441,8 @@ async function callLabNL(command){
    DRAWING API — SVG generation via Gemini
 ══════════════════════════════════════ */
 async function callGeminiDraw(description, targetDims){
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  var key=ensureApiKey();
+  if(!key) throw new Error('No API key configured.');
   // Default to medium size; caller can specify dimensions based on host layout
   var td = targetDims || {width:420, height:300, context:'standard A4 portrait'};
   var w = td.width, h = td.height, ctx = td.context || 'standard A4 portrait';
@@ -1448,7 +1470,7 @@ async function callGeminiDraw(description, targetDims){
     try{
       r=await fetch(OR_BASE,{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':OR_REFERER,'X-Title':OR_TITLE},
         body:JSON.stringify(body)
       });
       break;
@@ -1517,7 +1539,7 @@ function s1Auto(){
   window.scrollTo({top:0,behavior:'smooth'});
 
   var c=S.cfg;
-  var apiWarn=!API_KEY?'<div class="banner b-warn">⚠️ <div>No OpenRouter API key. <a onclick="navTo(\'sett\')">Add your key in Settings</a> to enable AI generation.</div></div>':'';
+  var apiWarn=!getEffectiveApiKey()?'<div class="banner b-warn">⚠️ <div>No OpenRouter API key. <a onclick="navTo(\'sett\')">Add your key in Settings</a> to enable AI generation.</div></div>':'';
 
   $('s1').innerHTML='<div class="pg fade">'
     +'<div class="ptl">The Contract</div>'
@@ -1746,7 +1768,7 @@ window.selectSubject=function(s){
 
   var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
   checkS1Ready();
-  if(API_KEY) doLoadScheme();
+  if(getEffectiveApiKey()) doLoadScheme();
   else{ var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt(); }
 };
 
@@ -1767,7 +1789,7 @@ window.pickTrade=function(id){
   S.tradeSubject=id;
   var tw=$('tradePanelWrap'); if(tw) tw.innerHTML=renderTradePanel();
   // Reload scheme for new trade
-  if(API_KEY&&S.cfg.subj==='Trade Subject') doLoadScheme();
+  if(getEffectiveApiKey()&&S.cfg.subj==='Trade Subject') doLoadScheme();
 };
 
 /* ── Difficulty toggle ── */
@@ -2024,7 +2046,7 @@ function goWorkshop(){
     for(var k=0;k<thN;k++)   S.slots.push({id:objN+fitbN+k,k:'theory',q:null,included:true,loading:false,err:null});
   }
   renderWorkshop();
-  if(API_KEY&&S.slots.some(function(s){ return !s.q; })) generateAll();
+  if(getEffectiveApiKey()&&S.slots.some(function(s){ return !s.q; })) generateAll();
 }
 
 function renderWorkshop(){
@@ -2221,7 +2243,7 @@ function buildPrompt(cfg,type,count,extra){
 }
 
 async function generateAll(){
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  ensureApiKey();
   if(S.generating) return;
   S.generating=true;
   var btn=$('genAllBtn');
@@ -2280,7 +2302,7 @@ async function generateAll(){
 }
 
 async function genSingleSlot(s,isReload){
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  ensureApiKey();
   s.loading=true; s.q=null; s.err=null;
   var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
   try{
@@ -2315,7 +2337,7 @@ async function genSingleSlot(s,isReload){
 /* ══════════════════════════════════════
    SCREEN 2 — MANUAL PATH
    Section 1: Scanner (exact transcription)
-   Section 2: Note-to-Exam (generate from notes)
+   Section 2: Word Text-to-Questions (structure pasted text)
 ══════════════════════════════════════ */
 function s2Manual(){
   S.scr=2; hdr();
@@ -2382,54 +2404,31 @@ function s2Manual(){
     +'</div>'
     +'</div></div>'
 
-    // ══ SECTION 2: NOTE-TO-EXAM ══
+    // ══ SECTION 2: WORD TEXT-TO-QUESTIONS ══
     +'<div class="manual-section">'
     +'<div class="manual-section-head notex">'
-    +'<div class="manual-section-ico">📖</div>'
+    +'<div class="manual-section-ico">📝</div>'
     +'<div>'
-    +'<div class="manual-section-title">Section 2 — Note-to-Exam (Generate from Notes)</div>'
-    +'<div class="manual-section-desc">Upload photos of class notes. AI reads the content and generates exam questions grounded strictly in that material.</div>'
+    +'<div class="manual-section-title">Section 2 — Word Text-to-Questions</div>'
+    +'<div class="manual-section-desc">Paste question text copied from Word or another document. AI restructures it into clean exam questions without generating new content.</div>'
     +'</div></div>'
     +'<div class="manual-section-body">'
-    +'<div class="banner b-teal" style="margin-bottom:14px;font-size:12px;">📚 <strong>Note-to-Exam:</strong> AI reads your notes and generates questions grounded strictly in that content. Accepts PDF, DOCX, or images.</div>'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">'
-    +'<span style="font-size:11.5px;font-weight:700;color:var(--mute);">Files: <span id="ntxImgCount" style="font-family:var(--mono);color:#0E7490;">0</span></span>'
+    +'<div class="banner b-teal" style="margin-bottom:14px;font-size:12px;">🧾 <strong>Word Text-to-Questions:</strong> paste copied Word text, rough numbering, broken options, or mixed theory/objective items. It will be cleaned into structured exam questions only from the text provided.</div>'
+    +'<div class="fl"><label>Paste copied Word text</label>'
+    +'<textarea class="fta" id="ntxWordText" style="min-height:220px;" placeholder="Paste questions copied from Word here..."></textarea>'
     +'</div>'
-    +'<div id="ntxGallery" style="display:flex;flex-wrap:wrap;gap:10px;min-height:60px;align-items:flex-start;margin-bottom:12px;"></div>'
-    +'<canvas id="ntxCanvas" style="display:none;width:1px;height:1px;"></canvas>'
-    +'<div class="cctrl">'
-    +'<label class="upload-label" style="cursor:pointer;background:#0E7490;">📁 Upload Files (PDF / DOCX / Images)<input type="file" accept="image/*,application/pdf,.docx,.doc" multiple style="display:none;" id="ntxUploadInp" onchange="handleNtxUpload(event)"/></label>'
+    +'<div class="fl" style="margin-top:12px;"><label>Structuring Instructions (Optional)</label>'
+    +'<textarea class="fta" id="ntxInstr" style="min-height:58px;" placeholder="e.g. Keep the original numbering. Treat A-D lines as objective options. Preserve all sub-questions."></textarea>'
     +'</div>'
-    +'<div style="margin-top:18px;">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:10px;">Question Settings</div>'
-    +'<div class="r3" style="margin-bottom:12px;">'
-    +'<div class="fl"><label>Objectives</label><input type="number" class="num-input" id="ntxObjN" min="0" max="40" value="10"/></div>'
-    +'<div class="fl"><label>Fill-in-Blank</label><input type="number" class="num-input fitb-input" id="ntxFitbN" min="0" max="15" value="0"/></div>'
-    +'<div class="fl"><label>Theory</label><input type="number" class="num-input" id="ntxThN" min="0" max="10" value="3"/></div>'
-    +'</div>'
-    +'<div class="fl"><label>Exam Standard</label>'
-    +'<select class="fs" id="ntxStd">'
-    +STANDARDS.map(function(x){ return '<option'+(x==='WAEC'?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'<div style="margin-bottom:12px;">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:6px;">Difficulty</div>'
-    +'<div class="diff-toggle">'
-    +'<button class="diff-btn lenient" id="ntxDiffL" onclick="setNtxDiff(\'Lenient\')">😊 Lenient</button>'
-    +'<button class="diff-btn balanced on" id="ntxDiffB" onclick="setNtxDiff(\'Balanced\')">⚖ Balanced</button>'
-    +'<button class="diff-btn rigorous" id="ntxDiffR" onclick="setNtxDiff(\'Rigorous\')">🔥 Rigorous</button>'
-    +'</div></div>'
-    +'<div class="fl"><label>Custom Instructions (Optional)</label>'
-    +'<textarea class="fta" id="ntxInstr" style="min-height:60px;" placeholder="e.g. Focus on the food chain section only. Include one question on photosynthesis."></textarea>'
-    +'</div></div>'
     +'<div id="ntxStatus" style="margin-top:10px;"></div>'
     +'<div class="card" id="ntxSlotArea" style="display:none;margin-top:14px;margin-bottom:0;">'
-    +'<div class="ct">Generated Questions <span style="font-weight:400;text-transform:none;letter-spacing:0;">(edit any — then proceed)</span></div>'
+    +'<div class="ct">Structured Questions <span style="font-weight:400;text-transform:none;letter-spacing:0;">(edit any — then proceed)</span></div>'
     +'<div id="ntxSlots"></div>'
     +'<button class="btn-ghost" onclick="addBlankNtx()" style="margin-top:8px;">+ Add Blank Slot</button>'
     +'</div>'
     +'<div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px;flex-wrap:wrap;">'
-    +'<button class="btn" style="background:#0E7490;color:#fff;" id="ntxGenBtn" onclick="generateFromNotes()" disabled>📖 Generate from Notes</button>'
-    +'<button class="btn bp" id="ntxReviewBtn" onclick="finalizeNtx()" disabled style="display:none;">Review &amp; Print → (Notes)</button>'
+    +'<button class="btn" style="background:#0E7490;color:#fff;" id="ntxGenBtn" onclick="convertWordTextQuestions()">🧾 Structure Questions</button>'
+    +'<button class="btn bp" id="ntxReviewBtn" onclick="finalizeNtx()" disabled style="display:none;">Review &amp; Print → (Structured Text)</button>'
     +'</div>'
     +'</div></div>'
 
@@ -2558,7 +2557,7 @@ window.snapScan=function(){
 window.transcribeAll=async function(){
   var images=S._imgQueue.filter(Boolean);
   if(!images.length){ toast('No files to transcribe','warn'); return; }
-  if(!API_KEY) API_KEY=FALLBACK_API_KEY;
+  ensureApiKey();
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
   var btn=$('transcribeBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> In queue…'; }
@@ -2781,10 +2780,77 @@ window.handleNtxUpload=async function(e){
     } catch(ex){ toast('⚠ '+name+': '+ex.message,'err'); }
   }
 };
+window.convertWordTextQuestions=async function(){
+  var text=(($('ntxWordText')||{}).value||'').trim();
+  if(!text){ toast('Paste copied Word text first','warn'); return; }
+  ensureApiKey();
+  syncManualPaperDetails();
+  if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
+  var customInstr=(($('ntxInstr')||{}).value||'').trim();
+  var btn=$('ntxGenBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Structuring…'; }
+  var area=$('ntxStatus');
+  function setStatus(html){ if(area) area.innerHTML='<div style="margin-top:4px;">'+html+'</div>'; }
+  setStatus('<div class="banner b-teal"><span class="spin">⟳</span> Converting copied text into structured questions…</div>');
+  try{
+    var questions=await structureQuestionsFromWordText(text,customInstr);
+    S.ntxSlots=[];
+    for(var qi=0; qi<questions.length; qi++){
+      var raw=questions[qi]||{};
+      var kind=raw.k||raw.type||'theory';
+      var opts=raw.options||raw.opts||raw.o||null;
+      var qText=raw.q||raw.question||raw.text||'';
+      S.ntxSlots.push({id:qi,q:{
+        t:qText,
+        k:kind,
+        o:opts,
+        a:raw.answer,
+        answer:raw.answerText||raw.answer||'',
+        marks:raw.marks||(kind==='obj'?1:10),
+        topic:raw.topic||'',
+        structured:true,
+        ai:true
+      },included:true});
+    }
+    if(S.ntxSlots.length){
+      setStatus('<div class="banner b-ok">✅ <strong>'+S.ntxSlots.length+' questions</strong> structured from pasted text.</div>');
+      renderNtxSlots();
+      var ra=$('ntxSlotArea'); if(ra){ ra.style.display='block'; ra.scrollIntoView({behavior:'smooth',block:'start'}); }
+      var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; }
+    } else {
+      setStatus('<div class="banner b-warn">⚠ No questions found in the pasted text.</div>');
+    }
+  } catch(e){
+    setStatus('<div class="banner b-warn">⚠ Structuring failed: '+esc(e.message)+'<br/><button class="btn bq bsm" style="margin-top:9px;" onclick="convertWordTextQuestions()">↻ Retry</button></div>');
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML='🧾 Structure Questions'; }
+};
+async function structureQuestionsFromWordText(text,customInstr){
+  var subj=S.cfg.subj||'General'; var cls=S.cfg.cls||'Secondary School';
+  var prompt='You are a Nigerian exam formatting expert. Convert copied Word text into perfectly structured exam questions.\n\n'
+    +'Subject: '+subj+' | Class: '+cls+'\n\n'
+    +'CRITICAL RULES:\n'
+    +'1. Do NOT generate new questions or facts.\n'
+    +'2. Use ONLY the pasted text.\n'
+    +'3. Reconstruct broken line wraps, pasted numbering, sub-questions, and A-D options into clean question text.\n'
+    +'4. Preserve the meaning, wording, names, numbers, formulas, punctuation, tonal marks, and sub-parts.\n'
+    +'5. Classify A-D option questions as k="obj"; questions with blanks as k="fitb"; all others as k="theory".\n'
+    +'6. Convert math/science notation to readable LaTeX where appropriate, e.g. $x^2$, $\\frac{1}{2}$, $H_2SO_4$.\n'
+    +'7. Extract marks only when already present. Do not invent marks.\n'
+    +(customInstr?'8. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
+    +'\nPASTED WORD TEXT:\n'+text.substring(0,18000)+'\n\n'
+    +'Return ONLY a valid JSON array:\n'
+    +'[{"q":"complete question text","k":"obj","options":["A","B","C","D"],"answer":"","marks":1},'
+    +'{"q":"complete theory question with sub-parts preserved","k":"theory","options":null,"answer":"","marks":10}]\n'
+    +'JSON array ONLY. No explanation.';
+  var result=await callGemini(prompt,{temperature:0.1});
+  if(Array.isArray(result)) return result;
+  if(result&&typeof result==='object'){ var keys=['questions','items','data','results']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
+  return [];
+}
 window.generateFromNotes=async function(){
   var items=S._ntxQueue.filter(Boolean);
   if(!items.length){ toast('Upload files first','warn'); return; }
-  if(!API_KEY){ toast('Add your API key first','warn'); navTo('sett'); return; }
+  ensureApiKey();
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
   var objN=parseInt(($('ntxObjN')||{}).value)||0;
@@ -2885,7 +2951,7 @@ function renderNtxSlots(){
   var area=$('ntxSlotArea'),sl=$('ntxSlots'); if(!area||!sl) return;
   sl.innerHTML=S.ntxSlots.map(function(s){
     return '<div class="ocr-slot">'
-      +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-ntx">📖 From Notes</span> <span class="tag t-ai">⚡ AI</span></div>'
+      +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-ntx">🧾 Structured Text</span> <span class="tag t-ai">⚡ AI</span></div>'
       +'<div class="stx" style="margin-bottom:7px;">'+renderQuestionText(s.q)+'</div>'
       +'<textarea class="fta" style="min-height:50px;" oninput="updNtxSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
       +(s.q.k==='obj'&&s.q.o?'<div style="font-size:11px;color:var(--green);margin-top:4px;">✓ Answer: '+esc(L[s.q.a]||'—')+'</div>':'')
@@ -3707,7 +3773,7 @@ window.doReject=async function(ref){
 
 /* ── Auto-Generate Single ────────────── */
 window.adminAutoGenSingle=function(cls,subj,term,typeLabel){
-  if(!API_KEY){ toast('Add your OpenRouter API key in Settings first','warn'); return; }
+  ensureApiKey();
   typeLabel=typeLabel||'Examination';
   // Show a custom instruction modal before generating
   var overlay=document.createElement('div');
@@ -4161,7 +4227,7 @@ window.runLabCommand=async function(){
   var inp=$('labCommandInput');
   var cmd=(inp&&inp.value.trim())||'';
   if(!cmd){ toast('Type a command first','warn'); return; }
-  if(!API_KEY){ toast('Add your OpenRouter API key in Settings first','warn'); return; }
+  ensureApiKey();
   var btn=$('labGoBtn');
   if(btn){ btn.disabled=true; btn.textContent='...'; }
   var time=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
@@ -4429,7 +4495,7 @@ function buildPreviewCol(p,adm,today){
 
 /* ── AI Optimize ──────────────────────── */
 window.runAiOptimize=async function(){
-  if(!API_KEY){ toast('Add your API key first','warn'); return; }
+  ensureApiKey();
   var instr=($('aiOptimizeInstr')||{}).value||'';
   if(!instr.trim()){ toast('Enter your optimization instructions','warn'); return; }
   var papers=window._printPapers||[];
@@ -4939,7 +5005,7 @@ function buildEcoCol(p,adm,today){
 function buildEcoColumn(p,adm,today){ return buildEcoCol(p,adm,today); }
 /* ── AI Optimize ──────────────────────── */
 window.runAiOptimize=async function(){
-  if(!API_KEY){ toast('Add your API key first','warn'); return; }
+  ensureApiKey();
   var instr=($('aiOptimizeInstr')||{}).value||'';
   if(!instr.trim()){ toast('Enter your optimization instructions','warn'); return; }
   var papers=window._printPapers||[];
@@ -6074,7 +6140,7 @@ function renderAdminSett(){
     +'<div class="card">'
     +'<div class="ct">OpenRouter API Key</div>'
     +'<div class="fl"><div class="key-row">'
-    +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-…" value="'+esc(API_KEY||'')+'"/>'
+    +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp2\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
     +'<div class="api-note">Used for auto-generation when teachers miss the deadline.<br/>Primary: <strong>'+MODELS.primary+'</strong></div>'
@@ -6160,8 +6226,9 @@ window.clearHouseStyleForm=function(){
   toast('House Style cleared','ok');
 };
 window.saveApiKeyAdmin=function(){
-  var v=($('settKeyInp2')||{}).value||''; v=v.trim();
+  var v=cleanApiKey(($('settKeyInp2')||{}).value||'');
   API_KEY=v;
+  window._userApiKey=v;
   // Save to user_settings for this admin user
   _saveSetting('api_key', v);
   // ALSO save to admin_settings so ALL devices/teachers share the same key
