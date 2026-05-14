@@ -207,6 +207,7 @@ async function _loadUserSettings(){
   // Pre-load admin settings (shared across all devices — sets API key, term, branding)
   await _fetchAdminSettings();
   var adm = getAdminSettings();
+  applyAdminSettings();
 
   // ── API KEY: admin_settings > user_settings > hardcoded fallback ──
   // Auto-promote admin's device key to global if global slot is empty
@@ -216,12 +217,12 @@ async function _loadUserSettings(){
     if(window._adminSettingsCache) window._adminSettingsCache.api_key = window._userApiKey;
   }
   // Apply key: global > per-user > hardcoded fallback
-  API_KEY = cleanApiKey(adm.api_key) || cleanApiKey(window._userApiKey) || cleanApiKey(FALLBACK_API_KEY);
+  API_KEY = isUsableApiKey(adm.api_key) ? cleanApiKey(adm.api_key) : (isUsableApiKey(window._userApiKey) ? cleanApiKey(window._userApiKey) : cleanApiKey(FALLBACK_API_KEY));
 
   // ── TERM: admin_settings > user_settings > '1st Term' ──
   // Priority: global admin setting first, then what the user personally saved
-  if(adm.selected_term){
-    S.cfg.term = adm.selected_term;
+  if(getAdminSettings().selected_term){
+    S.cfg.term = getAdminSettings().selected_term;
   } else if(window._userDefTerm){
     S.cfg.term = window._userDefTerm;
     // Push user's saved term up to global so all devices sync
@@ -234,8 +235,8 @@ async function _loadUserSettings(){
   }
 
   // ── SESSION: admin_settings > user_settings > '2025/2026' ──
-  if(adm.selected_session){
-    S.cfg.session = adm.selected_session;
+  if(getAdminSettings().selected_session){
+    S.cfg.session = getAdminSettings().selected_session;
   } else if(window._userDefSession){
     S.cfg.session = window._userDefSession;
     if(CURRENT_USER && CURRENT_USER.role==='admin'){
@@ -321,6 +322,7 @@ async function bootApp(){
   ROLE = CURRENT_USER.role === 'admin' ? 'admin' : 'teacher';
   _applyRoleUI(ROLE);
   _applyRoleSidebarLinks(ROLE);
+  applyAdminSettings();
   refreshApiStatus();
   startDeadlineWatcher();
 
@@ -480,10 +482,16 @@ var API_KEY = '';
 function cleanApiKey(v){
   return String(v||'').trim().replace(/^["']|["']$/g,'');
 }
+var _badApiKeys={};
+function isUsableApiKey(v){
+  v=cleanApiKey(v);
+  return !!(v && /^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v) && !_badApiKeys[v]);
+}
 function getEffectiveApiKey(){
   var adm=(window._adminSettingsCache&&window._adminSettingsCache.api_key)||'';
   var user=window._userApiKey||'';
-  var key=cleanApiKey(API_KEY)||cleanApiKey(adm)||cleanApiKey(user)||cleanApiKey(FALLBACK_API_KEY);
+  var keys=[adm,user,API_KEY,FALLBACK_API_KEY].map(cleanApiKey);
+  var key=keys.find(isUsableApiKey)||cleanApiKey(FALLBACK_API_KEY);
   if(key && key!==API_KEY) API_KEY=key;
   return key;
 }
@@ -804,6 +812,7 @@ function refreshApiStatus(){
    DASHBOARD
 ══════════════════════════════════════ */
 async function renderDash(){
+  applyAdminSettings();
   var el=$('screen-dash');
   el.style.display='block';
   el.innerHTML='<div class="pg fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading…</div></div>';
@@ -882,6 +891,7 @@ async function renderDash(){
    GATE — PATH CHOICE
 ══════════════════════════════════════ */
 function showGate(){
+  applyAdminSettings();
   var el=$('screen-gate');
   el.style.display='flex';
 
@@ -1104,9 +1114,11 @@ window.saveSchool = function(){
   // Persist default term globally in admin_settings so ALL devices/users pick it up
   _supabase.from('admin_settings').upsert({key:'selected_term',value:t},{onConflict:'key'});
   _supabase.from('admin_settings').upsert({key:'selected_session',value:sess.trim()},{onConflict:'key'});
+  _supabase.from('admin_settings').upsert({key:'school',value:s.trim()},{onConflict:'key'});
   if(window._adminSettingsCache){
     window._adminSettingsCache.selected_term=t;
     window._adminSettingsCache.selected_session=sess.trim();
+    window._adminSettingsCache.school=s.trim();
   }
   ADMIN.selectedTerm=t;
   S.cfg.school=s.trim(); S.cfg.term=t; S.cfg.session=sess.trim();
@@ -1120,7 +1132,9 @@ window.setTrade = function(id){
 };
 window.saveTrade = function(){
   _saveSetting('trade', S.tradeSubject);
-  toast('Trade subject saved: '+getTradeById(S.tradeSubject).name+' ✓','ok');
+  _supabase.from('admin_settings').upsert({key:'trade_subject',value:S.tradeSubject},{onConflict:'key'});
+  if(window._adminSettingsCache) window._adminSettingsCache.trade_subject=S.tradeSubject;
+  toast('Trade subject saved system-wide: '+getTradeById(S.tradeSubject).name+' ✓','ok');
 };
 window.clearAllData = async function(){
   if(!confirm('Delete ALL papers from the database? This cannot be undone.')) return;
@@ -1294,7 +1308,7 @@ async function _fetchOR(messages,model,isJson){
     fe.isTransient=/fetch|network|timeout|failed/i.test(fe.message);
     throw fe;
   }
-  if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e; }
+  if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; e.status=r.status; e.apiKey=key; throw e; }
   var data=await r.json();
   return(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
 }
@@ -1313,6 +1327,12 @@ async function _callWithRetry(messages,isJson){
           updateApiStatus('waiting','waiting '+w+'s');
           await _wait(w*1000);
           updateApiStatus('ready');
+        } else if(e.status===401 && e.apiKey && cleanApiKey(e.apiKey)!==cleanApiKey(FALLBACK_API_KEY) && !_badApiKeys[e.apiKey]){
+          _badApiKeys[e.apiKey]=true;
+          API_KEY=cleanApiKey(FALLBACK_API_KEY);
+          refreshApiStatus();
+          toast('Saved API key failed — retrying with fallback key…','warn',3500);
+          attempts=0;
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
           toast('Network hiccup — retrying in '+tw+'s…','warn',(tw+1)*1000);
@@ -1393,7 +1413,14 @@ async function callGeminiScheme(prompt){
     }
   }
   if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
-  if(!r.ok){ var info=await extractApiError(r); var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e; }
+  if(!r.ok){
+    var info=await extractApiError(r);
+    if(r.status===401 && key!==cleanApiKey(FALLBACK_API_KEY)){
+      _badApiKeys[key]=true;
+      return callGeminiScheme(prompt);
+    }
+    var e=new Error(info.msg); e.is429=info.is429; e.seconds=info.seconds||10; throw e;
+  }
   var data=await r.json();
   var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
   return parseJsonText(text);
@@ -1480,7 +1507,14 @@ async function callGeminiDraw(description, targetDims){
     }
   }
   if(!r) throw new Error((lastFetchErr&&lastFetchErr.message)||'Network fetch failed');
-  if(!r.ok){ var info=await extractApiError(r); throw new Error(info.msg); }
+  if(!r.ok){
+    var info=await extractApiError(r);
+    if(r.status===401 && key!==cleanApiKey(FALLBACK_API_KEY)){
+      _badApiKeys[key]=true;
+      return callGeminiDraw(description,targetDims);
+    }
+    throw new Error(info.msg);
+  }
   var data=await r.json();
   var text=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
   // Strip markdown fences if present
@@ -1532,6 +1566,7 @@ function advisDiagramFit(paper, mode){
 ══════════════════════════════════════ */
 function s1Auto(){
   S.scr=1; hdr();
+  applyAdminSettings();
   enforceAdminTerm();
   $('s1').style.display='block';
   $('s2').style.display='none';
@@ -2339,8 +2374,57 @@ async function genSingleSlot(s,isReload){
    Section 1: Scanner (exact transcription)
    Section 2: Word Text-to-Questions (structure pasted text)
 ══════════════════════════════════════ */
+function renderManualClassPills(){
+  return CL.map(function(cls){
+    return '<div class="spill'+(cls===S.cfg.cls?' sel':'')+'" onclick="manualSelectClass(\''+cls.replace(/'/g,"\\'")+'\')">'+esc(cls)+'</div>';
+  }).join('');
+}
+function renderManualSubjectPills(){
+  if(!S.cfg.cls) return '<span class="tag-empty">Select a class above to see subjects.</span>';
+  var list=getSubjectList(S.cfg.cls);
+  var trade=getTradeById(S.tradeSubject);
+  return list.map(function(s){
+    var isTrade=s==='Trade Subject';
+    var displayName=isTrade?('🌱 '+trade.name):s;
+    return '<div class="spill'+(isTrade?' trade-pill':'')+(s===S.cfg.subj?' sel':'')+'" onclick="manualSelectSubject(\''+s.replace(/'/g,"\\'")+'\')">'+esc(displayName)+'</div>';
+  }).join('');
+}
+window.manualSelectClass=function(cls){
+  S.cfg.cls=cls;
+  S.cfg.subj='';
+  S.subjects=cls?getSubjectList(cls).slice():[];
+  var cg=$('manualClassGrid'); if(cg) cg.innerHTML=renderManualClassPills();
+  var sg=$('manualSubjGrid'); if(sg) sg.innerHTML=renderManualSubjectPills();
+  var card=$('manualSubjCard'); if(card) card.classList.toggle('unlocked',!!cls);
+  var note=$('manualSubjFetchNote'); if(note) note.innerHTML=cls?'<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded ('+S.subjects.length+')</span>':'Select a class above to load subjects.';
+  var tw=$('manualTradePanelWrap'); if(tw) tw.innerHTML='';
+};
+window.manualSelectSubject=function(subj){
+  S.cfg.subj=subj;
+  var sg=$('manualSubjGrid'); if(sg) sg.innerHTML=renderManualSubjectPills();
+  var tw=$('manualTradePanelWrap');
+  if(tw) tw.innerHTML=subj==='Trade Subject'?renderManualTradePanel():'';
+};
+function renderManualTradePanel(){
+  var cur=S.tradeSubject;
+  return '<div class="trade-panel" style="margin-top:12px;">'
+    +'<div class="trade-panel-title">Select your trade subject for this paper:</div>'
+    +TRADE_SUBJECTS.map(function(t){
+      return '<div class="trade-opt'+(cur===t.id?' sel':'')+'" onclick="manualPickTrade(\''+t.id+'\')">'
+        +'<span class="to-ico">'+t.icon+'</span>'
+        +'<div><div class="to-name">'+esc(t.name)+'</div><div class="to-desc">'+esc(t.desc)+'</div></div>'
+        +'</div>';
+    }).join('')
+    +'</div>';
+}
+window.manualPickTrade=function(id){
+  S.tradeSubject=id;
+  var tw=$('manualTradePanelWrap'); if(tw) tw.innerHTML=renderManualTradePanel();
+  var sg=$('manualSubjGrid'); if(sg) sg.innerHTML=renderManualSubjectPills();
+};
 function s2Manual(){
   S.scr=2; hdr();
+  applyAdminSettings();
   enforceAdminTerm();
   $('s1').style.display='none';
   $('s2').style.display='block';
@@ -2354,20 +2438,27 @@ function s2Manual(){
     
 
     // ── Paper Details ──
-    +'<div class="card"><div class="ct">Paper Details</div>'
-    +'<div class="r2">'
-    +'<div class="fl"><label>Class</label><select class="fs" id="mfcl"><option value="">Choose class…</option>'
-    +CL.map(function(x){ return '<option'+(x===S.cfg.cls?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
-    +'<div class="fl"><label>Subject</label><input type="text" class="fi" id="mfsubj" value="'+esc(S.cfg.subj)+'" placeholder="e.g. Livestock Farming…"/></div>'
-    +'</div>'
+    +'<div class="card"><div class="ct">Step 1 — Term &amp; Class</div>'
     +'<div class="r3" style="margin-top:0;">'
     +'<div class="fl"><label>Academic Session</label><input type="text" class="fi" id="mfsess" value="'+esc(S.cfg.session||'2025/2026')+'"/></div>'
     +'<div class="fl"><label>Term</label><select class="fs" id="mfterm">'
     +TERMS.map(function(x){ return '<option'+(x===S.cfg.term?' selected':'')+'>'+x+'</option>'; }).join('')
     +'</select></div>'
-    +'<div class="fl"><label>School Name</label><input type="text" class="fi" id="mfsc" value="'+esc(S.cfg.school)+'" placeholder="e.g. Government Secondary School…"/></div>'
+    +'<div class="fl"><label>Target Class</label><select class="fs" id="mfcl"><option value="">Choose class…</option>'
+    +CL.map(function(x){ return '<option'+(x===S.cfg.cls?' selected':'')+'>'+x+'</option>'; }).join('')
+    +'</select></div>'
     +'</div></div>'
+
+    +'<div class="card flow-step'+(S.cfg.cls?' unlocked':'')+'" id="manualSubjCard">'
+    +'<div class="ct">Step 2 — Subject</div>'
+    +'<div class="fetch-note" id="manualSubjFetchNote" style="margin-bottom:10px;">'+(S.cfg.cls?'<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded ('+getSubjectList(S.cfg.cls).length+')</span>':'Select a class above to load subjects.')+'</div>'
+    +'<div class="subj-grid" id="manualSubjGrid">'+renderManualSubjectPills()+'</div>'
+    +'<div id="manualTradePanelWrap"></div>'
+    +'</div>'
+
+    +'<div class="card"><div class="ct">Paper Header Info</div>'
+    +'<div class="fl"><label>School Name</label><input type="text" class="fi" id="mfsc" value="'+esc(S.cfg.school)+'" placeholder="e.g. Government Secondary School…"/></div>'
+    +'</div>'
 
     // ══ SECTION 1: SCANNER ══
     +'<div class="manual-section">'
@@ -2436,13 +2527,16 @@ function s2Manual(){
     +'<button class="btn bq" onclick="navTo(\'new\')">← Change Path</button>'
     +'</div></div>';
 
-  $('mfcl').onchange  =function(e){ S.cfg.cls  =e.target.value; };
-  $('mfsubj').oninput =function(e){ S.cfg.subj =e.target.value; };
+  $('mfcl').onchange  =function(e){ manualSelectClass(e.target.value); };
   $('mfsess').oninput =function(e){ S.cfg.session=e.target.value; };
   $('mfterm').disabled=true;
   $('mfterm').title='Term is controlled by Admin Settings';
   $('mfterm').onchange=function(e){ S.cfg.term=enforceAdminTerm(); e.target.value=S.cfg.term; };
   $('mfsc').oninput   =function(e){ S.cfg.school=e.target.value; };
+  if(S.cfg.cls) S.subjects=getSubjectList(S.cfg.cls).slice();
+  if(S.cfg.subj==='Trade Subject'){
+    var mtw=$('manualTradePanelWrap'); if(mtw) mtw.innerHTML=renderManualTradePanel();
+  }
 }
 
 /* ── NTX Difficulty tracker ── */
@@ -2559,7 +2653,7 @@ window.transcribeAll=async function(){
   if(!images.length){ toast('No files to transcribe','warn'); return; }
   ensureApiKey();
   syncManualPaperDetails();
-  if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
+  if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
   var btn=$('transcribeBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> In queue…'; }
   var area=$('scanOcrStatus');
   function setStatus(html){ if(area) area.innerHTML='<div style="margin-top:4px;">'+html+'</div>'; }
@@ -2785,7 +2879,7 @@ window.convertWordTextQuestions=async function(){
   if(!text){ toast('Paste copied Word text first','warn'); return; }
   ensureApiKey();
   syncManualPaperDetails();
-  if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
+  if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
   var customInstr=(($('ntxInstr')||{}).value||'').trim();
   var btn=$('ntxGenBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Structuring…'; }
   var area=$('ntxStatus');
@@ -2852,7 +2946,7 @@ window.generateFromNotes=async function(){
   if(!items.length){ toast('Upload files first','warn'); return; }
   ensureApiKey();
   syncManualPaperDetails();
-  if(!S.cfg.subj){ toast('Enter the subject name first','warn'); return; }
+  if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
   var objN=parseInt(($('ntxObjN')||{}).value)||0;
   var fitbN=parseInt(($('ntxFitbN')||{}).value)||0;
   var thN=parseInt(($('ntxThN')||{}).value)||0;
@@ -3418,8 +3512,17 @@ function getAdminSettings(){
   return window._adminSettingsCache || {
     deadline:'', logo:'', watermark:'ExamEngine',
     school:'School Administration', address:'', motto:'',
-    api_key:'', selected_term:'1st Term', selected_session:'2025/2026'
+    api_key:'', selected_term:'1st Term', selected_session:'2025/2026', trade_subject:''
   };
+}
+function applyAdminSettings(){
+  var adm=getAdminSettings();
+  if(adm.selected_term) S.cfg.term=adm.selected_term;
+  if(adm.selected_session) S.cfg.session=adm.selected_session;
+  if(adm.school && adm.school!=='School Administration') S.cfg.school=adm.school;
+  if(adm.trade_subject) S.tradeSubject=adm.trade_subject;
+  if(adm.api_key) API_KEY=cleanApiKey(adm.api_key);
+  if(adm.selected_term) ADMIN.selectedTerm=adm.selected_term;
 }
 async function _fetchAdminSettings(){
   try{
@@ -3436,7 +3539,8 @@ async function _fetchAdminSettings(){
       motto:m.motto||'',
       api_key:m.api_key||'',
       selected_term:m.selected_term||'',
-      selected_session:m.selected_session||''
+      selected_session:m.selected_session||'',
+      trade_subject:m.trade_subject||''
     };
     // Also load lab_config and lab_queue into ADMIN
     if(m.lab_config){ try{ ADMIN.labConfig=JSON.parse(m.lab_config); }catch(e){} }
@@ -3445,6 +3549,7 @@ async function _fetchAdminSettings(){
     if(m.design_template){ ADMIN.designTemplate=m.design_template; }
     if(m.selected_term){ ADMIN.selectedTerm=m.selected_term; }
     if(m.selected_session){ /* stored for use in S.cfg.session at boot */ }
+    applyAdminSettings();
   }catch(e){ console.warn('_fetchAdminSettings exception:',e.message); }
   return window._adminSettingsCache||{};
 }
