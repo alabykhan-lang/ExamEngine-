@@ -21,8 +21,8 @@ var FALLBACK_API_KEY = '';
    SUPABASE INIT
 ══════════════════════════════════════ */
 var _supabase;
-var _supabaseUrl = '%%SUPABASE_URL%%';
-var _supabaseKey = '%%SUPABASE_ANON_KEY%%';
+var _supabaseUrl = (window.ENV && window.ENV.SUPABASE_URL) || '%%SUPABASE_URL%%';
+var _supabaseKey = (window.ENV && window.ENV.SUPABASE_ANON_KEY) || '%%SUPABASE_ANON_KEY%%';
 
 function _initSupabase(){
   var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
