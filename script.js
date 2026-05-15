@@ -565,7 +565,7 @@ var S = {
   difficultyLevel: 'Balanced',
   tradeSubject: DEFAULT_TRADE,
   cfg: {
-    cls:'', term:'1st Term', session:'2025/2026', subj:'', std:'WAEC',
+    cls:'', term:'1st Term', session:'2025/2026', subj:'', std:'',
     topics:[], topicText:'',
     objN:10, fitbN:0, thN:5,
     instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',
@@ -602,14 +602,15 @@ function renderInlineTable(body){
     return '<tr>'+cells+'</tr>';
   }).join('')+'</table>';
 }
-function renderQuestionText(q){
+function renderQuestionText(q,opts){
+  opts=opts||{};
   if(!q) return '';
   var html=renderRichText(q.t||q.q||'');
   if(q.svgInline) html+='<div class="gen-svg-wrap">'+q.svgInline+'</div>';
   if(q._svgDiagram) html+='<div class="gen-svg-wrap">'+q._svgDiagram+'</div>';
-  if(q.svgHint&&!q.svgInline&&!q._svgDiagram) html+='<div class="visual-card shape-card"><strong>Visual:</strong> '+esc(q.svgHint)+'</div>';
+  if(q.svgHint&&!q.svgInline&&!q._svgDiagram&&opts.showVisualPlaceholders) html+='<div class="visual-card shape-card"><strong>Visual:</strong> '+esc(q.svgHint)+'</div>';
   if(q.diagImg) html+='<div class="diagram-box"><img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/><span class="diagram-label">Source diagram</span></div>';
-  else if(q.diagDesc) html+='<div class="visual-card shape-card"><strong>Diagram:</strong> '+esc(q.diagDesc)+'</div>';
+  else if(q.diagDesc&&opts.showVisualPlaceholders) html+='<div class="visual-card shape-card"><strong>Diagram:</strong> '+esc(q.diagDesc)+'</div>';
   return html;
 }
 function renderVisualEditor(kind,id,q){
@@ -629,9 +630,9 @@ function persistQuestion(q,kind){
   q=q||{};
   var out={k:kind||q.k||'theory',t:q.t||q.q||'',marks:q.marks||null,topic:q.topic||'',layout:q.layout||'standard',
     svgInline:q.svgInline||q._svgDiagram||null,svgHint:q.svgHint||q.diagDesc||null,diagDesc:q.diagDesc||'',diagImg:q.diagImg||null};
-  if(out.k==='obj'){ out.o=q.o||q.options||[]; out.a=q.a!==undefined?q.a:q.answer; out.marks=q.marks||1; }
-  if(out.k==='fitb'){ out.answer=q.answer||''; out.marks=q.marks||2; }
-  if(out.k==='theory'){ out.s=q.s||q.showSteps; out.marks=q.marks||10; }
+  if(out.k==='obj'){ out.o=q.o||q.options||[]; out.a=q.a!==undefined?q.a:q.answer; out.marks=q.marks!==undefined?q.marks:0; }
+  if(out.k==='fitb'){ out.answer=q.answer||''; out.marks=q.marks!==undefined?q.marks:0; }
+  if(out.k==='theory'){ out.s=q.s||q.showSteps; out.marks=q.marks!==undefined?q.marks:0; }
   return out;
 }
 function findQuestionSlot(kind,id){
@@ -1265,7 +1266,7 @@ window.clearAllData = async function(){
 };
 window.restoreDraft=function(){
   var d=window._savedDraft; if(!d||!d.slots) return;
-  S.cfg=Object.assign({cls:'',term:'1st Term',session:'2025/2026',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
+  S.cfg=Object.assign({cls:'',term:'1st Term',session:'2025/2026',subj:'',std:'',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
   S.at=d.at||'Examination';
   S.path=d.path||'auto';
   S.tradeSubject=d.tradeSubject||DEFAULT_TRADE;
@@ -1757,7 +1758,8 @@ function s1Auto(){
     // Exam Standard
     +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="stdCard">'
     +'<div class="ct">Exam Standard / DNA</div>'
-    +'<div class="fl"><select class="fs" id="fst">'
+    +'<div class="fl"><select class="fs" id="fst" required>'
+    +'<option value=""'+(!c.std?' selected':'')+'>Choose exam standard...</option>'
     +STANDARDS.map(function(x){ return '<option'+(x===c.std?' selected':'')+'>'+x+'</option>'; }).join('')
     +'</select>'
     +'<div style="font-size:11px;color:var(--mute);margin-top:5px;">Sets tone, format, and difficulty Gemini will follow.</div>'
@@ -1795,13 +1797,10 @@ function s1Auto(){
     +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Private — only sent to Gemini. Not printed on paper.</div>'
     +'</div></div>'
 
-    // Paper Header
     +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="metaCard">'
-    +'<div class="ct">Paper Header Info</div>'
-    +'<div class="r2">'
-    +'<div class="fl"><label>School Name</label><input type="text" class="fi" id="fsc" value="'+esc(c.school)+'" placeholder="e.g. Government Secondary School, Ikeja"/></div>'
+    +'<div class="ct">Paper Instructions</div>'
     +'<div class="fl"><label>Instructions to Candidates</label><input type="text" class="fi" id="fin" value="'+esc(c.instr)+'"/></div>'
-    +'</div></div>'
+    +'</div>'
 
     +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
     +'<button class="btn bq" onclick="navTo(\'new\')">← Change Path</button>'
@@ -1869,7 +1868,6 @@ function s1Auto(){
       if(S.cfg.std==='Custom/Internal'){ var dw=document.createElement('div'); dw.className='diff-wrap'; dw.innerHTML=renderDifficultyToggle(); sc.appendChild(dw); }
     }
   };
-  $('fsc').oninput=function(e){ S.cfg.school=e.target.value; };
   $('fin').oninput=function(e){ S.cfg.instr=e.target.value; };
   $('ftp').oninput=function(e){ S.cfg.topicText=e.target.value; checkS1Ready(); };
   $('ftheoryPaper').oninput=function(e){ S.cfg.theoryPaperInstr=e.target.value; };
@@ -1879,6 +1877,7 @@ function s1Auto(){
     var fn=parseInt($('fitbN').value)||0;
     var tn=parseInt($('thN').value)||0;
     if(on+fn+tn===0){ toast('Set at least 1 question','warn'); return; }
+    if(!$('fst').value){ toast('Choose the exam standard first','warn'); return; }
     S.cfg.objN=Math.max(0,on); S.cfg.fitbN=Math.max(0,fn); S.cfg.thN=Math.max(0,tn);
     var tp=$('ftp'); if(tp&&tp.value.trim()){
       tp.value.split(',').map(function(t){ return t.trim(); }).filter(Boolean)
@@ -2027,7 +2026,7 @@ function checkS1Ready(){
   var btn=$('s1n'); if(!btn) return;
   var tp=$('ftp');
   var hasContent=S.schemeLoaded||(S.cfg.topics&&S.cfg.topics.length>0)||(tp&&tp.value.trim().length>0);
-  var ok=!!(S.cfg.cls&&S.cfg.subj&&hasContent);
+  var ok=!!(S.cfg.cls&&S.cfg.subj&&S.cfg.std&&hasContent);
   btn.disabled=!ok;
 }
 
@@ -2305,9 +2304,9 @@ function renderSlot(s){
       +'</div>'
       +'<div class="mark-alloc">'
       +'<label>Marks:</label>'
-      +'<input type="number" min="1" max="100" value="'+(q.marks||(q.k==='obj'?1:isFitb?2:10))+'" '
+      +'<input type="number" min="0" max="100" value="'+(q.marks!==undefined?q.marks:0)+'" '
       +'onchange="updMark('+s.id+',this.value)" onclick="event.stopPropagation()"/>'
-      +'<span>'+(q.k==='obj'?'(1 mark default)':isFitb?'per blank':'allocated')+'</span>'
+      +'<span>'+(q.k==='obj'?'objective allocation':isFitb?'blank allocation':'allocated')+'</span>'
       +'</div>'
       +'<div class="sacts">'
       +'<button class="rbtn" onclick="reloadSlot('+s.id+')" '+(s.loading?'disabled':'')+'>↻ New Question</button>'
@@ -2344,7 +2343,7 @@ window.toggleInclude=function(id){
   setTimeout(function(){ math($('s2')); },200);
 };
 window.reloadSlot=function(id){ var s=S.slots.find(function(x){ return x.id===id; }); if(!s) return; genSingleSlot(s,true); };
-window.updMark=function(id,val){ var s=S.slots.find(function(x){ return x.id===id; }); if(s&&s.q){ s.q.marks=parseInt(val)||1; } };
+window.updMark=function(id,val){ var s=S.slots.find(function(x){ return x.id===id; }); if(s&&s.q){ s.q.marks=Math.max(0,parseInt(val)||0); } };
 
 /* ── Build prompts ── */
 function getActualSubj(){
@@ -2445,11 +2444,11 @@ async function generateAll(){
           }
           
           if(type==='obj'){
-            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1,svgInline:svgInline,svgHint:raw.svgDescription||''};
+            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
           } else if(type==='fitb'){
-            s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2,svgInline:svgInline,svgHint:raw.svgDescription||''};
+            s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
           } else {
-            s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgInline:svgInline,svgHint:raw.svgDescription||''};
+            s.q={t:qText,k:'theory',marks:raw.marks||0,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgInline:svgInline,svgHint:raw.svgDescription||''};
           }
           var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
           scheduleDraftSave();
@@ -2491,11 +2490,11 @@ async function genSingleSlot(s,isReload){
     }
     
     if(s.k==='obj'){
-      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:1,svgInline:svgInline,svgHint:raw.svgDescription||''};
+      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
     } else if(s.k==='fitb'){
-      s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||2,svgInline:svgInline,svgHint:raw.svgDescription||''};
+      s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
     } else {
-      s.q={t:qText,k:'theory',marks:raw.marks||10,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgInline:svgInline,svgHint:raw.svgDescription||''};
+      s.q={t:qText,k:'theory',marks:raw.marks||0,s:raw.showSteps,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,svgInline:svgInline,svgHint:raw.svgDescription||''};
     }
     s.err=null;
   } catch(e){ s.loading=false; s.err=e.message; toast('Failed: '+e.message,'err'); }
@@ -2598,8 +2597,11 @@ function s2Manual(){
     +'<div id="manualTradePanelWrap"></div>'
     +'</div>'
 
-    +'<div class="card"><div class="ct">Paper Header Info</div>'
-    +'<div class="fl"><label>School Name</label><input type="text" class="fi" id="mfsc" value="'+esc(S.cfg.school)+'" placeholder="e.g. Government Secondary School…"/></div>'
+    +'<div class="card"><div class="ct">Exam Standard</div>'
+    +'<div class="fl"><label>Standard / Exam Body</label><select class="fs" id="mfstd" required>'
+    +'<option value=""'+(!S.cfg.std?' selected':'')+'>Choose exam standard...</option>'
+    +STANDARDS.map(function(x){ return '<option'+(x===S.cfg.std?' selected':'')+'>'+x+'</option>'; }).join('')
+    +'</select></div>'
     +'</div>'
 
     // ══ SECTION 1: SCANNER ══
@@ -2680,10 +2682,10 @@ function s2Manual(){
   $('macat2').onclick=function(){ _setManualAt('C.A. Test 2'); };
   $('mfcl').onchange  =function(e){ manualSelectClass(e.target.value); };
   $('mfsess').oninput =function(e){ S.cfg.session=e.target.value; };
+  $('mfstd').onchange  =function(e){ S.cfg.std=e.target.value; };
   $('mfterm').disabled=true;
   $('mfterm').title='Term is controlled by Admin Settings';
   $('mfterm').onchange=function(e){ S.cfg.term=enforceAdminTerm(); e.target.value=S.cfg.term; };
-  $('mfsc').oninput   =function(e){ S.cfg.school=e.target.value; };
   if(S.cfg.cls) S.subjects=getSubjectList(S.cfg.cls).slice();
   if(S.cfg.subj==='Trade Subject'){
     var mtw=$('manualTradePanelWrap'); if(mtw) mtw.innerHTML=renderManualTradePanel();
@@ -2805,6 +2807,7 @@ window.transcribeAll=async function(){
   ensureApiKey();
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
+  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var btn=$('transcribeBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> In queue…'; }
   var area=$('scanOcrStatus');
   function setStatus(html){ if(area) area.innerHTML='<div style="margin-top:4px;">'+html+'</div>'; }
@@ -2853,7 +2856,7 @@ window.transcribeAll=async function(){
         t:raw.q||raw.question||raw.text||'',
         k:k,
         o:Array.isArray(raw.options)?raw.options:null,
-        marks:raw.marks||null,
+        marks:raw.marks||0,
         tr:true,
         diagImg:raw.hasDiagram&&raw._sourceImg?raw._sourceImg:null,
         diagDesc:raw.hasDiagram?(raw.diagramDescription||''):'',
@@ -2956,6 +2959,7 @@ function renderScanSlots(){
       +'<option value="obj"'+(s.q.k==='obj'?' selected':'')+'>Objective</option>'
       +'<option value="fitb"'+(s.q.k==='fitb'?' selected':'')+'>Fill-in-Blank</option>'
       +'</select>'
+      +'<label style="font-size:11px;font-weight:700;color:var(--mute);display:flex;align-items:center;gap:6px;">Marks <input type="number" min="0" max="100" value="'+(s.q.marks!==undefined?s.q.marks:0)+'" onchange="updScanMark('+s.id+',this.value)" style="width:72px;" class="fi"/></label>'
       +'<button class="btn-ghost" style="color:var(--red);margin-left:auto;" onclick="delScanSlot('+s.id+')">🗑</button>'
       +'</div></div>';
   }).join('');
@@ -2963,10 +2967,12 @@ function renderScanSlots(){
 }
 window.updScanSlot=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
 window.setScanType=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
+window.updScanMark=function(id,v){ var s=S.ocrSlots.find(function(x){ return x.id===id; }); if(s&&s.q) s.q.marks=Math.max(0,parseInt(v)||0); };
 window.delScanSlot=function(id){ S.ocrSlots=S.ocrSlots.filter(function(x){ return x.id!==id; }); renderScanSlots(); var rb=$('scanReviewBtn'); if(rb) rb.disabled=!S.ocrSlots.length; };
-window.addBlankScan=function(){ var id=S.ocrSlots.length; S.ocrSlots.push({id:id,q:{t:'',k:'theory',marks:10,tr:false},included:true}); renderScanSlots(); var rb=$('scanReviewBtn'); if(rb) rb.disabled=false; };
+window.addBlankScan=function(){ var id=S.ocrSlots.length; S.ocrSlots.push({id:id,q:{t:'',k:'theory',marks:0,tr:false},included:true}); renderScanSlots(); var rb=$('scanReviewBtn'); if(rb) rb.disabled=false; };
 window.finalizeScan=function(){
   syncManualPaperDetails();
+  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var valid=S.ocrSlots.filter(function(s){ return s&&s.q&&s.q.t&&s.q.t.trim(); });
   if(!valid.length){ toast('No transcribed questions to review','warn'); return; }
   S.slots=valid.map(function(s,i){ return{id:i,k:s.q.k||'theory',q:s.q,included:true,loading:false,err:null}; });
@@ -3042,6 +3048,7 @@ window.convertWordTextQuestions=async function(){
   ensureApiKey();
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
+  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var customInstr=(($('ntxInstr')||{}).value||'').trim();
   var btn=$('ntxGenBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Structuring…'; }
   var area=$('ntxStatus');
@@ -3055,15 +3062,23 @@ window.convertWordTextQuestions=async function(){
       var kind=raw.k||raw.type||'theory';
       var opts=raw.options||raw.opts||raw.o||null;
       var qText=raw.q||raw.question||raw.text||'';
+      var svgHint=raw.svgDescription||raw.diagramDescription||'';
+      var svgInline=null;
+      if(svgHint){
+        setStatus('<div class="banner b-info"><span class="spin">âŸ³</span> Rendering diagram '+(qi+1)+' of '+questions.length+'â€¦</div>');
+        try{ svgInline=await callGeminiDraw(svgHint,{width:420,height:250}); }
+        catch(svgErr){ console.warn('Structured text SVG failed:',svgErr.message); }
+      }
       S.ntxSlots.push({id:qi,q:{
         t:qText,
         k:kind,
         o:opts,
         a:raw.answer,
         answer:raw.answerText||raw.answer||'',
-        marks:raw.marks||(kind==='obj'?1:10),
+        marks:raw.marks||0,
         topic:raw.topic||'',
-        svgHint:raw.svgDescription||raw.diagramDescription||'',
+        svgHint:svgHint,
+        svgInline:svgInline,
         structured:true,
         ai:true
       },included:true});
@@ -3154,7 +3169,7 @@ window.generateFromNotes=async function(){
         try{ svgInline=await callGeminiDraw(raw.svgDescription,{width:420,height:250}); }
         catch(svgErr){ console.warn('Note SVG failed:',svgErr.message); }
       }
-      S.ntxSlots.push({id:qi,q:{t:raw.q||'',k:raw.k||raw.type||'theory',o:raw.options||raw.opts||null,a:raw.answer,answer:raw.answer,marks:raw.marks||10,topic:raw.topic||'',ai:true,ntx:true,svgInline:svgInline,svgHint:raw.svgDescription||''},included:true});
+      S.ntxSlots.push({id:qi,q:{t:raw.q||'',k:raw.k||raw.type||'theory',o:raw.options||raw.opts||null,a:raw.answer,answer:raw.answer,marks:raw.marks||0,topic:raw.topic||'',ai:true,ntx:true,svgInline:svgInline,svgHint:raw.svgDescription||''},included:true});
     }
     if(S.ntxSlots.length){
       setStatus('<div class="banner b-ok">✅ <strong>'+S.ntxSlots.length+' questions</strong> generated from your content.</div>');
@@ -3221,6 +3236,7 @@ function renderNtxSlots(){
       +'<option value="obj"'+(s.q.k==='obj'?' selected':'')+'>Objective</option>'
       +'<option value="fitb"'+(s.q.k==='fitb'?' selected':'')+'>Fill-in-Blank</option>'
       +'</select>'
+      +'<label style="font-size:11px;font-weight:700;color:var(--mute);display:flex;align-items:center;gap:6px;">Marks <input type="number" min="0" max="100" value="'+(s.q.marks!==undefined?s.q.marks:0)+'" onchange="updNtxMark('+s.id+',this.value)" style="width:72px;" class="fi"/></label>'
       +'<button class="btn-ghost" style="color:var(--red);margin-left:auto;" onclick="delNtxSlot('+s.id+')">🗑</button>'
       +'</div></div>';
   }).join('');
@@ -3228,10 +3244,12 @@ function renderNtxSlots(){
 }
 window.updNtxSlot=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
 window.setNtxType=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
+window.updNtxMark=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s&&s.q) s.q.marks=Math.max(0,parseInt(v)||0); };
 window.delNtxSlot=function(id){ S.ntxSlots=S.ntxSlots.filter(function(x){ return x.id!==id; }); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb) rb.disabled=!S.ntxSlots.length; };
-window.addBlankNtx=function(){ var id=S.ntxSlots.length; S.ntxSlots.push({id:id,q:{t:'',k:'theory',marks:10},included:true}); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; } };
+window.addBlankNtx=function(){ var id=S.ntxSlots.length; S.ntxSlots.push({id:id,q:{t:'',k:'theory',marks:0},included:true}); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; } };
 window.finalizeNtx=function(){
   syncManualPaperDetails();
+  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var valid=S.ntxSlots.filter(function(s){ return s&&s.q&&s.q.t&&s.q.t.trim(); });
   if(!valid.length){ toast('No questions to review','warn'); return; }
   S.slots=valid.map(function(s,i){ return{id:i,k:s.q.k||'theory',q:s.q,included:true,loading:false,err:null}; });
@@ -3241,9 +3259,9 @@ function syncManualPaperDetails(){
   var mfcl=$('mfcl'); if(mfcl&&mfcl.value) S.cfg.cls=mfcl.value;
   var mfsubj=$('mfsubj'); if(mfsubj&&mfsubj.value.trim()) S.cfg.subj=mfsubj.value.trim();
   var mfsess=$('mfsess'); if(mfsess&&mfsess.value) S.cfg.session=mfsess.value;
+  var mfstd=$('mfstd'); if(mfstd) S.cfg.std=mfstd.value;
   S.cfg.term=enforceAdminTerm();
   var mfterm=$('mfterm'); if(mfterm) mfterm.value=S.cfg.term;
-  var mfsc=$('mfsc'); if(mfsc) S.cfg.school=mfsc.value;
 }
 
 /* ══════════════════════════════════════
@@ -3262,6 +3280,7 @@ function goReview(){
   var os  =S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
   var fs  =S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
   var ts  =S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
+  S.printSlots={os:os.slice(),fs:fs.slice(),ts:ts.slice()};
   buildPrint(os,fs,ts,false);
 
   var h='<div class="pg noprint fade">'
@@ -3389,10 +3408,23 @@ function goReview(){
   };
 }
 
+function currentPrintableSlots(){
+  var slots=(S.slots||[]).filter(function(s){ return s&&s.q&&s.included; });
+  if(!slots.length&&S.printSlots){
+    return {
+      os:S.printSlots.os||[],
+      fs:S.printSlots.fs||[],
+      ts:S.printSlots.ts||[]
+    };
+  }
+  return {
+    os:slots.filter(function(s){ return s.q.k==='obj'; }),
+    fs:slots.filter(function(s){ return s.q.k==='fitb'; }),
+    ts:slots.filter(function(s){ return s.q.k==='theory'; })
+  };
+}
 window.printPaperOnly=function(){
-  var os=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
-  var fs=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
-  var ts=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
+  var ps=currentPrintableSlots(), os=ps.os, fs=ps.fs, ts=ps.ts;
   if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
   buildPrint(os,fs,ts,false);
   document.body.classList.remove('economy-mode','lab-print-mode');
@@ -3403,9 +3435,7 @@ window.printPaperOnly=function(){
   },400);
 };
 window.printWithGuide=function(){
-  var os=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='obj'; });
-  var fs=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='fitb'; });
-  var ts=S.slots.filter(function(s){ return s.q&&s.included&&s.q.k==='theory'; });
+  var ps=currentPrintableSlots(), os=ps.os, fs=ps.fs, ts=ps.ts;
   if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
   buildPrint(os,fs,ts,true);
   document.body.classList.remove('economy-mode','lab-print-mode');
@@ -3423,31 +3453,25 @@ function buildPrint(os,fs,ts,includeGuide){
   var c=S.cfg;
   var dispSubj=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
   var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var school=c.school||'Nigerian Secondary School';
-  var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
-  var totalMarks=os.reduce(function(a,s){ return a+(s.q&&s.q.marks?s.q.marks:1); },0)
-    +fs.reduce(function(a,s){ return a+(s.q&&s.q.marks?s.q.marks:2); },0)
-    +ts.reduce(function(a,s){ return a+(s.q&&s.q.marks?s.q.marks:0); },0);
+  var totalMarks=os.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0)
+    +fs.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0)
+    +ts.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
 
   var h='<div class="ep">'
     +'<div class="ep-wm">ExamEngine</div>'
     +'<div class="ep-header">'
-    +'<div class="ep-crest">'+initials+'</div>'
-    +'<div class="ep-school">'+esc(school)+'</div>'
-    +'<div class="ep-motto">"Knowledge is Power — Strive for Excellence"</div>'
     +'<div class="ep-title">'+assessmentLabel(S.at,false)+' — '+esc(c.term)+'</div>'
-    +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>Date: '+today+'</span></div>'
-    +'<div class="ep-meta"><span>Duration: <strong>1 hr 30 mins</strong></span><span>Total: <strong>'+totalMarks+' marks</strong></span><span>Standard: '+esc(c.std)+'</span></div>'
+    +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>Duration: <strong>1 hr 30 mins</strong></span></div>'
     +'</div>'
     +'<div class="ep-instr">'+esc(c.instr)+'</div>';
 
   // Section A — Objectives
   if(os.length){
     h+='<div class="ep-sec">Section A — Objectives ('+os.length+' Questions)</div>'
-      +'<div class="ep-sec-note">Each question is worth 1 mark. Circle the letter of the correct answer.</div>';
+      +'<div class="ep-sec-note">Circle the letter of the correct answer.</div>';
     os.forEach(function(s,i){
       var q=s.q;
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q);
+      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q,{hideVisualPlaceholders:true});
       if(q.o&&q.o.length){
         h+='<div class="ep-opts">'+q.o.map(function(o,oi){
           return '<div class="ep-opt"><span class="ep-opt-k">'+L[oi]+'.</span><span>'+esc(o)+'</span></div>';
@@ -3465,9 +3489,8 @@ function buildPrint(os,fs,ts,includeGuide){
     fs.forEach(function(s,i){
       var q=s.q;
       // Replace ___ in question text with a printed blank line
-      var qtxt=renderQuestionText(q).replace(/_{2,}/g,'<span class="ep-fitb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
+      var qtxt=renderQuestionText(q,{hideVisualPlaceholders:true}).replace(/_{2,}/g,'<span class="ep-fitb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
       h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
         +'</div>';
     });
   }
@@ -3480,20 +3503,19 @@ function buildPrint(os,fs,ts,includeGuide){
       +'<div class="ep-sec-note">'+esc(tInstr)+'</div>';
     ts.forEach(function(s,i){
       var q=s.q;
-      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q)
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
+      h+='<div class="ep-q"><span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q,{hideVisualPlaceholders:true})
         +'<div class="ep-ans"></div></div>';
     });
   }
 
-  h+='<div class="ep-footer">Generated with ExamEngine Pro v10 · '+esc(school)+' · '+today+' · Standard: '+esc(c.std)+'</div>';
+  h+='<div class="ep-footer">Generated with ExamEngine Pro v10</div>';
 
   // ── MARKING GUIDE — only when requested ──
   if(includeGuide){
     h+='<div style="page-break-before:always;"></div>'
       +'<div class="ep-header" style="margin-bottom:8pt;">'
       +'<div class="mg-head">MARKING GUIDE / MARKING SCHEME</div>'
-      +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>'+today+'</span></div>'
+      +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>Total: <strong>'+totalMarks+' marks</strong></span></div>'
       +'</div>'
       +'<div class="mg-conf">CONFIDENTIAL — For Teacher\'s Use Only · Total: '+totalMarks+' marks</div>';
 
@@ -3504,7 +3526,8 @@ function buildPrint(os,fs,ts,includeGuide){
         var q=s.q; var ans=q.o&&q.a!==undefined?L[q.a]:'—';
         h+='<div><strong>'+(i+1)+'.</strong> '+ans+'</div>';
       });
-      h+='</div><div style="font-size:9pt;font-style:italic;color:#555;margin-bottom:10pt;">Each objective = 1 mark. Section A total: '+os.length+' marks.</div>';
+      var objTotal=os.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
+      h+='</div><div style="font-size:9pt;font-style:italic;color:#555;margin-bottom:10pt;">Objective section total: '+objTotal+' marks.</div>';
     }
 
     if(fs.length){
@@ -3516,7 +3539,7 @@ function buildPrint(os,fs,ts,includeGuide){
           +(q.marks?' <span style="font-size:9pt;color:#555;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
           +'</div>';
       });
-      var fitbTotal=fs.reduce(function(a,s){ return a+(s.q.marks||2); },0);
+      var fitbTotal=fs.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
       h+='<div style="font-size:9pt;font-style:italic;color:#555;margin-top:6pt;">Section '+fSecLbl+' total: '+fitbTotal+' marks.</div>';
     }
 
@@ -3524,10 +3547,10 @@ function buildPrint(os,fs,ts,includeGuide){
       var tSecLbl2=os.length&&fs.length?'C':os.length||fs.length?'B':'A';
       h+='<div class="mg-sec">Section '+tSecLbl2+' — Theory: Mark Breakdown</div>';
       ts.forEach(function(s,i){
-        var q=s.q; var qMarks=q.marks||10;
+        var q=s.q; var qMarks=q.marks!==undefined?q.marks:0;
         h+='<div class="mg-th-q">'
           +'<div style="font-weight:700;font-size:10.5pt;">Q'+(i+1)+' <span style="float:right;">['+qMarks+' marks]</span></div>'
-          +'<div class="mg-th-q-text">'+renderQuestionText(q)+'</div>'
+          +'<div class="mg-th-q-text">'+renderQuestionText(q,{hideVisualPlaceholders:true})+'</div>'
           +'<div class="mg-mark-breakdown"><strong>Marking Points:</strong><br/>';
         if(q.s){
           h+='• Method / Working: '+Math.ceil(qMarks*.4)+' marks<br/>'
@@ -3539,7 +3562,7 @@ function buildPrint(os,fs,ts,includeGuide){
         }
         h+='</div></div>';
       });
-      var thTotal=ts.reduce(function(a,s){ return a+(s.q.marks||10); },0);
+      var thTotal=ts.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
       h+='<div style="font-size:9pt;font-style:italic;color:#555;">Section '+tSecLbl2+' total: '+thTotal+' marks. Grand Total: '+totalMarks+' marks.</div>';
     }
     h+='</div>'; // end marking guide
@@ -3555,7 +3578,7 @@ function buildPrint(os,fs,ts,includeGuide){
 ══════════════════════════════════════ */
 function resetAll(){
   S.path=null; S.scr=0; S.at='Examination'; S.difficultyLevel='Balanced';
-  S.cfg={cls:'',term:S.cfg.term||'1st Term',session:S.cfg.session||'2025/2026',subj:'',std:'WAEC',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''};
+  S.cfg={cls:'',term:S.cfg.term||'1st Term',session:S.cfg.session||'2025/2026',subj:'',std:'',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''};
   S.subjects=[]; S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false;
   S.slots=[]; S.ocrSlots=[]; S.ntxSlots=[]; S.generating=false; S.cam=null;
   S._imgQueue=[]; S._ntxQueue=[];
