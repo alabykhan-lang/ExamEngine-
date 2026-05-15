@@ -111,12 +111,15 @@ window.doRegister = async function(){
   var name  = ($('regName')||{}).value||'';
   var email = ($('regEmail')||{}).value||'';
   var pass  = ($('regPass')||{}).value||'';
+  var pass2 = ($('regPass2')||{}).value||'';
   name  = name.trim();
   email = email.trim().toLowerCase();
   pass  = pass.trim();
+  pass2 = pass2.trim();
   if(!name)       { showAuthErr('Please enter your full name.'); return; }
   if(!email)      { showAuthErr('Please enter your email address.'); return; }
   if(pass.length < 6){ showAuthErr('Password must be at least 6 characters.'); return; }
+  if(pass!==pass2){ showAuthErr('Passwords do not match.'); return; }
   setAuthLoading(true);
   try{
     var res = await _supabase.auth.signUp({ email: email, password: pass });
@@ -128,6 +131,61 @@ window.doRegister = async function(){
     if(loginRes.error){ setAuthLoading(false); showAuthErr('Account created! Please sign in.'); authTab('login'); return; }
     await _loadUserAndBoot(loginRes.data.user);
   }catch(e){ setAuthLoading(false); showAuthErr('Registration failed: '+e.message); }
+};
+
+window.forgotPassword = async function(){
+  if(!_supabase){ _initSupabase(); }
+  if(!_supabase){ showAuthErr('Database not ready. Please refresh the page.'); return; }
+  var email=(($('authEmail')||{}).value||'').trim().toLowerCase();
+  if(!email){ showAuthErr('Enter your email address first, then click reset.'); return; }
+  setAuthLoading(true);
+  try{
+    var res=await _supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+    setAuthLoading(false);
+    if(res.error){ showAuthErr(res.error.message); return; }
+    showAuthErr('Password reset link sent. Check your email inbox.');
+  }catch(e){ setAuthLoading(false); showAuthErr('Reset failed: '+e.message); }
+};
+
+window.completePasswordReset = async function(){
+  if(!_supabase){ _initSupabase(); }
+  var card = document.querySelector('.auth-card');
+  if(!card) return;
+  
+  // Save original content
+  if(!window._origAuthCard) window._origAuthCard = card.innerHTML;
+  
+  card.innerHTML = '<div class="auth-logo"><div class="auth-logo-mark">E</div><div class="auth-logo-name">Reset Password</div></div>'
+    +'<div style="font-size:13px;color:var(--mute);margin-bottom:20px;text-align:center;">Please enter your new password below.</div>'
+    +'<div class="auth-err" id="resetErr"></div>'
+    +'<div class="auth-field"><label>New Password</label><input type="password" id="resetP1" placeholder="Min 6 characters"/></div>'
+    +'<div class="auth-field"><label>Confirm New Password</label><input type="password" id="resetP2" placeholder="Repeat password"/></div>'
+    +'<button class="auth-btn" id="resetBtn" onclick="doCompletePasswordReset()">Update Password →</button>';
+};
+
+window.doCompletePasswordReset = async function(){
+  var p1 = ($('resetP1')||{}).value||'';
+  var p2 = ($('resetP2')||{}).value||'';
+  var err = $('resetErr');
+  var btn = $('resetBtn');
+  var showErr = function(msg){ err.textContent=msg; err.classList.add('show'); };
+  
+  if(p1.length<6){ showErr('Password must be at least 6 characters.'); return; }
+  if(p1!==p2){ showErr('Passwords do not match.'); return; }
+  
+  err.classList.remove('show');
+  btn.disabled = true; btn.textContent = 'Updating...';
+  
+  try{
+    var res=await _supabase.auth.updateUser({password:p1});
+    if(res.error){ btn.disabled=false; btn.textContent='Update Password →'; showErr(res.error.message); return; }
+    
+    // Restore auth card and show success
+    var card = document.querySelector('.auth-card');
+    if(card && window._origAuthCard) card.innerHTML = window._origAuthCard;
+    authTab('login');
+    showAuthErr('Password reset successful. Please sign in with your new password.');
+  }catch(e){ btn.disabled=false; btn.textContent='Update Password →'; showErr('Password update failed: '+e.message); }
 };
 
 window.doLogout = async function(){
@@ -152,6 +210,14 @@ function setAuthLoading(on){
 /* ── Load profile from DB ─────────── */
 async function _loadUserAndBoot(authUser){
   try{
+    var blocked=await _getBlockedUsers();
+    var blockedHit=blocked.find(function(u){ return u&&(u.id===authUser.id||String(u.email||'').toLowerCase()===String(authUser.email||'').toLowerCase()); });
+    if(blockedHit){
+      await _supabase.auth.signOut();
+      showAuthScreen();
+      showAuthErr('This account has been removed by the admin.');
+      return;
+    }
     var res = await _supabase.from('profiles').select('*').eq('id', authUser.id).single();
     var profile = res.data;
     if(!profile){
@@ -172,6 +238,14 @@ async function _loadUserAndBoot(authUser){
     setAuthLoading(false);
     showAuthErr('Could not load profile: '+e.message+'. Please try again.');
   }
+}
+
+async function _getBlockedUsers(){
+  try{
+    var res=await _supabase.from('admin_settings').select('value').eq('key','blocked_users').single();
+    if(res.data&&res.data.value) return JSON.parse(res.data.value)||[];
+  }catch(e){}
+  return [];
 }
 
 /* ── Load user settings from Supabase ── */
@@ -476,6 +550,16 @@ function getSubjectList(cls) {
   if (c.includes('ss'))  return NERDC['SS 1-3'];
   return NERDC['SS 1-3'];
 }
+function canonicalClassName(cls){
+  var s=String(cls||'').trim();
+  var n=s.toLowerCase().replace(/[\s._-]+/g,'');
+  var map={kg1:'KG 1',kg2:'KG 2',nursery1:'Nursery 1',nursery2:'Nursery 2',creche:'Creche'};
+  if(map[n]) return map[n];
+  var primary=n.match(/^primary([1-6])$/); if(primary) return 'Primary '+primary[1];
+  var jss=n.match(/^jss([1-3])$/); if(jss) return 'JSS '+jss[1];
+  var ss=n.match(/^ss([1-3])$/); if(ss) return 'SS '+ss[1];
+  return s;
+}
 
 function isTradeSubject(cls) {
   if (!cls) return false;
@@ -634,6 +718,20 @@ function persistQuestion(q,kind){
   if(out.k==='fitb'){ out.answer=q.answer||''; out.marks=q.marks!==undefined?q.marks:0; }
   if(out.k==='theory'){ out.s=q.s||q.showSteps; out.marks=q.marks!==undefined?q.marks:0; }
   return out;
+}
+function normalizeAnswerIndex(answer,options){
+  if(answer===undefined||answer===null||answer==='') return 0;
+  if(typeof answer==='number') return Math.max(0,Math.min(3,answer));
+  var s=String(answer).trim();
+  var letter=s.match(/^[A-D]/i);
+  if(letter) return L.indexOf(letter[0].toUpperCase());
+  var n=parseInt(s,10);
+  if(!isNaN(n)) return Math.max(0,Math.min(3,n>0?n-1:n));
+  if(Array.isArray(options)){
+    var idx=options.map(function(o){ return String(o).trim().toLowerCase(); }).indexOf(s.toLowerCase());
+    if(idx>=0) return idx;
+  }
+  return 0;
 }
 function findQuestionSlot(kind,id){
   var arr=kind==='auto'?S.slots:kind==='scan'?S.ocrSlots:S.ntxSlots;
@@ -2881,6 +2979,7 @@ async function doScannerOcr(base64,mimeType,pageLabel){
   var prompt='You are a HIGH-FIDELITY DOCUMENT SCANNER. Your ONLY job: transcribe EVERY question in this image with 100% accuracy — objectives, fill-in-blanks, theory, AND drawings.\n'
     +'Subject: '+(S.cfg.subj||'General')+' | Class: '+(S.cfg.cls||'Secondary School')+'\n\n'
     +'ABSOLUTE RULES — ZERO TOLERANCE FOR DEVIATION:\n'
+    +'0. IGNORE any school names, headers, exam titles, instructions, or watermarks at the top of the page. Extract ONLY the actual questions.\n'
     +'1. COPY every question EXACTLY as written. Do NOT paraphrase, improve, shorten, or alter a single word, comma, or punctuation mark.\n'
     +'2. Do NOT invent questions. Do NOT add anything not visible in the image. Missing text → leave missing.\n'
     +'3. Preserve ALL numbering EXACTLY (1, 2, 3a, 3b, 3(i), 3(ii), etc.) — keep the original format.\n'
@@ -2921,6 +3020,7 @@ async function extractQuestionsFromText(text,label){
   var prompt='You are a Nigerian exam expert. Extract every exam question from the text below.\n'
     +'Subject: '+(S.cfg.subj||'General')+' | Class: '+(S.cfg.cls||'Secondary School')+'\n\n'
     +'RULES:\n'
+    +'0. IGNORE any school names, headers, exam titles, or general instructions at the top.\n'
     +'1. Extract questions EXACTLY as written — no paraphrasing.\n'
     +'2. Preserve numbering.\n'
     +'3. Math: convert to LaTeX notation where appropriate.\n'
@@ -3073,7 +3173,7 @@ window.convertWordTextQuestions=async function(){
         t:qText,
         k:kind,
         o:opts,
-        a:raw.answer,
+        a:normalizeAnswerIndex(raw.answer,opts),
         answer:raw.answerText||raw.answer||'',
         marks:raw.marks||0,
         topic:raw.topic||'',
@@ -3101,6 +3201,7 @@ async function structureQuestionsFromWordText(text,customInstr){
   var prompt='You are a Nigerian exam formatting expert. Convert copied Word text into perfectly structured exam questions.\n\n'
     +'Subject: '+subj+' | Class: '+cls+'\n\n'
     +'CRITICAL RULES:\n'
+    +'0. IGNORE any school names, headers, exam titles, or general instructions at the top.\n'
     +'1. Do NOT generate new questions or facts.\n'
     +'2. Use ONLY the pasted text.\n'
     +'3. Reconstruct broken line wraps, pasted numbering, sub-questions, and A-D options into clean question text.\n'
@@ -3169,7 +3270,8 @@ window.generateFromNotes=async function(){
         try{ svgInline=await callGeminiDraw(raw.svgDescription,{width:420,height:250}); }
         catch(svgErr){ console.warn('Note SVG failed:',svgErr.message); }
       }
-      S.ntxSlots.push({id:qi,q:{t:raw.q||'',k:raw.k||raw.type||'theory',o:raw.options||raw.opts||null,a:raw.answer,answer:raw.answer,marks:raw.marks||0,topic:raw.topic||'',ai:true,ntx:true,svgInline:svgInline,svgHint:raw.svgDescription||''},included:true});
+      var noteOpts=raw.options||raw.opts||null;
+      S.ntxSlots.push({id:qi,q:{t:raw.q||'',k:raw.k||raw.type||'theory',o:noteOpts,a:normalizeAnswerIndex(raw.answer,noteOpts),answer:raw.answer,marks:raw.marks||0,topic:raw.topic||'',ai:true,ntx:true,svgInline:svgInline,svgHint:raw.svgDescription||''},included:true});
     }
     if(S.ntxSlots.length){
       setStatus('<div class="banner b-ok">✅ <strong>'+S.ntxSlots.length+' questions</strong> generated from your content.</div>');
@@ -3223,11 +3325,20 @@ async function generateQuestionsFromNotes(noteContent,objN,fitbN,thN,std,customI
 function renderNtxSlots(){
   var area=$('ntxSlotArea'),sl=$('ntxSlots'); if(!area||!sl) return;
   sl.innerHTML=S.ntxSlots.map(function(s){
+    var opts=Array.isArray(s.q.o)?s.q.o:[];
     return '<div class="ocr-slot">'
       +'<div style="font-family:var(--mono);font-size:9.5px;color:var(--mute);margin-bottom:7px;">Q'+(s.id+1)+' · '+(s.q.k||'theory').toUpperCase()+' <span class="tag t-ntx">🧾 Structured Text</span> <span class="tag t-ai">⚡ AI</span></div>'
       +'<div class="stx" style="margin-bottom:7px;">'+renderQuestionText(s.q)+'</div>'
       +'<textarea class="fta" style="min-height:50px;" oninput="updNtxSlot('+s.id+',this.value)">'+esc(s.q.t)+'</textarea>'
-      +(s.q.k==='obj'&&s.q.o?'<div style="font-size:11px;color:var(--green);margin-top:4px;">✓ Answer: '+esc(L[s.q.a]||'—')+'</div>':'')
+      +(s.q.k==='obj'?'<div class="ntx-option-editor" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+        +[0,1,2,3].map(function(oi){
+          return '<label style="font-size:11px;font-weight:700;color:var(--mute);">Option '+L[oi]
+            +'<input class="fi" value="'+esc(opts[oi]||'')+'" oninput="updNtxOption('+s.id+','+oi+',this.value)" style="margin-top:3px;"/></label>';
+        }).join('')
+        +'<label style="font-size:11px;font-weight:700;color:var(--mute);grid-column:1/-1;">Correct Answer '
+        +'<select class="fs" onchange="updNtxAnswer('+s.id+',this.value)" style="max-width:120px;margin-left:6px;">'
+        +[0,1,2,3].map(function(oi){ return '<option value="'+oi+'"'+(Number(s.q.a)===oi?' selected':'')+'>'+L[oi]+'</option>'; }).join('')
+        +'</select></label></div>':'')
       +(s.q.k==='fitb'&&s.q.answer?'<div style="font-size:11px;color:var(--purple);margin-top:4px;">✓ Answer: '+esc(s.q.answer)+'</div>':'')
       +renderVisualEditor('ntx',s.id,s.q)
       +'<div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap;">'
@@ -3243,7 +3354,9 @@ function renderNtxSlots(){
   setTimeout(function(){ math(sl); },200);
 }
 window.updNtxSlot=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.t=v; };
-window.setNtxType=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s) s.q.k=v; };
+window.updNtxOption=function(id,idx,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s&&s.q){ if(!Array.isArray(s.q.o)) s.q.o=['','','','']; s.q.o[idx]=v; } };
+window.updNtxAnswer=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s&&s.q) s.q.a=parseInt(v,10)||0; };
+window.setNtxType=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s){ s.q.k=v; if(v==='obj'&&!Array.isArray(s.q.o)) s.q.o=['','','','']; renderNtxSlots(); } };
 window.updNtxMark=function(id,v){ var s=S.ntxSlots.find(function(x){ return x.id===id; }); if(s&&s.q) s.q.marks=Math.max(0,parseInt(v)||0); };
 window.delNtxSlot=function(id){ S.ntxSlots=S.ntxSlots.filter(function(x){ return x.id!==id; }); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb) rb.disabled=!S.ntxSlots.length; };
 window.addBlankNtx=function(){ var id=S.ntxSlots.length; S.ntxSlots.push({id:id,q:{t:'',k:'theory',marks:0},included:true}); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; } };
@@ -3298,7 +3411,6 @@ function goReview(){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
     +'<span class="tag '+stdTagCls(c.std)+'" style="font-size:11px;padding:4px 10px;">'+esc(c.std)+'</span>'
     +'<span class="tag t-cust" style="font-size:11px;padding:4px 10px;">'+esc(c.term)+'</span>'
-    +(c.school?'<span class="tag t-cust" style="font-size:11px;padding:4px 10px;">🏫 '+esc(c.school)+'</span>':'')
     +'<span class="tag t-cust" style="font-size:11px;padding:4px 10px;">📅 '+today+'</span>'
     +'</div></div>'
 
@@ -3373,7 +3485,7 @@ function goReview(){
     );
     var paper={
       ref:ref, cls:c.cls, subj:dispSubj2, term:c.term, session:c.session||'2025/2026',
-      std:c.std, at:S.at, school:c.school||S.cfg.school||'',
+      std:c.std, at:S.at, school:'',
       objCount:os.length, fitbCount:fs.length, thCount:ts.length,
       instr:c.instr||'', theoryPaperInstr:c.theoryPaperInstr||'',
       date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
@@ -3423,9 +3535,15 @@ function currentPrintableSlots(){
     ts:slots.filter(function(s){ return s.q.k==='theory'; })
   };
 }
+function ensurePrintTarget(id){
+  var el=$(id);
+  if(el && el.parentNode!==document.body) document.body.appendChild(el);
+  return el;
+}
 window.printPaperOnly=function(){
   var ps=currentPrintableSlots(), os=ps.os, fs=ps.fs, ts=ps.ts;
   if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
+  ensurePrintTarget('pp');
   buildPrint(os,fs,ts,false);
   document.body.classList.remove('economy-mode','lab-print-mode');
   document.body.classList.add('normal-mode');
@@ -3437,6 +3555,7 @@ window.printPaperOnly=function(){
 window.printWithGuide=function(){
   var ps=currentPrintableSlots(), os=ps.os, fs=ps.fs, ts=ps.ts;
   if(!os.length&&!fs.length&&!ts.length){ toast('No questions to print','warn'); return; }
+  ensurePrintTarget('pp');
   buildPrint(os,fs,ts,true);
   document.body.classList.remove('economy-mode','lab-print-mode');
   document.body.classList.add('normal-mode');
@@ -3758,7 +3877,8 @@ async function buildStatusMatrix(){
   var papers=await getPublished();
   var lookup={};
   papers.forEach(function(p){
-    var k=(p.cls+'||'+p.term+'||'+p.subj+'||'+(p.at||'Examination')).toLowerCase();
+    p._canonCls=canonicalClassName(p.cls);
+    var k=(p._canonCls+'||'+p.term+'||'+p.subj+'||'+(p.at||'Examination')).toLowerCase();
     if(!lookup[k]||p.ts>lookup[k].ts) lookup[k]=p;
   });
 
@@ -3766,7 +3886,7 @@ async function buildStatusMatrix(){
   var termKey=ADMIN.selectedTerm||'1st Term';
   var rows=[];
   var seenKeys={};
-  var classes=['SS 1','SS 2','SS 3','JSS 1','JSS 2','JSS 3','Primary 6','Primary 5','Primary 4','Primary 3','Primary 2','Primary 1'];
+  var classes=CL.slice();
 
   classes.forEach(function(cls){
     var subjs=getSubjectList(cls);
@@ -3795,18 +3915,19 @@ async function buildStatusMatrix(){
   // Bridge: include submitted papers whose subjects are not in NERDC matrix
   papers.forEach(function(p){
     if(!p.cls||!p.subj||p.term!==termKey) return;
-    var rowKey=(p.cls+'||'+p.subj).toLowerCase();
+    var cls=canonicalClassName(p.cls);
+    var rowKey=(cls+'||'+p.subj).toLowerCase();
     if(seenKeys[rowKey]) return;
     seenKeys[rowKey]=true;
-    var kExam=(p.cls+'||'+termKey+'||'+p.subj+'||examination').toLowerCase();
-    var kT1=(p.cls+'||'+termKey+'||'+p.subj+'||c.a. test 1').toLowerCase();
-    var kT1Alt=(p.cls+'||'+termKey+'||'+p.subj+'||c.a.').toLowerCase();
-    var kT2=(p.cls+'||'+termKey+'||'+p.subj+'||c.a. test 2').toLowerCase();
+    var kExam=(cls+'||'+termKey+'||'+p.subj+'||examination').toLowerCase();
+    var kT1=(cls+'||'+termKey+'||'+p.subj+'||c.a. test 1').toLowerCase();
+    var kT1Alt=(cls+'||'+termKey+'||'+p.subj+'||c.a.').toLowerCase();
+    var kT2=(cls+'||'+termKey+'||'+p.subj+'||c.a. test 2').toLowerCase();
     var pExam=lookup[kExam]||null;
     var pT1=lookup[kT1]||lookup[kT1Alt]||null;
     var pT2=lookup[kT2]||null;
     rows.push({
-      cls:p.cls, term:termKey, subj:p.subj,
+      cls:cls, term:termKey, subj:p.subj,
       examPaper:pExam, examStatus:pExam?(pExam.adminStatus||'submitted'):'pending',
       test1Paper:pT1, test1Status:pT1?(pT1.adminStatus||'submitted'):'pending',
       test2Paper:pT2, test2Status:pT2?(pT2.adminStatus||'submitted'):'pending',
@@ -3883,7 +4004,7 @@ async function renderAdminDash(){
     classGroups[r.cls].push(r);
   });
 
-  var classOrder=['SS 3','SS 2','SS 1','JSS 3','JSS 2','JSS 1','Primary 6','Primary 5','Primary 4','Primary 3','Primary 2','Primary 1'];
+  var classOrder=['Creche','KG 1','KG 2','Nursery 1','Nursery 2','Primary 1','Primary 2','Primary 3','Primary 4','Primary 5','Primary 6','JSS 1','JSS 2','JSS 3','SS 1','SS 2','SS 3'];
   var accordionHtml='';
   classOrder.forEach(function(cls){
     var rows=classGroups[cls]; if(!rows||!rows.length) return;
@@ -6567,7 +6688,7 @@ window.addEventListener('DOMContentLoaded', function(){
     var el=$(id); if(!el) return;
     el.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
   });
-  ['regName','regEmail','regPass'].forEach(function(id){
+  ['regName','regEmail','regPass','regPass2'].forEach(function(id){
     var el=$(id); if(!el) return;
     el.addEventListener('keydown', function(e){ if(e.key==='Enter') doRegister(); });
   });
@@ -6592,6 +6713,11 @@ window.addEventListener('DOMContentLoaded', function(){
     });
 
     _supabase.auth.onAuthStateChange(function(event, session){
+      if(event === 'PASSWORD_RECOVERY'){
+        showAuthScreen();
+        completePasswordReset();
+        return;
+      }
       if(event === 'SIGNED_OUT' && !session){
         CURRENT_USER = null;
         showAuthScreen();
@@ -6636,6 +6762,7 @@ window.renderUserManagement = async function(){
           ?'<button class="btn bq bsm" style="font-size:11px;padding:5px 10px;" onclick="toggleUserRole(\''+u.id+'\',\''+u.role+'\')">'
             +(u.role==='admin'?'\u2192 Teacher':'\u2192 Admin')
             +'</button>'
+            +'<button class="btn bred bsm" style="font-size:11px;padding:5px 10px;" onclick="removeUser(\''+u.id+'\',\''+esc(u.email||u.id)+'\')">Remove</button>'
           :'')
         +'</div>';
     }).join('');
@@ -6646,6 +6773,25 @@ window.toggleUserRole = async function(uid, currentRole){
   var res = await _supabase.from('profiles').update({role: newRole}).eq('id', uid);
   if(res.error){ toast('Failed: '+res.error.message,'err'); return; }
   toast('Role updated to '+newRole+' ✓','ok');
+  renderUserManagement();
+};
+
+window.removeUser = async function(uid, email){
+  if(!uid || (CURRENT_USER&&uid===CURRENT_USER.id)) return;
+  if(!confirm('Remove '+(email||'this user')+' from ExamEngine?')) return;
+  var blocked=await _getBlockedUsers();
+  if(!blocked.find(function(u){ return u&&u.id===uid; })){
+    blocked.push({id:uid,email:email||'',removedAt:new Date().toISOString()});
+    var blockRes=await _supabase.from('admin_settings').upsert({key:'blocked_users',value:JSON.stringify(blocked)},{onConflict:'key'});
+    if(blockRes.error){ toast('Could not block user login: '+blockRes.error.message,'err'); return; }
+  }
+  var paperDel=await _supabase.from('papers').delete().eq('user_id',uid);
+  if(paperDel.error){ console.warn('Could not remove user papers:',paperDel.error.message); }
+  await _supabase.from('user_settings').delete().eq('user_id',uid);
+  await _supabase.from('schemes').delete().eq('user_id',uid);
+  var res=await _supabase.from('profiles').delete().eq('id',uid);
+  if(res.error){ toast('Remove failed (profile): '+res.error.message,'err'); return; }
+  toast('User removed from ExamEngine','ok');
   renderUserManagement();
 };
 
