@@ -4,7 +4,7 @@
    MODELS
 ══════════════════════════════════════ */
 var MODELS = {
-  primary:  'google/gemini-2.5-flash',
+  primary:  'google/gemini-3-flash-preview',
   fallback: 'google/gemini-2.5-flash',
   scheme:   'google/gemini-2.5-flash',
   lab:      'anthropic/claude-3.5-sonnet',
@@ -21,8 +21,8 @@ var FALLBACK_API_KEY = '';
    SUPABASE INIT
 ══════════════════════════════════════ */
 var _supabase;
-var _supabaseUrl = 'https://qbjtiximcchhnxhttogq.supabase.co';
-var _supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFianRpeGltY2NoaG54aHR0b2dxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTAzOTQsImV4cCI6MjA5MTQyNjM5NH0.jr-UqpVRyhLifZjv9cNKuu4KP1HpgSoO3VrKQ1uos6U';
+var _supabaseUrl = '%%SUPABASE_URL%%';
+var _supabaseKey = '%%SUPABASE_ANON_KEY%%';
 
 function _initSupabase(){
   var lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
@@ -2805,10 +2805,17 @@ window.transcribeAll=async function(){
     } catch(e){ errors.push(item.label+': '+(e.message||'error')); var th3=$('scanthumb_'+S._imgQueue.indexOf(item)); if(th3) th3.style.border='2px solid var(--red)'; }
   }
   S.ocrSlots=[];
-  allExtracted.forEach(function(raw,idx){
+  for(var idx=0; idx<allExtracted.length; idx++){
+    var raw = allExtracted[idx];
     var k='theory';
     if(raw.type==='obj') k='obj';
     else if(raw.type==='fitb') k='fitb';
+    var svgHint = raw.svgDescription||raw.diagramDescription||'';
+    var svgInline = null;
+    if(svgHint){
+      setStatus('<div class="banner b-info"><span class="spin">⟳</span> Rendering diagram '+(idx+1)+' of '+allExtracted.length+'…</div>');
+      try{ svgInline = await callGeminiDraw(svgHint, {width:420, height:250}); }catch(e){ console.warn('Scan SVG failed:', e.message); }
+    }
     S.ocrSlots.push({
       id:idx,
       q:{
@@ -2819,11 +2826,12 @@ window.transcribeAll=async function(){
         tr:true,
         diagImg:raw.hasDiagram&&raw._sourceImg?raw._sourceImg:null,
         diagDesc:raw.hasDiagram?(raw.diagramDescription||''):'',
-        svgHint:raw.svgDescription||raw.diagramDescription||''
+        svgHint:svgHint,
+        svgInline:svgInline
       },
       included:true
     });
-  });
+  }
   if(btn){ btn.disabled=false; btn.innerHTML='⚡ Transcribe All'; }
   if(allExtracted.length){
     setStatus('<div class="banner b-ok">✅ <strong>'+allExtracted.length+' question(s)</strong> extracted.'+(errors.length?' <span style="opacity:.75;">⚠ '+errors.join('; ')+'</span>':'')+'</div>');
@@ -2884,10 +2892,11 @@ async function extractQuestionsFromText(text,label){
     +'3. Math: convert to LaTeX notation where appropriate.\n'
     +'4. Tonal marks (Yoruba/Igbo/Hausa): preserve exactly.\n'
     +'5. A B C D options → type="obj". Blanks → type="fitb". Others → type="theory".\n'
-    +'6. Extract marks if shown.\n\n'
+    +'6. TABLES: If the text contains tabular data, format it IN THE QUESTION TEXT using the [TABLE: ...] syntax. Example: "[TABLE: Header1; Header2 | Row1Col1; Row1Col2]". Use semicolon ";" between columns, and pipe "|" between rows.\n'
+    +'7. Extract marks if shown.\n\n'
     +'TEXT:\n'+text.substring(0,8000)+'\n\n'
     +'Return ONLY a valid JSON array:\n'
-    +'[{"q":"question text","type":"theory","options":null,"marks":null}]\n'
+    +'[{"q":"question text with math/tables intact","type":"theory","options":null,"marks":null,"svgDescription":""}]\n'
     +'JSON array ONLY.';
   var result=await callGemini(prompt,{temperature:0.1});
   if(Array.isArray(result)) return result;
