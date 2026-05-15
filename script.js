@@ -673,6 +673,15 @@ function enforceAdminTerm(){
   if(t) S.cfg.term=t;
   return t;
 }
+function isCATest(at){
+  return at==='C.A.'||at==='C.A. Test 1'||at==='C.A. Test 2';
+}
+function assessmentLabel(at,compact){
+  if(at==='C.A. Test 1') return compact?'1st C.A':'1st C.A';
+  if(at==='C.A. Test 2') return compact?'2nd C.A':'2nd C.A';
+  if(at==='C.A.') return compact?'C.A':'Continuous Assessment';
+  return compact?'Exams':'Exams';
+}
 function getAssessmentTopicLimit(){
   if(S.at==='C.A. Test 1'||S.at==='C.A.') return 3;
   if(S.at==='C.A. Test 2') return 6;
@@ -1218,14 +1227,20 @@ window.saveSchool = async function(){
   var t=($('settTerm')||{}).value||'1st Term';
   var sess=($('settSession')||{}).value||'2025/2026';
   await _saveSetting('school', s.trim());
-  await _saveSetting('defterm', t);
+  await _saveSetting('defterm', CURRENT_USER&&CURRENT_USER.role==='admin'?t:S.cfg.term);
   await _saveSetting('defsession', sess.trim());
-  // Persist default term globally in admin_settings so ALL devices/users pick it up
-  var okTerm=await _saveAdminSetting('selected_term',t);
-  var okSess=await _saveAdminSetting('selected_session',sess.trim());
-  var okSchool=await _saveAdminSetting('school',s.trim());
-  ADMIN.selectedTerm=t;
-  S.cfg.school=s.trim(); S.cfg.term=t; S.cfg.session=sess.trim();
+  var isAdmin=CURRENT_USER&&CURRENT_USER.role==='admin';
+  // Only the admin account controls the shared term/session/school used by all devices.
+  var okTerm=isAdmin?await _saveAdminSetting('selected_term',t):true;
+  var okSess=isAdmin?await _saveAdminSetting('selected_session',sess.trim()):true;
+  var okSchool=isAdmin?await _saveAdminSetting('school',s.trim()):true;
+  if(isAdmin){
+    ADMIN.selectedTerm=t;
+    S.cfg.term=t;
+  } else {
+    S.cfg.term=enforceAdminTerm();
+  }
+  S.cfg.school=s.trim(); S.cfg.session=sess.trim();
   toast((okTerm&&okSess&&okSchool)?'School details saved ✓ — enforced system-wide':'Saved locally, but one or more global admin settings failed',''+((okTerm&&okSess&&okSchool)?'ok':'err'),4500);
 };
 window.setTrade = function(id){
@@ -1307,7 +1322,7 @@ window.viewPaperDetail = async function(ref){
 
     +'<div class="sgrid">'
     +'<div class="sbox"><div class="sv">'+esc(p.cls||'—')+'</div><div class="slb">Class</div></div>'
-    +'<div class="sbox"><div class="sv">'+(p.at==='C.A.'?'C.A.':'EXAM')+'</div><div class="slb">Type</div></div>'
+    +'<div class="sbox"><div class="sv">'+assessmentLabel(p.at,true)+'</div><div class="slb">Type</div></div>'
     +'<div class="sbox"><div class="sv">'+(p.objCount||objQ.length)+'</div><div class="slb">Objectives</div></div>'
     +'<div class="sbox"><div class="sv">'+(p.thCount||thQ.length)+'</div><div class="slb">Theory</div></div>'
     +'</div>'
@@ -1765,7 +1780,7 @@ function s1Auto(){
     +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">0–20</div></div>'
     +'</div>'
     +'<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">📝 Fill-in-the-Blank: short-answer questions with a dash line — no options. Marked by teacher.</div>'
-    +(S.at==='C.A.'?'<div class="banner b-amber" style="margin-bottom:0;margin-top:10px;">💡 C.A. Tip: Max 20 objectives + 3 theory.</div>':'')
+    +(isCATest(S.at)?'<div class="banner b-amber" style="margin-bottom:0;margin-top:10px;">💡 C.A. Tip: Max 20 objectives + 3 theory.</div>':'')
     +'</div>'
 
     // Theory Instructions
@@ -1834,7 +1849,7 @@ function s1Auto(){
     checkS1Ready();
   }
   $('aex').onclick=function(){ _setAt('Examination'); };
-  $('aca').onclick=function(){ _setAt(S.at==='Examination'?'C.A.':S.at); };
+  $('aca').onclick=function(){ _setAt(S.at==='Examination'?'C.A. Test 1':S.at); };
   if($('acat1')) $('acat1').onclick=function(){ _setAt('C.A. Test 1'); };
   if($('acat2')) $('acat2').onclick=function(){ _setAt('C.A. Test 2'); };
   // Restore sub-option state on re-render
@@ -2546,6 +2561,7 @@ function s2Manual(){
   S.scr=2; hdr();
   applyAdminSettings();
   enforceAdminTerm();
+  if(S.at==='C.A.') S.at='C.A. Test 1';
   $('s1').style.display='none';
   $('s2').style.display='block';
   $('s3').style.display='none';
@@ -2555,6 +2571,12 @@ function s2Manual(){
   $('s2').innerHTML='<div class="pg fade">'
     +'<div class="ptl">Manual Path</div>'
     +'<div class="pst">Two independent tools. Use either or both.</div>'
+    +'<div class="card"><div class="ct">Assessment Type</div>'
+    +'<div class="atog">'
+    +'<button class="ab '+(S.at==='Examination'?'on':'')+'" id="maex">Exams</button>'
+    +'<button class="ab '+(S.at==='C.A. Test 1'?'on':'')+'" id="macat1">1st C.A</button>'
+    +'<button class="ab '+(S.at==='C.A. Test 2'?'on':'')+'" id="macat2">2nd C.A</button>'
+    +'</div></div>'
     
 
     // ── Paper Details ──
@@ -2647,6 +2669,15 @@ function s2Manual(){
     +'<button class="btn bq" onclick="navTo(\'new\')">← Change Path</button>'
     +'</div></div>';
 
+  function _setManualAt(val){
+    S.at=val;
+    ['maex','macat1','macat2'].forEach(function(id){ var b=$(id); if(b) b.classList.remove('on'); });
+    var on=val==='C.A. Test 1'?'macat1':val==='C.A. Test 2'?'macat2':'maex';
+    if($(on)) $(on).classList.add('on');
+  }
+  $('maex').onclick=function(){ _setManualAt('Examination'); };
+  $('macat1').onclick=function(){ _setManualAt('C.A. Test 1'); };
+  $('macat2').onclick=function(){ _setManualAt('C.A. Test 2'); };
   $('mfcl').onchange  =function(e){ manualSelectClass(e.target.value); };
   $('mfsess').oninput =function(e){ S.cfg.session=e.target.value; };
   $('mfterm').disabled=true;
@@ -3239,7 +3270,7 @@ function goReview(){
 
     +'<div class="sgrid">'
     +'<div class="sbox"><div class="sv">'+esc(c.cls||'—')+'</div><div class="slb">Class</div></div>'
-    +'<div class="sbox"><div class="sv">'+(S.at==='C.A.'?'C.A.':'EXAM')+'</div><div class="slb">Type</div></div>'
+    +'<div class="sbox"><div class="sv">'+assessmentLabel(S.at,true)+'</div><div class="slb">Type</div></div>'
     +'<div class="sbox"><div class="sv">'+os.length+'</div><div class="slb">Objectives</div></div>'
     +'<div class="sbox"><div class="sv">'+fs.length+'</div><div class="slb">Fill-in-Blank</div></div>'
     +'</div>'
@@ -3404,7 +3435,7 @@ function buildPrint(os,fs,ts,includeGuide){
     +'<div class="ep-crest">'+initials+'</div>'
     +'<div class="ep-school">'+esc(school)+'</div>'
     +'<div class="ep-motto">"Knowledge is Power — Strive for Excellence"</div>'
-    +'<div class="ep-title">'+(S.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' — '+esc(c.term)+'</div>'
+    +'<div class="ep-title">'+assessmentLabel(S.at,false)+' — '+esc(c.term)+'</div>'
     +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>Date: '+today+'</span></div>'
     +'<div class="ep-meta"><span>Duration: <strong>1 hr 30 mins</strong></span><span>Total: <strong>'+totalMarks+' marks</strong></span><span>Standard: '+esc(c.std)+'</span></div>'
     +'</div>'
@@ -4126,10 +4157,13 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
 
 window.autoGenerateMissing=async function(){
   var rows=await buildStatusMatrix();
-  var missing=rows.filter(function(r){ return r.examStatus==='pending'; }).slice(0,3);
+  var mode=ADMIN.viewMode||'exam';
+  var statusKey=mode==='ca1'?'t1Status':mode==='ca2'?'t2Status':'examStatus';
+  var typeLabel=mode==='ca1'?'C.A. Test 1':mode==='ca2'?'C.A. Test 2':'Examination';
+  var missing=rows.filter(function(r){ return r[statusKey]==='pending'; }).slice(0,3);
   if(!missing.length){ toast('No pending papers to auto-generate','warn'); return; }
   for(var i=0;i<missing.length;i++){
-    await adminAutoGenSingle(missing[i].cls,missing[i].subj,missing[i].term,'Examination');
+    await adminAutoGenSingle(missing[i].cls,missing[i].subj,missing[i].term,typeLabel);
   }
 };
 
@@ -4620,7 +4654,7 @@ function renderDigitalLabPreview(papers,adm){
     mh+='<div style="text-align:center;border-bottom:1.5px double #000;padding-bottom:5px;margin-bottom:6px;">';
     if(logo) mh+='<img src="'+logo+'" style="width:32px;height:32px;object-fit:contain;display:block;margin:0 auto 2px;"/>';
     mh+='<div style="font-size:11pt;font-weight:700;text-transform:uppercase;">'+esc(school)+'</div>';
-    mh+='<div style="font-size:8pt;font-weight:600;">'+(p.at==='C.A.'?'Continuous Assessment':'Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
+    mh+='<div style="font-size:8pt;font-weight:600;">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
     mh+='</div>';
     papers.forEach(function(sp,si){
       var sqs=sp.questions||[];
@@ -4672,7 +4706,7 @@ function renderDigitalLabPreview(papers,adm){
   if(logo2) h+='<img src="'+logo2+'" style="width:44px;height:44px;object-fit:contain;display:block;margin:0 auto 3px;"/>';
   h+='<div style="font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;">'+esc(school2)+'</div>';
   if(address2) h+='<div style="font-size:7.5pt;text-transform:uppercase;opacity:.7;">'+esc(address2)+'</div>';
-  h+='<div style="font-size:10pt;font-weight:600;margin-top:3px;">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
+  h+='<div style="font-size:10pt;font-weight:600;margin-top:3px;">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
   h+='<div style="font-size:9pt;margin-top:2px;">Subject: <strong>'+esc(p.subj)+'</strong> &nbsp; Class: <strong>'+esc(p.cls)+'</strong> &nbsp; Total: <strong>'+total+' marks</strong></div>';
   h+='</div>';
   if(objs.length){
@@ -4943,7 +4977,7 @@ function buildPaperHeader(p,adm,compact){
     h+='<div style="flex:1;text-align:left;">'
       +'<div class="ep-school" style="font-size:8.5pt!important;letter-spacing:.2px;">'+esc(school)+'</div>'
       +(address?'<div style="font-size:6pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
-      +'<div class="ep-title" style="font-size:7.5pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
+      +'<div class="ep-title" style="font-size:7.5pt!important;">'+assessmentLabel(p.at,true)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
       +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>&bull;<span>'+total+' marks</span>&bull;<span>'+today+'</span></div>'
       +'</div></div>';
   } else {
@@ -4952,7 +4986,7 @@ function buildPaperHeader(p,adm,compact){
     else h+='<div class="ep-crest">'+initials+'</div>';
     h+='<div class="ep-school">'+esc(school)+'</div>';
     if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
-    h+='<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
+    h+='<div class="ep-title">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
     h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>';
     h+='<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span><span>Standard: '+esc(p.std||'')+'</span><span>Ref: '+esc(p.ref)+'</span></div>';
   }
@@ -5557,7 +5591,7 @@ function buildMultiSubjectHtml(papers,adm){
   else h+='<div class="ep-crest" style="width:36pt;height:36pt;font-size:11pt;">'+initials+'</div>';
   h+='<div class="ep-school" style="font-size:12pt;">'+esc(school)+'</div>';
   if(address) h+='<div style="font-size:7.5pt;text-transform:uppercase;margin-bottom:1pt;">'+esc(address)+'</div>';
-  h+='<div class="ep-title" style="font-size:10pt;">'+(papers[0].at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(papers[0].term)+'</div>';
+  h+='<div class="ep-title" style="font-size:10pt;">'+assessmentLabel(papers[0].at,false)+' &mdash; '+esc(papers[0].term)+'</div>';
   h+='<div class="ep-meta" style="font-size:8.5pt;"><span>Date: '+today+'</span></div>';
   h+='</div>';
 
@@ -6061,7 +6095,7 @@ function buildNormalPrintHtml(p,adm){
     +(logo?logo:'<div class="ep-crest">'+initials+'</div>')
     +'<div class="ep-school">'+esc(school)+'</div>'
     +(address?'<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>':'')
-    +'<div class="ep-title">'+(p.at==='C.A.'?'Continuous Assessment':'End of Term Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
+    +'<div class="ep-title">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
     +'<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span>'
     +'<span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>'
     +'<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span>'
@@ -6171,7 +6205,7 @@ function buildEcoColumn(p,adm,today,wm,side){
   h+='<div style="flex:1;min-width:0;">'
     +'<div class="ep-school" style="font-size:8.5pt!important;">'+esc(school)+'</div>'
     +(address?'<div style="font-size:6.5pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
-    +'<div class="ep-title" style="font-size:8pt!important;">'+(p.at==='C.A.'?'C.A.':'Examination')+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
+    +'<div class="ep-title" style="font-size:8pt!important;">'+assessmentLabel(p.at,true)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
     +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span> &bull; <span>'+esc(p.cls)+'</span> &bull; <span>'+total+' marks</span></div>'
     +'</div></div>';
 
