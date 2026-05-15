@@ -51,6 +51,18 @@ var CURRENT_USER = null;   // { id, email, name, role }
 var _authMode = 'login';
 
 /* ── TAB SWITCHER ─────────────────── */
+/* ── PASSWORD VISIBILITY TOGGLE ───── */
+window.togglePw = function(inputId, btn){
+  var inp = document.getElementById(inputId);
+  if(!inp) return;
+  var show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  var eyeOn  = btn.querySelector('.eye-icon');
+  var eyeOff = btn.querySelector('.eye-off-icon');
+  if(eyeOn)  eyeOn.style.display  = show ? 'none'  : '';
+  if(eyeOff) eyeOff.style.display = show ? ''      : 'none';
+};
+
 window.authTab = function(mode){
   _authMode = mode;
   clearAuthErr();
@@ -209,11 +221,13 @@ function setAuthLoading(on){
 
 /* ── Load profile from DB ─────────── */
 async function _loadUserAndBoot(authUser){
+  if(window.showLoadVeil) showLoadVeil('Loading your profile…');
   try{
     var blocked=await _getBlockedUsers();
     var blockedHit=blocked.find(function(u){ return u&&(u.id===authUser.id||String(u.email||'').toLowerCase()===String(authUser.email||'').toLowerCase()); });
     if(blockedHit){
       await _supabase.auth.signOut();
+      if(window.hideLoadVeil) hideLoadVeil();
       showAuthScreen();
       showAuthErr('This account has been removed by the admin.');
       return;
@@ -233,8 +247,10 @@ async function _loadUserAndBoot(authUser){
       try{ await _supabase.from('profiles').update({role:'admin'}).eq('id',CURRENT_USER.id); }catch(roleErr){ console.warn('super admin role sync failed:',roleErr.message); }
     }
     hideAuthScreen();
+    if(window.hideLoadVeil) hideLoadVeil();
     bootApp();
   } catch(e){
+    if(window.hideLoadVeil) hideLoadVeil();
     setAuthLoading(false);
     showAuthErr('Could not load profile: '+e.message+'. Please try again.');
   }
@@ -6683,6 +6699,45 @@ function startDeadlineWatcher(){
    BOOT — Supabase Auth Gated
 ══════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', function(){
+
+  /* ── Inject auth eye-toggle + loading overlay styles ── */
+  (function(){
+    var s = document.createElement('style');
+    s.id = 'ee-auth-extras';
+    s.textContent = [
+      '.auth-pw-wrap{position:relative;display:flex;align-items:center;}',
+      '.auth-pw-wrap input{flex:1;padding-right:38px;}',
+      '.auth-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--mute,#888);display:flex;align-items:center;justify-content:center;}',
+      '.auth-eye:hover{color:var(--blue,#2563eb);}',
+      '.auth-eye svg{width:17px;height:17px;display:block;}',
+      /* Global screen-transition loading overlay */
+      '#ee-load-veil{position:fixed;inset:0;background:rgba(255,255,255,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px;opacity:0;pointer-events:none;transition:opacity .25s;}',
+      '#ee-load-veil.show{opacity:1;pointer-events:all;}',
+      '.ee-lv-spinner{width:38px;height:38px;border:4px solid #e5e7eb;border-top-color:var(--blue,#2563eb);border-radius:50%;animation:ee-spin .7s linear infinite;}',
+      '.ee-lv-text{font-family:var(--sans,sans-serif);font-size:13px;color:var(--mute,#666);font-weight:600;letter-spacing:.3px;}',
+      '@keyframes ee-spin{to{transform:rotate(360deg)}}'
+    ].join('');
+    document.head.appendChild(s);
+
+    /* Create the overlay element */
+    var veil = document.createElement('div');
+    veil.id = 'ee-load-veil';
+    veil.innerHTML = '<div class="ee-lv-spinner"></div><div class="ee-lv-text" id="ee-lv-msg">Loading…</div>';
+    document.body.appendChild(veil);
+  })();
+
+  /* ── Loading veil helpers ── */
+  window.showLoadVeil = function(msg){
+    var v = document.getElementById('ee-load-veil');
+    var m = document.getElementById('ee-lv-msg');
+    if(m) m.textContent = msg || 'Loading…';
+    if(v) v.classList.add('show');
+  };
+  window.hideLoadVeil = function(){
+    var v = document.getElementById('ee-load-veil');
+    if(v) v.classList.remove('show');
+  };
+
   // Enter key handlers
   ['authEmail','authPass'].forEach(function(id){
     var el=$(id); if(!el) return;
