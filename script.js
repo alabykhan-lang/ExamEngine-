@@ -6616,6 +6616,36 @@ window.clearDeadline=function(){
   toast('Deadline cleared','ok');
   renderAdminSett();
 };
+
+window.clearAllData = async function(){
+  if(!_supabase){ toast('Database not connected.','err'); return; }
+  if(!CURRENT_USER){ toast('Not logged in.','err'); return; }
+  if(!confirm('🚨 WARNING: Are you sure you want to WIPE your published papers? This cannot be undone!')) return;
+  
+  if(CURRENT_USER.role === 'admin') {
+    if(!confirm('🛑 ADMIN WARNING: This will delete ALL papers from the database permanently. Type "WIPE" to confirm.')) return;
+    var wipeCode = prompt('Type "WIPE" to confirm deleting ALL papers:');
+    if(wipeCode !== 'WIPE') {
+      toast('Wipe cancelled.','info');
+      return;
+    }
+  }
+
+  try {
+    var res;
+    if(CURRENT_USER.role === 'admin'){
+      res = await _supabase.from('papers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    } else {
+      res = await _supabase.from('papers').delete().eq('user_id', CURRENT_USER.id);
+    }
+    
+    if(res && res.error) throw new Error(res.error.message);
+    toast('Database wiped successfully!','ok', 4000);
+    navTo(CURRENT_USER.role === 'admin' ? 'admin-dash' : 'dash');
+  } catch(e) {
+    toast('Wipe failed: ' + e.message, 'err');
+  }
+};
 window.saveAdminBranding=function(){
   var sc=($('adminSchNm')||{}).value||'';
   var wm=($('adminWmInp')||{}).value||'';
