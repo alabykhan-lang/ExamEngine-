@@ -15,8 +15,8 @@
   --mono:'Fira Code',monospace; --sans:'Plus Jakarta Sans',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;}
-body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.55;overflow-x:hidden;}
+html{scroll-behavior:smooth;font-size:16px;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.55;overflow-x:hidden;font-size:16px;}
 
 /* ── DESKTOP LAYOUT FIX ─────────────────── */
 @media(min-width:1024px){
@@ -42,6 +42,14 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 
 /* ── BUTTON RESPONSIVE ──────────────────── */
 @media(max-width:768px){
+  body{font-size:16px;}
+  .ptl{font-size:28px;}
+  .pst,.stx,.recent-subj,.fl label,.banner,.btn,.fi,.fs,.fta,.ab,.spill{font-size:14px;}
+  .nav-in{padding:0 12px;height:62px;}
+  .nav-r{gap:6px;}
+  .api-chip,.role-badge,.user-chip-name{display:none!important;}
+  .nav-back-btn{padding:8px 10px;font-size:12.5px;}
+  .scheme-choice{grid-template-columns:1fr;}
   .sb-act-btns{justify-content:flex-start;}
   .sb-approve-btn,.sb-reject-btn,.sb-lab-btn{min-width:fit-content;}
 }
@@ -129,6 +137,8 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 .api-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green);}
 .icon-btn{width:34px;height:34px;border-radius:var(--rs);border:1.5px solid var(--bdr);background:var(--surf2);color:var(--mute);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
 .icon-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-lt);}
+.nav-back-btn{display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--blue-md);background:var(--blue-lt);color:var(--blue);border-radius:var(--rs);padding:8px 12px;font-family:var(--sans);font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;}
+.nav-back-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue);}
 
 /* ── TOAST ────────────────────────────── */
 #toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink2);color:#fff;padding:10px 20px;border-radius:30px;font-size:12.5px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.22);z-index:9999;transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .3s;opacity:0;white-space:nowrap;display:flex;align-items:center;gap:8px;}
@@ -259,6 +269,16 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 .scheme-wk-num{font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--blue);min-width:52px;padding-top:1px;flex-shrink:0;}
 .scheme-sub{font-size:11px;color:var(--mute);margin-top:1px;}
 .scheme-foot{display:flex;gap:8px;padding:11px 15px;border-top:1px solid var(--bdr);}
+.scheme-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+.scheme-choice-btn{text-align:left;border:1.5px solid var(--bdr);background:var(--surf2);border-radius:var(--rs);padding:12px 14px;cursor:pointer;font-family:var(--sans);transition:all .2s;}
+.scheme-choice-btn strong{display:block;font-size:13px;color:var(--ink);margin-bottom:3px;}
+.scheme-choice-btn span{display:block;font-size:11.5px;color:var(--mute);line-height:1.45;}
+.scheme-choice-btn.on{background:var(--blue-lt);border-color:var(--blue-md);box-shadow:0 0 0 3px rgba(27,84,240,.08);}
+.manual-scheme-box{margin-top:12px;padding:14px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--rm);}
+.manual-scheme-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center;}
+.scheme-file-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;}
+.scheme-file-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surf);border:1.5px solid var(--bdr);border-radius:20px;padding:5px 8px 5px 11px;font-size:11.5px;font-weight:700;color:var(--ink3);}
+.scheme-file-chip button{width:17px;height:17px;border-radius:50%;border:none;background:var(--red);color:#fff;cursor:pointer;font-size:11px;line-height:17px;}
 
 /* ── TAG CLOUD ────────────────────────── */
 .tag-cloud{display:flex;flex-wrap:wrap;gap:7px;padding:12px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:var(--rs);min-height:48px;}

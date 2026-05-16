@@ -664,6 +664,9 @@ var S = {
   at:     'Examination',
   difficultyLevel: 'Balanced',
   tradeSubject: DEFAULT_TRADE,
+  schemeMode: null,
+  manualSchemeFiles: [],
+  _navStack: [],
   cfg: {
     cls:'', term:'1st Term', session:'2025/2026', subj:'', std:'',
     topics:[], topicText:'',
@@ -984,6 +987,26 @@ function closeSidebar(){
   $('sb-overlay').classList.remove('open');
 }
 
+function updateGlobalBackButton(){
+  var b=$('globalBackBtn');
+  if(!b) return;
+  var home=(S.screen==='dash'||S.screen==='admin-dash')&&S.scr===0;
+  b.style.display=home?'none':'inline-flex';
+}
+
+function goAppBack(){
+  if(S.screen==='app'){
+    if(S.scr===3){ goWorkshop(); return; }
+    if(S.scr===2 && S.path==='auto'){ s1Auto(); return; }
+    _navInternal('new');
+    return;
+  }
+  var prev=S._navStack&&S._navStack.length?S._navStack.pop():null;
+  if(prev && prev!==S.screen){ _navInternal(prev); return; }
+  _navInternal((CURRENT_USER&&CURRENT_USER.role==='admin')?'admin-dash':'dash');
+}
+window.goBack=goAppBack;
+
 function setSbActive(id){
   ['sbDash','sbNew','sbLoad','sbArch','sbSett',
    'sbAdminDash','sbAdminPrint','sbAdminSett'].forEach(function(i){
@@ -1009,13 +1032,16 @@ window.navTo = function(screen){
     toast('⛔ Admin access only — contact your administrator','err',4000);
     return;
   }
-  // Push to browser history so back button works
+  if(S.screen&&S.screen!==screen) S._navStack.push(S.screen);
+  S.scr=0;
+  // Push to browser history so back button works where the shell supports it
   try{ history.pushState({screen:screen},'','#'+screen); }catch(e){}
   _navInternal(screen);
 };
 
 function _navInternal(screen){
   S.screen = screen;
+  if(screen!=='app') S.scr=0;
   ['screen-dash','screen-gate','screen-load','screen-arch','screen-sett',
    'screen-admin-dash','screen-admin-print','screen-admin-sett','app'].forEach(function(id){
     var el=$(id); if(el) el.style.display='none';
@@ -1038,19 +1064,21 @@ function _navInternal(screen){
   else if(screen==='admin-dash') { setSbActive('sbAdminDash');   renderAdminDash(); }
   else if(screen==='admin-print'){ setSbActive('sbAdminPrint');  renderAdminPrint(); }
   else if(screen==='admin-sett') { setSbActive('sbAdminSett');   renderAdminSett(); }
+  updateGlobalBackButton();
 }
 
 // Back button support - improved
 window.addEventListener('popstate',function(e){
-  if(e.state&&e.state.screen){
-    closeSidebar();
-    _navInternal(e.state.screen);
-  } else {
-    // Fallback to default screen
-    closeSidebar();
-    _navInternal(ROLE==='admin'?'admin-dash':'dash');
-  }
+  closeSidebar();
+  if(e.state&&e.state.screen){ _navInternal(e.state.screen); }
+  else goAppBack();
 });
+
+document.addEventListener('backbutton',function(e){
+  if(e&&e.preventDefault) e.preventDefault();
+  closeSidebar();
+  goAppBack();
+},false);
 
 // Handle initial load with proper history state
 window.addEventListener('load',function(){
@@ -1168,6 +1196,8 @@ function showGate(){
 
 window.choosePath = function(path){
   S.path = path;
+  if(S.screen&&S.screen!=='app') S._navStack.push(S.screen);
+  S.screen='app';
   ['screen-dash','screen-gate','screen-load','screen-arch','screen-sett'].forEach(function(id){
     var el=$(id); if(el) el.style.display='none';
   });
@@ -1496,6 +1526,7 @@ window.viewPaperDetail = async function(ref){
    NAV HEADER
 ══════════════════════════════════════ */
 function hdr(){
+  updateGlobalBackButton();
   var steps=[{n:1,l:'The Contract'},{n:2,l:'The Workshop'},{n:3,l:'The Hand-off'}];
   var c=$('stps'); if(!c) return;
   c.innerHTML='';
@@ -2003,10 +2034,9 @@ function s1Auto(){
     if(on+fn+tn===0){ toast('Set at least 1 question','warn'); return; }
     if(!$('fst').value){ toast('Choose the exam standard first','warn'); return; }
     S.cfg.objN=Math.max(0,on); S.cfg.fitbN=Math.max(0,fn); S.cfg.thN=Math.max(0,tn);
-    var tp=$('ftp'); if(tp&&tp.value.trim()){
-      tp.value.split(',').map(function(t){ return t.trim(); }).filter(Boolean)
-        .forEach(function(t){ if(!S.cfg.topics.includes(t)) S.cfg.topics.push(t); });
-    }
+    if(!S.schemeMode){ toast('Choose Automatic or Manual scheme first','warn'); return; }
+    if(S.schemeMode==='manual'&&!S.schemeCommitted){ toast('Save the manual scheme before proceeding','warn'); return; }
+    if(!S.cfg.topics.length){ toast('Add scheme topics first','warn'); return; }
     S.slots=[]; goWorkshop();
   };
 
@@ -2032,7 +2062,7 @@ function renderSubjectPills(){
 
 window.selectSubject=function(s){
   S.cfg.subj=s;
-  S.schemeWeeks=[]; S.schemeLoaded=false; S.cfg.topics=[];
+  S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false; S.schemeMode=null; S.cfg.topics=[]; S.cfg.topicText=''; S.manualSchemeFiles=[];
   var sg=$('subjGrid'); if(sg) sg.innerHTML=renderSubjectPills();
   ['schemeCard','stdCard','qCard','thCard','metaCard'].forEach(function(id){
     var el=$(id); if(el) el.classList.add('unlocked');
@@ -2047,8 +2077,7 @@ window.selectSubject=function(s){
 
   var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
   checkS1Ready();
-  if(getEffectiveApiKey()) doLoadScheme();
-  else{ var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt(); }
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
 };
 
 function renderTradePanel(){
@@ -2067,8 +2096,10 @@ function renderTradePanel(){
 window.pickTrade=function(id){
   S.tradeSubject=id;
   var tw=$('tradePanelWrap'); if(tw) tw.innerHTML=renderTradePanel();
-  // Reload scheme for new trade
-  if(getEffectiveApiKey()&&S.cfg.subj==='Trade Subject') doLoadScheme();
+  S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false; S.cfg.topics=[]; S.cfg.topicText='';
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
+  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
+  checkS1Ready();
 };
 
 /* ── Difficulty toggle ── */
@@ -2093,20 +2124,67 @@ window.setDiff=function(level){
 /* ── Scheme ── */
 function renderSchemePrompt(){
   if(!S.cfg.subj) return '<div class="fetch-note">Select a subject above to load the scheme.</div>';
-  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+  var autoOn=S.schemeMode==='auto', manualOn=S.schemeMode==='manual';
+  return '<div class="scheme-choice">'
+    +'<button class="scheme-choice-btn'+(autoOn?' on':'')+'" onclick="chooseSchemeMode(\'auto\')">'
+      +'<strong>Automatic</strong><span>Use the current NERDC scheme fetch and committed scheme logic.</span></button>'
+    +'<button class="scheme-choice-btn'+(manualOn?' on':'')+'" onclick="chooseSchemeMode(\'manual\')">'
+      +'<strong>Manual</strong><span>Type topics or upload a scheme file/image, then save it.</span></button>'
+    +'</div>'
+    +(autoOn?renderAutoSchemeTools():manualOn?renderManualSchemeTools():'<div class="fetch-note" style="margin-top:10px;">Choose Automatic or Manual scheme before proceeding.</div>');
+}
+function renderAutoSchemeTools(){
+  return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;">'
     +'<button class="btn bq bsm" onclick="doLoadScheme()">📋 Load Scheme of Work</button>'
     +'<span style="font-size:12px;color:var(--mute);">Fetches verified NERDC 2026 weekly plan</span>'
     +'</div>';
 }
+function renderManualSchemeTools(){
+  var files=(S.manualSchemeFiles||[]).map(function(f,i){
+    return '<div class="scheme-file-chip">'+esc(f.label||('File '+(i+1)))+'<button onclick="removeManualSchemeFile('+i+')" title="Delete file">×</button></div>';
+  }).join('');
+  return '<div class="manual-scheme-box">'
+    +'<label class="fl"><span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);margin-bottom:6px;">Manual Scheme Topics</span>'
+    +'<textarea class="fta" id="manualSchemeText" style="min-height:92px;" placeholder="Type topics separated by commas or new lines. Example: Fractions, Decimals, Percentages">'+esc(S.cfg.topicText||'')+'</textarea></label>'
+    +'<div class="manual-scheme-actions">'
+      +'<label class="upload-label">📁 Upload Scheme<input type="file" accept="image/*,application/pdf,.docx,.doc,.txt" multiple style="display:none;" onchange="handleManualSchemeUpload(event)"/></label>'
+      +'<button class="btn bg bsm" onclick="saveManualScheme()">✓ Save Manual Scheme</button>'
+      +'<button class="btn bq bsm" onclick="deleteManualScheme()">Delete Saved Scheme</button>'
+    +'</div>'
+    +(files?'<div class="scheme-file-list">'+files+'</div>':'')
+    +'<div id="manualSchemeStatus" style="margin-top:10px;"></div>'
+    +'</div>';
+}
+window.chooseSchemeMode=function(mode){
+  S.schemeMode=mode;
+  S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false; S.cfg.topics=[];
+  if(mode==='auto') S.cfg.topicText='';
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
+  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
+  checkS1Ready();
+  if(mode==='manual'){
+    var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
+    loadCommittedScheme(S.cfg.cls,actualSubj,S.cfg.term).then(function(saved){
+      if(saved&&saved.length&&saved.some(function(w){ return /manual scheme/i.test(w.subtopics||''); })){
+        S.schemeWeeks=saved; S.schemeLoaded=true; S.schemeCommitted=true;
+        S.cfg.topics=saved.map(function(w){ return w.topic; }).filter(Boolean);
+        var sa2=$('schemeArea'); if(sa2) sa2.innerHTML=renderSchemePanel();
+        var tc2=$('tagCloud'); if(tc2) tc2.innerHTML=renderTagCloud();
+        checkS1Ready();
+      }
+    });
+  }
+};
 function renderSchemePanel(){
   if(!S.schemeWeeks.length) return renderSchemePrompt();
   var committed=S.schemeCommitted;
+  var isManual=S.schemeMode==='manual'||S.schemeWeeks.some(function(w){ return /manual scheme/i.test(w.subtopics||''); });
   return '<div class="scheme-panel">'
     +'<div class="scheme-head" style="flex-wrap:wrap;gap:8px;align-items:center;">'
     +'<span class="scheme-head-txt">📋 '+esc(S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj)+' — '+esc(S.cfg.term)+'</span>'
     +(committed
       ?'<span class="scheme-locked-shield">🔒 Scheme Locked</span>'
-        +'<button class="scheme-change-btn" onclick="confirmChangeScheme()" title="Replace committed scheme — requires confirmation">⚠ Change Scheme</button>'
+        +'<button class="scheme-change-btn" onclick="'+(isManual?'deleteManualScheme()':'confirmChangeScheme()')+'" title="Replace committed scheme">'+(isManual?'Delete Scheme':'⚠ Change Scheme')+'</button>'
       :'<span style="font-size:11px;color:var(--amber);font-weight:700;">⚠ Not yet committed — accept below to lock</span>'
     )
     +'</div>'
@@ -2120,14 +2198,108 @@ function renderSchemePanel(){
     +'</div>'
     +'<div class="scheme-foot">'
     +(committed
-      ?'<button class="btn bg bsm" disabled style="opacity:.6;cursor:default;">🔒 Scheme Committed</button>'
+      ?'<button class="btn bg bsm" disabled style="opacity:.6;cursor:default;">🔒 '+(isManual?'Manual Scheme Saved':'Scheme Committed')+'</button>'
       :'<button class="btn bg bsm" onclick="acceptScheme()">✓ Accept &amp; Commit Scheme</button>'
     )
-    +'<button class="btn bq bsm" onclick="editManually()">✏ Edit Manually</button>'
+    +(isManual?'<button class="btn bq bsm" onclick="chooseSchemeMode(\'manual\')">✏ Edit Manual Scheme</button>':'<button class="btn bq bsm" onclick="chooseSchemeMode(\'manual\')">✏ Use Manual Scheme</button>')
     +'</div></div>';
 }
 window.removeTag=function(i){ S.cfg.topics.splice(i,1); var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud(); };
+function topicsToWeeks(topics,source){
+  return (topics||[]).map(function(t,i){
+    return {week:'Week '+(i+1),topic:String(t||'').trim(),subtopics:source||'Manual scheme'};
+  }).filter(function(w){ return w.topic; });
+}
+function parseTopicText(text){
+  return String(text||'').split(/[\n,;]+/).map(function(t){ return t.trim(); }).filter(Boolean)
+    .filter(function(t,i,a){ return a.indexOf(t)===i; });
+}
+async function extractSchemeFromText(text,label){
+  text=String(text||'').trim();
+  if(!text) return [];
+  if(!getEffectiveApiKey()) return parseTopicText(text);
+  var prompt='Extract the teaching topics from this scheme of work content for '+S.cfg.cls+' '+getActualSubj()+'.\n'
+    +"Return ONLY a JSON array of topic strings. Do not include revision, exams, holidays, tests, breaks, or administrative weeks. Preserve the teacher's actual topic wording where possible.\n\n"
+    +'CONTENT ('+(label||'typed text')+'):\n'+text;
+  try{
+    var out=await callGemini(prompt,{systemInstruction:'You extract scheme of work topics as valid JSON only.'});
+    if(Array.isArray(out)) return out.map(function(x){ return typeof x==='string'?x:(x.topic||x.title||''); }).filter(Boolean);
+  }catch(e){ console.warn('manual scheme text extraction fallback:',e.message); }
+  return parseTopicText(text);
+}
+async function extractSchemeFromImage(dataUrl,label){
+  var m=String(dataUrl||'').match(/^data:([^;]+);base64,(.+)$/);
+  if(!m) return [];
+  var prompt='Extract ONLY scheme of work teaching topics from this image/file page for '+S.cfg.cls+' '+getActualSubj()+'. '
+    +'Return ONLY a JSON array of topic strings. Exclude revision, exam, holiday, break, test week, resumption, orientation, and administrative rows.';
+  var out=await callGeminiVision(m[2],m[1],prompt);
+  if(!Array.isArray(out)){
+    var vals=out&&typeof out==='object'?Object.values(out).filter(Array.isArray):[];
+    out=vals.length?vals[0]:[];
+  }
+  return out.map(function(x){ return typeof x==='string'?x:(x.topic||x.title||''); }).filter(Boolean);
+}
+window.handleManualSchemeUpload=async function(ev){
+  var files=Array.prototype.slice.call((ev.target&&ev.target.files)||[]);
+  if(!files.length) return;
+  S.schemeMode='manual';
+  var status=$('manualSchemeStatus');
+  if(status) status.innerHTML='<div class="banner b-info"><span class="spin">⟳</span> Reading scheme file(s)…</div>';
+  var topics=S.cfg.topics.slice();
+  try{
+    for(var i=0;i<files.length;i++){
+      var f=files[i];
+      var item=await processFileForScanner(f);
+      S.manualSchemeFiles.push({label:f.name});
+      if(item.type==='text') topics=topics.concat(await extractSchemeFromText(item.text,f.name));
+      else if(item.type==='images'||item.type==='pdf_images'){
+        for(var p=0;p<(item.pages||[]).length;p++) topics=topics.concat(await extractSchemeFromImage(item.pages[p].dataUrl,item.pages[p].label||f.name));
+      } else if(item.type==='image'){
+        topics=topics.concat(await extractSchemeFromImage(item.dataUrl,f.name));
+      }
+    }
+    S.cfg.topics=parseTopicText(topics.join('\n'));
+    S.schemeWeeks=topicsToWeeks(S.cfg.topics,'Uploaded manual scheme');
+    S.schemeLoaded=!!S.schemeWeeks.length;
+    if(status) status.innerHTML='<div class="banner b-ok">✓ '+S.cfg.topics.length+' topic(s) extracted. Click Save Manual Scheme to lock them.</div>';
+  }catch(e){
+    if(status) status.innerHTML='<div class="banner b-warn">⚠ Could not read scheme: '+esc(e.message||e)+'</div>';
+  }
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
+  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
+  checkS1Ready();
+};
+window.removeManualSchemeFile=function(i){
+  S.manualSchemeFiles.splice(i,1);
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
+};
+window.saveManualScheme=async function(){
+  S.schemeMode='manual';
+  var typed=(($('manualSchemeText')||{}).value||S.cfg.topicText||'').trim();
+  var typedTopics=await extractSchemeFromText(typed,'manual topics');
+  S.cfg.topicText=typed;
+  S.cfg.topics=parseTopicText(S.cfg.topics.concat(typedTopics).join('\n'));
+  if(!S.cfg.topics.length){ toast('Type or upload scheme topics first','warn'); return; }
+  S.schemeWeeks=topicsToWeeks(S.cfg.topics,'Manual scheme');
+  S.schemeLoaded=true; S.schemeCommitted=true;
+  var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
+  await commitScheme(S.cfg.cls,actualSubj,S.cfg.term,S.schemeWeeks);
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePanel();
+  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
+  toast('Manual scheme saved — '+S.cfg.topics.length+' topic(s)','ok',4000);
+  checkS1Ready();
+};
+window.deleteManualScheme=async function(){
+  var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
+  await clearCommittedScheme(S.cfg.cls,actualSubj,S.cfg.term);
+  S.schemeWeeks=[]; S.schemeLoaded=false; S.schemeCommitted=false; S.cfg.topics=[]; S.cfg.topicText=''; S.manualSchemeFiles=[];
+  var sa=$('schemeArea'); if(sa) sa.innerHTML=renderSchemePrompt();
+  var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
+  toast('Manual scheme deleted','ok');
+  checkS1Ready();
+};
 window.acceptScheme=async function(){
+  S.schemeMode='auto';
   applyAssessmentTopicScope();
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
   await commitScheme(S.cfg.cls,actualSubj,S.cfg.term,S.schemeWeeks);
@@ -2149,15 +2321,21 @@ function renderTagCloud(){
 function checkS1Ready(){
   var btn=$('s1n'); if(!btn) return;
   var tp=$('ftp');
-  var hasContent=S.schemeLoaded||(S.cfg.topics&&S.cfg.topics.length>0)||(tp&&tp.value.trim().length>0);
-  var ok=!!(S.cfg.cls&&S.cfg.subj&&S.cfg.std&&hasContent);
+  var hasTopics=!!(S.cfg.topics&&S.cfg.topics.length>0);
+  var hasTyped=!!(tp&&tp.value.trim().length>0);
+  var hasSchemeChoice=!!S.schemeMode;
+  var hasContent=S.schemeMode==='auto'
+    ?(S.schemeLoaded&&hasTopics)
+    :(S.schemeMode==='manual'&&S.schemeCommitted&&hasTopics);
+  if(S.schemeMode==='manual'&&hasTyped&&!S.schemeCommitted) hasContent=false;
+  var ok=!!(S.cfg.cls&&S.cfg.subj&&S.cfg.std&&hasSchemeChoice&&hasContent);
   btn.disabled=!ok;
 }
 
 function onClassTermChange(){
   enforceAdminTerm();
   S.cfg.subj=''; S.subjects=[]; S.schemeWeeks=[];
-  S.schemeLoaded=false; S.schemeCommitted=false; S.cfg.topics=[];
+  S.schemeLoaded=false; S.schemeCommitted=false; S.schemeMode=null; S.cfg.topics=[]; S.cfg.topicText=''; S.manualSchemeFiles=[];
   if(S.cfg.cls){
     S.subjects=getSubjectList(S.cfg.cls).slice();
     var sc=$('subjCard'); if(sc) sc.classList.add('unlocked');
@@ -2192,6 +2370,7 @@ window.doForceRefreshScheme=window.confirmChangeScheme; // legacy alias
 
 window.doLoadScheme=async function(){
   if(!S.cfg.subj){ toast('Select a subject first','warn'); return; }
+  S.schemeMode='auto';
   enforceAdminTerm();
 
   var actualSubj=S.cfg.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:S.cfg.subj;
@@ -2199,7 +2378,7 @@ window.doLoadScheme=async function(){
 
   // Check for committed scheme first — serve immediately, no API call
   var committed=await loadCommittedScheme(cls,actualSubj,term);
-  if(committed&&committed.length){
+  if(committed&&committed.length&&!committed.some(function(w){ return /manual scheme/i.test(w.subtopics||''); })){
     S.schemeWeeks=committed; S.schemeLoaded=true; S.schemeCommitted=true;
     applyAssessmentTopicScope();
     var sa0=$('schemeArea'); if(sa0) sa0.innerHTML=renderSchemePanel();
@@ -2280,6 +2459,7 @@ window.doLoadScheme=async function(){
       });
       S.schemeLoaded=S.schemeWeeks.length>0;
       S.schemeCommitted=false;
+      S.schemeMode='auto';
       applyAssessmentTopicScope();
       if(sa) sa.innerHTML=renderSchemePanel();
       var tc=$('tagCloud'); if(tc) tc.innerHTML=renderTagCloud();
@@ -2521,6 +2701,8 @@ function buildPrompt(cfg,type,count,extra){
     +caNote+diffNote;
   if(topicStr) p+='  Topics covered: '+topicStr+'\n';
   p+='\nOutput quality rules:\n'
+    +'  - Every question MUST come directly from the listed topics. Do not introduce topics outside the chosen scheme.\n'
+    +'  - Distribute questions across the chosen topics and keep each question visibly relevant to one of them.\n'
     +'  - Use perfect LaTeX for mathematics, chemistry and physics: $x^2$, $\\frac{a}{b}$, $H_2O$, $CO_2$, $F=ma$, $V=IR$.\n'
     +'  - Include diagrams, shapes, graphs, tables or apparatus when educationally useful, especially in science, mathematics, geography, business and technical subjects.\n'
     +'  - For any visual that should be drawn, fill svgDescription with a precise description of labels, axes, shapes, values and measurements.\n'
