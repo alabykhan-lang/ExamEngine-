@@ -714,6 +714,14 @@ function renderQuestionText(q,opts){
   else if(q.diagDesc&&opts.showVisualPlaceholders) html+='<div class="visual-card shape-card"><strong>Diagram:</strong> '+esc(q.diagDesc)+'</div>';
   return html;
 }
+function questionMarks(q){
+  var n=Number(q&&q.marks);
+  return isFinite(n)&&n>0?n:0;
+}
+function hasPositiveMarks(q){ return questionMarks(q)>0; }
+function sumQuestionMarks(qs){
+  return (qs||[]).reduce(function(a,q){ return a+questionMarks(q); },0);
+}
 function renderVisualEditor(kind,id,q){
   q=q||{};
   var hint=esc(q.svgHint||q.diagDesc||'');
@@ -1476,7 +1484,7 @@ window.viewPaperDetail = async function(ref){
         return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
           +'<div style="flex:1;"><div>'+q.t+'</div>'
           +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-          +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
+          +(hasPositiveMarks(q)?'<span class="tag t-marks">'+questionMarks(q)+' marks</span>':'')
           +'</div></div></div>';
       }).join(''):'')
 
@@ -2696,6 +2704,7 @@ function s2Manual(){
   S.scr=2; hdr();
   applyAdminSettings();
   enforceAdminTerm();
+  S.cfg.std='';
   if(S.at==='C.A.') S.at='C.A. Test 1';
   $('s1').style.display='none';
   $('s2').style.display='block';
@@ -2731,13 +2740,6 @@ function s2Manual(){
     +'<div class="fetch-note" id="manualSubjFetchNote" style="margin-bottom:10px;">'+(S.cfg.cls?'<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded ('+getSubjectList(S.cfg.cls).length+')</span>':'Select a class above to load subjects.')+'</div>'
     +'<div class="subj-grid" id="manualSubjGrid">'+renderManualSubjectPills()+'</div>'
     +'<div id="manualTradePanelWrap"></div>'
-    +'</div>'
-
-    +'<div class="card"><div class="ct">Exam Standard</div>'
-    +'<div class="fl"><label>Standard / Exam Body</label><select class="fs" id="mfstd" required>'
-    +'<option value=""'+(!S.cfg.std?' selected':'')+'>Choose exam standard...</option>'
-    +STANDARDS.map(function(x){ return '<option'+(x===S.cfg.std?' selected':'')+'>'+x+'</option>'; }).join('')
-    +'</select></div>'
     +'</div>'
 
     // ══ SECTION 1: SCANNER ══
@@ -2818,7 +2820,6 @@ function s2Manual(){
   $('macat2').onclick=function(){ _setManualAt('C.A. Test 2'); };
   $('mfcl').onchange  =function(e){ manualSelectClass(e.target.value); };
   $('mfsess').oninput =function(e){ S.cfg.session=e.target.value; };
-  $('mfstd').onchange  =function(e){ S.cfg.std=e.target.value; };
   $('mfterm').disabled=true;
   $('mfterm').title='Term is controlled by Admin Settings';
   $('mfterm').onchange=function(e){ S.cfg.term=enforceAdminTerm(); e.target.value=S.cfg.term; };
@@ -2943,7 +2944,6 @@ window.transcribeAll=async function(){
   ensureApiKey();
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
-  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var btn=$('transcribeBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> In queue…'; }
   var area=$('scanOcrStatus');
   function setStatus(html){ if(area) area.innerHTML='<div style="margin-top:4px;">'+html+'</div>'; }
@@ -3110,7 +3110,6 @@ window.delScanSlot=function(id){ S.ocrSlots=S.ocrSlots.filter(function(x){ retur
 window.addBlankScan=function(){ var id=S.ocrSlots.length; S.ocrSlots.push({id:id,q:{t:'',k:'theory',marks:0,tr:false},included:true}); renderScanSlots(); var rb=$('scanReviewBtn'); if(rb) rb.disabled=false; };
 window.finalizeScan=function(){
   syncManualPaperDetails();
-  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var valid=S.ocrSlots.filter(function(s){ return s&&s.q&&s.q.t&&s.q.t.trim(); });
   if(!valid.length){ toast('No transcribed questions to review','warn'); return; }
   S.slots=valid.map(function(s,i){ return{id:i,k:s.q.k||'theory',q:s.q,included:true,loading:false,err:null}; });
@@ -3186,7 +3185,6 @@ window.convertWordTextQuestions=async function(){
   ensureApiKey();
   syncManualPaperDetails();
   if(!S.cfg.subj){ toast('Select the subject first','warn'); return; }
-  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var customInstr=(($('ntxInstr')||{}).value||'').trim();
   var btn=$('ntxGenBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spin">⟳</span> Structuring…'; }
   var area=$('ntxStatus');
@@ -3400,7 +3398,6 @@ window.delNtxSlot=function(id){ S.ntxSlots=S.ntxSlots.filter(function(x){ return
 window.addBlankNtx=function(){ var id=S.ntxSlots.length; S.ntxSlots.push({id:id,q:{t:'',k:'theory',marks:0},included:true}); renderNtxSlots(); var rb=$('ntxReviewBtn'); if(rb){ rb.disabled=false; rb.style.display='inline-flex'; } };
 window.finalizeNtx=function(){
   syncManualPaperDetails();
-  if(!S.cfg.std){ toast('Choose the exam standard first','warn'); return; }
   var valid=S.ntxSlots.filter(function(s){ return s&&s.q&&s.q.t&&s.q.t.trim(); });
   if(!valid.length){ toast('No questions to review','warn'); return; }
   S.slots=valid.map(function(s,i){ return{id:i,k:s.q.k||'theory',q:s.q,included:true,loading:false,err:null}; });
@@ -3410,7 +3407,7 @@ function syncManualPaperDetails(){
   var mfcl=$('mfcl'); if(mfcl&&mfcl.value) S.cfg.cls=mfcl.value;
   var mfsubj=$('mfsubj'); if(mfsubj&&mfsubj.value.trim()) S.cfg.subj=mfsubj.value.trim();
   var mfsess=$('mfsess'); if(mfsess&&mfsess.value) S.cfg.session=mfsess.value;
-  var mfstd=$('mfstd'); if(mfstd) S.cfg.std=mfstd.value;
+  if(S.path==='manual') S.cfg.std='';
   S.cfg.term=enforceAdminTerm();
   var mfterm=$('mfterm'); if(mfterm) mfterm.value=S.cfg.term;
 }
@@ -3473,7 +3470,7 @@ function goReview(){
         +'<div style="flex:1;"><div>'+renderQuestionText(q)+'</div>'
         +(q.answer?'<div class="fitb-answer">✓ Answer: <span>'+esc(q.answer)+'</span></div>':'')
         +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-        +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
+        +(hasPositiveMarks(q)?'<span class="tag t-marks">'+questionMarks(q)+' marks</span>':'')
         +(q.topic?'<span class="tag t-cust">'+esc(q.topic)+'</span>':'')
         +'</div></div></div>';
     }).join('')
@@ -3484,7 +3481,7 @@ function goReview(){
       return '<div class="qp"><div class="qn">'+String(i+1).padStart(2,'0')+'</div>'
         +'<div style="flex:1;"><div>'+renderQuestionText(q)+'</div>'
         +'<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">'
-        +(q.marks?'<span class="tag t-marks">'+q.marks+' marks</span>':'')
+        +(hasPositiveMarks(q)?'<span class="tag t-marks">'+questionMarks(q)+' marks</span>':'')
         +(q.s?'<span class="tag t-marks">⚡ Step Marks</span>':'')
         +(q.tr?'<span class="tag t-tr">✏ Transcribed</span>':'')
         +(q.ai?'<span class="tag t-ai">⚡ AI</span>':'')
@@ -3610,9 +3607,9 @@ function buildPrint(os,fs,ts,includeGuide){
   var c=S.cfg;
   var dispSubj=c.subj==='Trade Subject'?getTradeById(S.tradeSubject).name:(c.subj||'Subject');
   var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var totalMarks=os.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0)
-    +fs.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0)
-    +ts.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
+  var totalMarks=os.reduce(function(a,s){ return a+questionMarks(s.q); },0)
+    +fs.reduce(function(a,s){ return a+questionMarks(s.q); },0)
+    +ts.reduce(function(a,s){ return a+questionMarks(s.q); },0);
 
   var h='<div class="ep">'
     +'<div class="ep-wm">ExamEngine</div>'
@@ -3683,7 +3680,7 @@ function buildPrint(os,fs,ts,includeGuide){
         var q=s.q; var ans=q.o&&q.a!==undefined?L[q.a]:'—';
         h+='<div><strong>'+(i+1)+'.</strong> '+ans+'</div>';
       });
-      var objTotal=os.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
+      var objTotal=os.reduce(function(a,s){ return a+questionMarks(s.q); },0);
       h+='</div><div style="font-size:9pt;font-style:italic;color:#555;margin-bottom:10pt;">Objective section total: '+objTotal+' marks.</div>';
     }
 
@@ -3693,10 +3690,10 @@ function buildPrint(os,fs,ts,includeGuide){
       fs.forEach(function(s,i){
         var q=s.q;
         h+='<div class="mg-fitb-ans"><strong>'+(i+1)+'.</strong> '+esc(q.answer||'—')
-          +(q.marks?' <span style="font-size:9pt;color:#555;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
+          +(hasPositiveMarks(q)?' <span style="font-size:9pt;color:#555;">['+questionMarks(q)+' mark'+(questionMarks(q)>1?'s':'')+']</span>':'')
           +'</div>';
       });
-      var fitbTotal=fs.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
+      var fitbTotal=fs.reduce(function(a,s){ return a+questionMarks(s.q); },0);
       h+='<div style="font-size:9pt;font-style:italic;color:#555;margin-top:6pt;">Section '+fSecLbl+' total: '+fitbTotal+' marks.</div>';
     }
 
@@ -3704,9 +3701,9 @@ function buildPrint(os,fs,ts,includeGuide){
       var tSecLbl2=os.length&&fs.length?'C':os.length||fs.length?'B':'A';
       h+='<div class="mg-sec">Section '+tSecLbl2+' — Theory: Mark Breakdown</div>';
       ts.forEach(function(s,i){
-        var q=s.q; var qMarks=q.marks!==undefined?q.marks:0;
+        var q=s.q; var qMarks=questionMarks(q);
         h+='<div class="mg-th-q">'
-          +'<div style="font-weight:700;font-size:10.5pt;">Q'+(i+1)+' <span style="float:right;">['+qMarks+' marks]</span></div>'
+          +'<div style="font-weight:700;font-size:10.5pt;">Q'+(i+1)+(qMarks?' <span style="float:right;">['+qMarks+' marks]</span>':'')+'</div>'
           +'<div class="mg-th-q-text">'+renderQuestionText(q,{hideVisualPlaceholders:true})+'</div>'
           +'<div class="mg-mark-breakdown"><strong>Marking Points:</strong><br/>';
         if(q.s){
@@ -3719,7 +3716,7 @@ function buildPrint(os,fs,ts,includeGuide){
         }
         h+='</div></div>';
       });
-      var thTotal=ts.reduce(function(a,s){ return a+(s.q&&s.q.marks!==undefined?s.q.marks:0); },0);
+      var thTotal=ts.reduce(function(a,s){ return a+questionMarks(s.q); },0);
       h+='<div style="font-size:9pt;font-style:italic;color:#555;">Section '+tSecLbl2+' total: '+thTotal+' marks. Grand Total: '+totalMarks+' marks.</div>';
     }
     h+='</div>'; // end marking guide
@@ -4855,7 +4852,7 @@ function renderDigitalLabPreview(papers,adm){
     mh+='</div>';
     papers.forEach(function(sp,si){
       var sqs=sp.questions||[];
-      var stotal=sqs.reduce(function(a,q){ return a+(q.marks||1); },0);
+      var stotal=sumQuestionMarks(sqs);
       mh+='<div style="border:0.5px solid #999;border-radius:3px;margin-top:'+(si===0?'4':'8')+'px;overflow:hidden;">';
       mh+='<div style="background:#222;color:#fff;padding:2px 8px;font-size:8.5pt;font-weight:700;display:flex;justify-content:space-between;">'+esc(sp.subj)+' — '+esc(sp.cls)+'<span style="font-weight:400;font-size:7.5pt;">'+stotal+' marks</span></div>';
       var sobjs=sqs.filter(function(q){ return q.k==='obj'; });
@@ -4890,7 +4887,7 @@ function renderDigitalLabPreview(papers,adm){
   var objs=qs.filter(function(q){ return q.k==='obj'; });
   var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
   var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
+  var total=sumQuestionMarks(qs);
   var school2=adm.school||p.school||'School';
   var address2=adm.address||'';
   var logo2=adm.logo;
@@ -4921,7 +4918,7 @@ function renderDigitalLabPreview(papers,adm){
     h+='<div style="font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1.5px solid #000;padding-bottom:2px;margin:10px 0 4px;">Section '+fSec+' &mdash; Fill in Blank ('+fitbs.length+')</div>';
     fitbs.slice(0,5).forEach(function(q,i){
       var t=q.t.replace(/_{2,}/g,'<span style="display:inline-block;border-bottom:1.5px solid #000;min-width:60pt;margin:0 2px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
-      h+='<div style="margin-bottom:5pt;font-size:9.5pt;">'+(i+1)+'. '+t+(q.marks?' <span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')+'</div>';
+      h+='<div style="margin-bottom:5pt;font-size:9.5pt;">'+(i+1)+'. '+t+(hasPositiveMarks(q)?' <span style="float:right;font-weight:700;">['+questionMarks(q)+'m]</span>':'')+'</div>';
     });
     if(fitbs.length>5) h+='<div style="font-style:italic;color:var(--mute);font-size:9pt;">… '+(fitbs.length-5)+' more</div>';
   }
@@ -4929,7 +4926,7 @@ function renderDigitalLabPreview(papers,adm){
     var tSec=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
     h+='<div style="font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1.5px solid #000;padding-bottom:2px;margin:10px 0 4px;">Section '+tSec+' &mdash; Theory ('+ths.length+')</div>';
     ths.slice(0,3).forEach(function(q,i){
-      h+='<div style="margin-bottom:8pt;font-size:9.5pt;">'+(i+1)+'. '+q.t+(q.marks?' <span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
+      h+='<div style="margin-bottom:8pt;font-size:9.5pt;">'+(i+1)+'. '+q.t+(hasPositiveMarks(q)?' <span style="float:right;font-weight:700;">['+questionMarks(q)+' marks]</span>':'')
         +'<div style="border-bottom:1px solid #bbb;min-height:36pt;margin:3pt 0;"></div></div>';
     });
     if(ths.length>3) h+='<div style="font-style:italic;color:var(--mute);font-size:9pt;">… '+(ths.length-3)+' more</div>';
@@ -4948,7 +4945,7 @@ function buildPreviewCol(p,adm,today){
   var objs=qs.filter(function(q){ return q.k==='obj'; });
   var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
   var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
+  var total=sumQuestionMarks(qs);
   var h='<div style="border-bottom:.5px solid #000;margin-bottom:3px;padding-bottom:2px;display:flex;align-items:center;gap:2mm;">';
   if(logo) h+='<img src="'+logo+'" style="width:12px;height:12px;object-fit:contain;"/>';
   h+='<div><div style="font-size:8pt;font-weight:800;text-transform:uppercase;">'+esc(school)+'</div>'
@@ -4991,7 +4988,7 @@ window.runAiOptimize=async function(){
     if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+(pi+1)+'/'+Math.min(papers.length,3)+': '+esc(p.subj)+'…';
 
     var qsJson=JSON.stringify(qs.map(function(q,i){
-      return {n:i+1,k:q.k,t:q.t,o:q.o||null,a:q.a!==undefined?q.a:null,answer:q.answer||null,marks:q.marks||1,layout:q.layout||'standard'};
+      return {n:i+1,k:q.k,t:q.t,o:q.o||null,a:q.a!==undefined?q.a:null,answer:q.answer||null,marks:questionMarks(q),layout:q.layout||'standard'};
     }));
 
     var prompt='You are an expert Nigerian exam formatting specialist.\n\n'
@@ -5020,7 +5017,7 @@ window.runAiOptimize=async function(){
             o: nq.o||nq.options||orig.o||null,
             a: nq.a!==undefined?nq.a:(nq.answer!==undefined&&typeof nq.answer==='number'?nq.answer:orig.a),
             answer: nq.answer||orig.answer||null,
-            marks: nq.marks||orig.marks||1,
+            marks: nq.marks!==undefined?nq.marks:(orig.marks!==undefined?orig.marks:0),
             topic: nq.topic||orig.topic||'',
             layout: nq.layout||orig.layout||'standard',
             s: nq.s||nq.showSteps||orig.s||false,
@@ -5166,7 +5163,7 @@ function buildPaperHeader(p,adm,compact){
   var logo=adm.logo;
   var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
   var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  var total=(p.questions||[]).reduce(function(a,q){ return a+(q.marks||1); },0);
+  var total=sumQuestionMarks(p.questions||[]);
   var h='<div class="ep-header">';
   if(compact){
     // Compact header for economy col
@@ -5223,7 +5220,7 @@ function buildSectionsHtml(p,compact){
   if(objs.length){
     var use2col=(objs.length>=30);
     h+='<div class="ep-sec">Section A &mdash; Objectives ('+objs.length+')</div>';
-    if(!compact) h+='<div class="ep-sec-note">Circle the letter of the correct answer. Each = 1 mark.</div>';
+    if(!compact) h+='<div class="ep-sec-note">Circle the letter of the correct answer.</div>';
     h+='<div class="objective-container'+(use2col?' objective-2col':'')+'">';
     objs.forEach(function(q,i){ h+=formatObjective(q,i,compact?'compact':''); });
     h+='</div>';
@@ -5239,7 +5236,7 @@ function buildSectionsHtml(p,compact){
       var cls=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
       h+='<div class="ep-q'+(cls?' '+cls:'')+'">'
         +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')
+        +(hasPositiveMarks(q)?'<span style="float:right;font-weight:700;">['+questionMarks(q)+'m]</span>':'')
         +'</div>';
     });
   }
@@ -5254,7 +5251,7 @@ function buildSectionsHtml(p,compact){
       var ansClass=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
       h+='<div class="ep-q'+(q.layout==='compact'?' compact':q.layout==='wide'?' wide':'')+'">'
         +'<span class="ep-qn">'+(i+1)+'. </span>'+renderQuestionText(q)
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
+        +(hasPositiveMarks(q)?'<span style="float:right;font-weight:700;">['+questionMarks(q)+' marks]</span>':'')
         +'<div class="ep-ans'+(ansClass?' '+ansClass:'')+'"></div></div>';
     });
   }
@@ -5518,7 +5515,7 @@ window.runAiOptimize=async function(){
     if(status) status.innerHTML='<span class="spin">⟳</span> Optimizing '+(pi+1)+'/'+Math.min(papers.length,3)+': '+esc(p.subj)+'…';
 
     var qsJson=JSON.stringify(qs.map(function(q,i){
-      return {n:i+1,k:q.k,t:q.t,o:q.o||null,a:q.a!==undefined?q.a:null,answer:q.answer||null,marks:q.marks||1,layout:q.layout||'standard'};
+      return {n:i+1,k:q.k,t:q.t,o:q.o||null,a:q.a!==undefined?q.a:null,answer:q.answer||null,marks:questionMarks(q),layout:q.layout||'standard'};
     }));
 
     var prompt='You are an expert Nigerian exam formatting specialist.\n\n'
@@ -5547,7 +5544,7 @@ window.runAiOptimize=async function(){
             o: nq.o||nq.options||orig.o||null,
             a: nq.a!==undefined?nq.a:(nq.answer!==undefined&&typeof nq.answer==='number'?nq.answer:orig.a),
             answer: nq.answer||orig.answer||null,
-            marks: nq.marks||orig.marks||1,
+            marks: nq.marks!==undefined?nq.marks:(orig.marks!==undefined?orig.marks:0),
             topic: nq.topic||orig.topic||'',
             layout: nq.layout||orig.layout||'standard',
             s: nq.s||nq.showSteps||orig.s||false,
@@ -5819,7 +5816,7 @@ function buildMultiSubjectHtml(papers,adm){
   // Each subject as a section block
   papers.forEach(function(p,idx){
     var qs=p.questions||[];
-    var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
+    var total=sumQuestionMarks(qs);
 
     h+='<div class="multi-subject-block" style="margin-top:'+(idx===0?'4pt':'10pt')+';page-break-inside:avoid;break-inside:avoid;">';
     h+='<div style="background:#222;color:#fff;padding:3pt 8pt;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center;">';
@@ -5844,7 +5841,7 @@ function buildMultiSubjectHtml(papers,adm){
         var qtxt=q.t.replace(/_{2,}/g,'<span class="ep-fitb-blank" style="min-width:50pt;"></span>');
         h+='<div class="ep-q compact" style="font-size:8.5pt;">'
           +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-          +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+'m]</span>':'')
+          +(hasPositiveMarks(q)?'<span style="float:right;font-weight:700;">['+questionMarks(q)+'m]</span>':'')
           +'</div>';
       });
     }
@@ -5853,7 +5850,7 @@ function buildMultiSubjectHtml(papers,adm){
       ths.forEach(function(q,i){
         h+='<div class="ep-q compact" style="font-size:8.5pt;">'
           +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t
-          +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
+          +(hasPositiveMarks(q)?'<span style="float:right;font-weight:700;">['+questionMarks(q)+' marks]</span>':'')
           +(q._svgDiagram?'<div style="margin:2pt 0;">'+q._svgDiagram+'</div>':'')
           +'<div class="ep-ans compact"></div></div>';
       });
@@ -6380,7 +6377,7 @@ function buildNormalPrintHtml(p,adm){
   var objs=qs.filter(function(q){ return q.k==='obj'; });
   var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
   var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
+  var total=sumQuestionMarks(qs);
   var use2col=objs.length>=30;
 
   var h='<div class="ep" style="font-family:'+fontFam+';">'
@@ -6393,12 +6390,12 @@ function buildNormalPrintHtml(p,adm){
     +'<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span>'
     +'<span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>'
     +'<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span>'
-    +'<span>Standard: '+esc(p.std||'')+'</span><span>Ref: '+esc(p.ref)+'</span></div>'
+    +(p.std?'<span>Standard: '+esc(p.std)+'</span>':'')+'<span>Ref: '+esc(p.ref)+'</span></div>'
     +'</div>';
 
   if(objs.length){
     h+='<div class="ep-sec">Section A &mdash; Objectives ('+objs.length+' Questions)</div>'
-      +'<div class="ep-sec-note">Circle the letter of the correct answer. Each question = 1 mark.</div>'
+      +'<div class="ep-sec-note">Circle the letter of the correct answer.</div>'
       +'<div class="'+(use2col?'ep-obj-2col':'ep-obj-block')+'">';
     objs.forEach(function(q,i){
       var compact=(q.layout==='compact');
@@ -6416,7 +6413,7 @@ function buildNormalPrintHtml(p,adm){
       var cls=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
       h+='<div class="ep-q'+( cls?' '+cls:'')+'">'
         +'<span class="ep-qn">'+(i+1)+'. </span>'+qtxt
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' mark'+(q.marks>1?'s':'')+']</span>':'')
+        +(hasPositiveMarks(q)?'<span style="float:right;font-weight:700;">['+questionMarks(q)+' mark'+(questionMarks(q)>1?'s':'')+']</span>':'')
         +(q._svgDiagram?'<div style="margin:3pt 0;">'+q._svgDiagram+'</div>':'')
         +'</div>';
     });
@@ -6431,7 +6428,7 @@ function buildNormalPrintHtml(p,adm){
       var ansClass=q.layout==='compact'?'compact':q.layout==='wide'?'wide':'';
       h+='<div class="ep-q'+(q.layout==='compact'?' compact':q.layout==='wide'?' wide':'')+'">'
         +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t
-        +(q.marks?'<span style="float:right;font-weight:700;">['+q.marks+' marks]</span>':'')
+        +(hasPositiveMarks(q)?'<span style="float:right;font-weight:700;">['+questionMarks(q)+' marks]</span>':'')
         +(q._svgDiagram?'<div style="margin:4pt 0;">'+q._svgDiagram+'</div>':'')
         +'<div class="ep-ans'+(ansClass?' '+ansClass:'')+'"></div></div>';
     });
@@ -6488,7 +6485,7 @@ function buildEcoColumn(p,adm,today,wm,side){
   var objs=qs.filter(function(q){ return q.k==='obj'; });
   var fitbs=qs.filter(function(q){ return q.k==='fitb'; });
   var ths=qs.filter(function(q){ return q.k==='theory'; });
-  var total=qs.reduce(function(a,q){ return a+(q.marks||1); },0);
+  var total=sumQuestionMarks(qs);
 
   var h='';
   if(wm) h+='<div class="eco-wm'+(side==='right'?' eco-wm-r':'')+'" style="left:'+(side==='right'?'50%':'50%')+';">'+esc(wm)+'</div>';
@@ -6521,7 +6518,7 @@ function buildEcoColumn(p,adm,today,wm,side){
     fitbs.forEach(function(q,i){
       var t=q.t.replace(/_{2,}/g,'________');
       h+='<div class="ep-q compact" style="font-size:8.5pt;">'+(i+1)+'. '+esc(t)
-        +(q.marks?' <span style="float:right;">['+q.marks+'m]</span>':'')+'</div>';
+        +(hasPositiveMarks(q)?' <span style="float:right;">['+questionMarks(q)+'m]</span>':'')+'</div>';
     });
   }
 
@@ -6531,7 +6528,7 @@ function buildEcoColumn(p,adm,today,wm,side){
     h+='<div class="ep-sec" style="font-size:7.5pt!important;">Section '+tSec+' &mdash; Theory</div>';
     ths.forEach(function(q,i){
       h+='<div class="ep-q" style="font-size:8.5pt;">'+(i+1)+'. '+esc(q.t)
-        +(q.marks?' <span style="float:right;">['+q.marks+'m]</span>':'')
+        +(hasPositiveMarks(q)?' <span style="float:right;">['+questionMarks(q)+'m]</span>':'')
         +'<div class="ep-ans compact"></div></div>';
     });
   }
@@ -6618,7 +6615,7 @@ function buildMirrorColumn(p,adm,today){
     var tLbl=objs.length&&fitbs.length?'C':objs.length||fitbs.length?'B':'A';
     h+='<div class="eco-section-head">Section '+tLbl+' — Theory ('+ths.length+')</div>';
     ths.forEach(function(q,i){
-      h+='<div class="eco-q">'+(i+1)+'. '+esc(q.t)+(q.marks?' ['+q.marks+'m]':'')+'</div>';
+      h+='<div class="eco-q">'+(i+1)+'. '+esc(q.t)+(hasPositiveMarks(q)?' ['+questionMarks(q)+'m]':'')+'</div>';
     });
   }
   h+='<div class="eco-footer"><span>'+esc(p.ref)+'</span><span>ExamEngine Pro v10</span></div>';
