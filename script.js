@@ -1979,6 +1979,7 @@ function s1Auto(){
       var ex=sc.querySelector('.diff-wrap'); if(ex) ex.remove();
       if(S.cfg.std==='Custom/Internal'){ var dw=document.createElement('div'); dw.className='diff-wrap'; dw.innerHTML=renderDifficultyToggle(); sc.appendChild(dw); }
     }
+    checkS1Ready();
   };
   $('fin').oninput=function(e){ S.cfg.instr=e.target.value; };
   $('ftp').oninput=function(e){ S.cfg.topicText=e.target.value; checkS1Ready(); };
@@ -4567,14 +4568,16 @@ async function renderAdminPrint(){
       +'<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
       +'<button class="btn'+(isAuto?' bp':' bq')+'" onclick="setPrintMode(\'auto\')" style="flex:1;min-width:100px;'+(isAuto?'background:var(--admin);border-color:var(--admin);':'')+'">'+autoLabel+'<br/><span style="font-size:9px;font-weight:400;opacity:.8;">Best fit</span></button>'
       +'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;">'
       +'<button class="btn'+(!isAuto&&modeForUI==='portrait'?' bp':' bq')+'" onclick="setPrintMode(\'portrait\')" style="text-align:left;padding:8px 10px;">'
-      +'&#128203; Portrait<br/><span style="font-size:9px;font-weight:400;opacity:.7;">A4 portrait · full page</span></button>'
+      +'📄 Portrait<br/><span style="font-size:9px;font-weight:400;opacity:.7;">A4 portrait</span></button>'
       +'<button class="btn'+(!isAuto&&modeForUI==='landscape'?' bp':' bq')+'" onclick="setPrintMode(\'landscape\')" style="text-align:left;padding:8px 10px;">'
-      +'&#128421; Landscape<br/><span style="font-size:9px;font-weight:400;opacity:.7;">A4 landscape · one subject</span></button>'
-      +'<button class="btn'+(!isAuto&&modeForUI==='split'?' bp':' bq')+'" onclick="setPrintMode(\'split\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='split')?'background:var(--admin);border-color:var(--admin);':'')+'">&#9988; Split 2-in-1<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Landscape · Front [A|B] Back [B|A]</span></button>'
+      +'🗺️ Landscape<br/><span style="font-size:9px;font-weight:400;opacity:.7;">A4 landscape</span></button>'
+      +'<button class="btn'+(!isAuto&&modeForUI==='split'?' bp':' bq')+'" onclick="setPrintMode(\'split\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='split')?'background:var(--admin);border-color:var(--admin);':'')+'">&#9988; Split 2-in-1<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Side-by-side [A|B]</span></button>'
       +'<button class="btn'+(!isAuto&&modeForUI==='multi'?' bp':' bq')+'" onclick="setPrintMode(\'multi\')" style="text-align:left;padding:8px 10px;">'
-      +'&#128209; Multi-Subject<br/><span style="font-size:9px;font-weight:400;opacity:.7;">2–3 subjects on one page</span></button>'
+      +'📑 Multi-Sub<br/><span style="font-size:9px;font-weight:400;opacity:.7;">2+ on page</span></button>'
+      +'<button class="btn'+(!isAuto&&modeForUI==='dup2'?' bp':' bq')+'" onclick="setPrintMode(\'dup2\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='dup2')?'background:var(--admin);border-color:var(--admin);':'')+'">&#128111; 2/4 Print<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Duplicate x2</span></button>'
+      +'<button class="btn'+(!isAuto&&modeForUI==='dup4'?' bp':' bq')+'" onclick="setPrintMode(\'dup4\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='dup4')?'background:var(--admin);border-color:var(--admin);':'')+'">&#128111; 4/4 Print<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Duplicate x4</span></button>'
       +'</div>'
       +(isAuto?'<div class="banner b-info" style="margin-bottom:10px;font-size:11px;">🤖 <strong>Auto-selected: '+getModeName(resolved)+'</strong> — '+getModeDesc(resolved)+'</div>':'')
       +(modeForUI==='split'?'<div class="banner b-info" style="margin-bottom:10px;font-size:11px;">&#9988; <strong>Split 2-in-1:</strong> Landscape A4 with two side-by-side copies. Cut down the middle. Front: [A|B] · Back: [B|A] (duplex aligned).'+(paperFitsHalfPage(papers[0])?'<br/><span style="color:var(--green);font-weight:700;">✓ Content fits half-page</span>':'<br/><span style="color:var(--amber);font-weight:700;">⚠ Content may overflow — consider Portrait or Landscape</span>')+'</div>':'')
@@ -5635,6 +5638,8 @@ function resolveLayoutMode(papers){
   if(cfg.printMode==='split'||cfg.printMode==='economy') return 'split';
   if(cfg.printMode==='landscape') return 'landscape';
   if(cfg.printMode==='multi') return 'multi';
+  if(cfg.printMode==='dup2') return 'dup2';
+  if(cfg.printMode==='dup4') return 'dup4';
   if(cfg.printMode==='portrait'||cfg.printMode==='normal') return 'portrait';
   return 'portrait';
 }
@@ -5652,7 +5657,7 @@ function paperFitsHalfPage(paper){
 
 /* Human-readable mode labels */
 function getModeName(mode){
-  var map={portrait:'📃 Portrait A4',landscape:'🖥 Full Landscape',split:'✂️ Split 2-in-1',multi:'📑 Multi-Subject',auto:'🤖 Auto'};
+  var map={portrait:'📃 Portrait A4',landscape:'🖥 Full Landscape',split:'✂️ Split 2-in-1',multi:'📑 Multi-Subject',dup2:'👯 2/4 Print',dup4:'👯 4/4 Print',auto:'🤖 Auto'};
   return map[mode]||map.portrait;
 }
 
@@ -5661,7 +5666,9 @@ function getModeDesc(mode){
     portrait:'Full A4 portrait · one subject per page',
     landscape:'A4 landscape · one subject, optimized spacing',
     split:'Landscape · two copies side-by-side · Front [A|B] · Back [B|A] duplex',
-    multi:'Multiple short subjects stacked on one page'
+    multi:'Multiple short subjects stacked on one page',
+    dup2:'A4 portrait with 2 identical copies split horizontally (A5 each)',
+    dup4:'A4 portrait with 4 identical copies in a grid (A6 each)'
   };
   return map[mode]||map.portrait;
 }
@@ -5802,9 +5809,69 @@ window.doPrint=function(){
   var bodyHtml='';
   var isLandscape=false;
 
+function buildDup2Html(p, adm) {
+  var h='<div style="display:flex; flex-direction:column; height:297mm; width:210mm; overflow:hidden;">';
+  var cell = '<div style="flex:1; height:148.5mm; overflow:hidden; border-bottom:1px dashed #ccc; position:relative; box-sizing:border-box;">'
+           + '<div class="ep" style="padding:6mm; max-width:100%; height:100%;">'
+           + buildPaperHeader(p,adm,true)
+           + buildSectionsHtml(p,true)
+           + buildHouseStyleFooter(p,adm,true)
+           + '<div class="ep-footer">'+esc(p.ref)+'</div>'
+           + '</div></div>';
+  h += cell + cell;
+  h += '</div>';
+  return h;
+}
+
+function buildDup4Html(p, adm) {
+  var h='<div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:148.5mm 148.5mm; width:210mm; height:297mm; overflow:hidden; box-sizing:border-box;">';
+  var cell = '<div style="overflow:hidden; border-right:1px dashed #ccc; border-bottom:1px dashed #ccc; position:relative; box-sizing:border-box;">'
+           + '<div class="ep" style="padding:4mm; font-size:8pt!important; line-height:1.2!important; max-width:100%; height:100%;">'
+           + buildPaperHeader(p,adm,true)
+           + buildSectionsHtml(p,true)
+           + buildHouseStyleFooter(p,adm,true)
+           + '<div class="ep-footer">'+esc(p.ref)+'</div>'
+           + '</div></div>';
+  h += cell + cell + cell + cell;
+  h += '</div>';
+  return h;
+}
+
+/* Execute batch print: each paper routed through its correct mode, 
+   all concatenated into one document window. */
+function executeBatchPrint(papers){
+  if(!papers||!papers.length){ toast('No papers selected.','warn'); return; }
+  var adm=getAdminSettings();
+  window._printPapers=papers;
+
+  /* ── Resolve layout mode ── */
+  var mode=resolveLayoutMode(papers);
+
+  /* ── Overflow guard for split ── */
+  if(mode==='split'&&!paperFitsHalfPage(papers[0])){
+    toast('⚠ Content too long for Split 2-in-1 — switching to Landscape','warn',4000);
+    mode='landscape';
+  }
+
+  /* ── Build body HTML ── */
+  var bodyHtml='';
+  var isLandscape=false;
+
   if(mode==='split'){
     bodyHtml=buildEconomyFrame(papers,adm);
     isLandscape=true;
+  } else if(mode==='dup2'){
+    isLandscape=false;
+    papers.forEach(function(p,i){
+      if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
+      bodyHtml+=buildDup2Html(p,adm);
+    });
+  } else if(mode==='dup4'){
+    isLandscape=false;
+    papers.forEach(function(p,i){
+      if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
+      bodyHtml+=buildDup4Html(p,adm);
+    });
   } else if(mode==='multi'){
     var result=buildMultiSubjectHtml(papers,adm);
     bodyHtml=result.html;
@@ -6669,6 +6736,8 @@ window.clearAllData = async function(){
     }
     
     if(res && res.error) throw new Error(res.error.message);
+    window._publishedPapers = null;
+    localStorage.removeItem('ee_draft');
     toast('Database wiped successfully!','ok', 4000);
     navTo(CURRENT_USER.role === 'admin' ? 'admin-dash' : 'dash');
   } catch(e) {
