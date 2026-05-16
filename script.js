@@ -5790,24 +5790,6 @@ function buildMultiSubjectHtml(papers,adm){
 /* ══════════════════════════════════════
    PRINT ENGINE — doPrint (updated for 4 modes)
 ══════════════════════════════════════ */
-window.doPrint=function(){
-  var papers=window._printPapers||[];
-  var adm=getAdminSettings();
-  if(!papers.length){ toast('No papers in lab to print','warn'); return; }
-  window._printPapers=papers;
-
-  /* ── Resolve layout mode ── */
-  var mode=resolveLayoutMode(papers);
-
-  /* ── Overflow guard for split ── */
-  if(mode==='split'&&!paperFitsHalfPage(papers[0])){
-    toast('⚠ Content too long for Split 2-in-1 — switching to Landscape','warn',4000);
-    mode='landscape';
-  }
-
-  /* ── Build body HTML ── */
-  var bodyHtml='';
-  var isLandscape=false;
 
 function buildDup2Html(p, adm) {
   var h='<div style="display:flex; flex-direction:column; height:297mm; width:210mm; overflow:hidden;">';
@@ -5837,11 +5819,10 @@ function buildDup4Html(p, adm) {
   return h;
 }
 
-/* Execute batch print: each paper routed through its correct mode, 
-   all concatenated into one document window. */
-function executeBatchPrint(papers){
-  if(!papers||!papers.length){ toast('No papers selected.','warn'); return; }
+window.doPrint=function(){
+  var papers=window._printPapers||[];
   var adm=getAdminSettings();
+  if(!papers.length){ toast('No papers in lab to print','warn'); return; }
   window._printPapers=papers;
 
   /* ── Resolve layout mode ── */
@@ -6175,6 +6156,10 @@ function executeBatchPrint(papers){
         bodyHtml+=buildLandscapePaperHtml(p,adm);
         anyLandscape=true;
       }
+    } else if(m==='dup2'){
+      bodyHtml+=buildDup2Html(p,adm);
+    } else if(m==='dup4'){
+      bodyHtml+=buildDup4Html(p,adm);
     } else if(m==='landscape'){
       bodyHtml+=buildLandscapePaperHtml(p,adm);
       anyLandscape=true;
