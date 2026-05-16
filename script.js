@@ -5785,8 +5785,8 @@ window.doPrint=function(){
 
   /* ── @page rule ── */
   var pageRule=isLandscape
-    ?'@page{size:A4 landscape;margin:8mm;}'
-    :'@page{size:A4 portrait;margin:15mm 20mm 12mm;}';
+    ?'@page{size:A4 landscape;margin:0;}'
+    :'@page{size:A4 portrait;margin:0;}';
 
   /* ── KaTeX CDN (same version as parent) ── */
   var katexCss='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
@@ -5795,7 +5795,7 @@ window.doPrint=function(){
 
   /* ── Exam paper CSS (self-contained — no app chrome) ── */
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:6mm 8mm 6mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
     '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
     '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
@@ -6080,8 +6080,8 @@ function executeBatchPrint(papers){
      since mixing @page rules per section isn't reliable. Portrait-only papers
      render with extra padding in landscape @page frame. */
   var pageRule=anyLandscape
-    ?'@page{size:A4 landscape;margin:8mm;}'
-    :'@page{size:A4 portrait;margin:15mm 20mm 12mm;}';
+    ?'@page{size:A4 landscape;margin:0;}'
+    :'@page{size:A4 portrait;margin:0;}';
 
   openPrintWindow(bodyHtml, pageRule, 'Batch Print \u2014 '+papers.length+' paper(s)');
 }
@@ -6094,7 +6094,7 @@ function openPrintWindow(bodyHtml, pageRule, title){
   var katexAuto='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
 
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:6mm 8mm 6mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
     '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
     '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
