@@ -1367,15 +1367,7 @@ window.saveTrade = async function(){
   var ok=await _saveAdminSetting('trade_subject',S.tradeSubject);
   toast(ok?'Trade subject saved system-wide: '+getTradeById(S.tradeSubject).name+' ✓':'Trade subject saved locally, but global admin save failed',ok?'ok':'err');
 };
-window.clearAllData = async function(){
-  if(!confirm('Delete ALL papers from the database? This cannot be undone.')) return;
-  if(CURRENT_USER && CURRENT_USER.role==='admin'){
-    await _supabase.from('papers').delete().neq('id','00000000-0000-0000-0000-000000000000');
-  } else {
-    await _supabase.from('papers').delete().eq('user_id', CURRENT_USER.id);
-  }
-  toast('All papers cleared','ok');
-};
+/* clearAllData is defined below near admin functions — single source of truth */
 window.restoreDraft=function(){
   var d=window._savedDraft; if(!d||!d.slots) return;
   S.cfg=Object.assign({cls:'',term:'1st Term',session:'2025/2026',subj:'',std:'',topics:[],topicText:'',objN:10,fitbN:0,thN:5,instr:'Answer all questions. Time allowed: 1 hour 30 minutes.',theoryPaperInstr:'',theoryAiInstr:'',school:S.cfg.school||''},d.cfg||{});
@@ -2481,6 +2473,23 @@ function buildPrompt(cfg,type,count,extra){
     :'';
 
   var isEarlyChildhood=/creche|cr[eê]che|kg|kindergarten|nursery/i.test(cfg.cls);
+  var isHandwriting=/handwriting/i.test(subj);
+
+  /* ── HANDWRITING SPECIAL INTERCEPT (Early Childhood) ── */
+  if(isEarlyChildhood && isHandwriting){
+    return 'You are a primary school handwriting teacher for a Nigerian early childhood class ('+cfg.cls+'). '+
+      'Generate exactly '+count+' handwriting practice sentences for young pupils aged 2-6 to copy out. '+
+      'Rules:\n'+
+      '  - Each sentence MUST be short (5-10 words maximum).\n'+
+      '  - Use very simple, common everyday words only (e.g. cat, dog, ball, red, big, I can, The sun).\n'+
+      '  - Each sentence must be meaningful and age-appropriate.\n'+
+      '  - NO exam questions, NO fill-in-blanks, NO options, NO marks.\n'+
+      '  - Sentences should be suitable for tracing and copying practice.\n'+
+      'Return ONLY a valid JSON array of exactly '+count+' objects:\n'+
+      '{"q":"The sentence to copy.","k":"theory","marks":0,"topic":"Handwriting","difficulty":"easy","svgDescription":""}\n'+
+      'Return ONLY the JSON array. No explanation. No markdown.';
+  }
+
   var p=isEarlyChildhood
     ? 'CRITICAL: This is an EARLY CHILDHOOD class ('+cfg.cls+'). You MUST use extremely simple vocabulary (3-4 letter words). Focus strictly on basic identification, phonics, number work, and simple daily objects. DO NOT use advanced math or high-school structures. Generate exactly '+count+' '
     : 'You are a Nigerian exam expert following NERDC 2026 curriculum. Generate exactly '+count+' ';
@@ -5139,6 +5148,26 @@ function buildSectionsHtml(p,compact){
   var ths=qs.filter(function(q){ return q.k==='theory'; });
   var h='';
 
+  /* ── HANDWRITING SUBJECT — special large-sentence rendering ── */
+  var isHandwritingPaper=/handwriting/i.test(p.subj||'');
+  var isEarlyPaper=/creche|cr[eê]che|kg|kindergarten|nursery/i.test(p.cls||'');
+  if(isHandwritingPaper && isEarlyPaper && ths.length){
+    h+='<div class="ep-sec">Handwriting Practice</div>';
+    if(!compact) h+='<div class="ep-sec-note">Copy each sentence neatly in the space provided below each line.</div>';
+    ths.forEach(function(q,i){
+      var sentence=esc(q.q||'');
+      h+='<div style="margin:8pt 0 4pt; page-break-inside:avoid;">'
+        +'<div style="font-size:'+(compact?'12pt':'16pt')+'; font-weight:700; line-height:1.8; font-family:\'Times New Roman\',serif; padding:2pt 0;">'
+        +(i+1)+'. '+sentence
+        +'</div>'
+        +'<div style="border-bottom:1pt solid #999; margin:'+(compact?'8pt':'12pt')+' 0 0; height:0;"></div>'
+        +'<div style="border-bottom:1pt solid #999; margin:'+(compact?'8pt':'12pt')+' 0 0; height:0;"></div>'
+        +'<div style="border-bottom:1pt solid #999; margin:'+(compact?'8pt':'12pt')+' 0 0; height:0;"></div>'
+        +'</div>';
+    });
+    return h;
+  }
+
   // OBJECTIVES — always inline, never stacked options
   if(objs.length){
     var use2col=(objs.length>=30);
@@ -6702,14 +6731,11 @@ window.clearAllData = async function(){
   if(!_supabase){ toast('Database not connected.','err'); return; }
   if(!CURRENT_USER){ toast('Not logged in.','err'); return; }
   if(!confirm('🚨 WARNING: Are you sure you want to WIPE your published papers? This cannot be undone!')) return;
-  
+
   if(CURRENT_USER.role === 'admin') {
-    if(!confirm('🛑 ADMIN WARNING: This will delete ALL papers from the database permanently. Type "WIPE" to confirm.')) return;
+    if(!confirm('🛑 ADMIN WARNING: This will delete ALL papers from the database permanently.')) return;
     var wipeCode = prompt('Type "WIPE" to confirm deleting ALL papers:');
-    if(wipeCode !== 'WIPE') {
-      toast('Wipe cancelled.','info');
-      return;
-    }
+    if(wipeCode !== 'WIPE') { toast('Wipe cancelled.','info'); return; }
   }
 
   try {
@@ -6719,12 +6745,15 @@ window.clearAllData = async function(){
     } else {
       res = await _supabase.from('papers').delete().eq('user_id', CURRENT_USER.id);
     }
-    
     if(res && res.error) throw new Error(res.error.message);
+    /* Nuclear cache clear — destroy all in-memory state, then hard reload */
     window._publishedPapers = null;
-    localStorage.removeItem('ee_draft');
-    toast('Database wiped successfully!','ok', 4000);
-    navTo(CURRENT_USER.role === 'admin' ? 'admin-dash' : 'dash');
+    window._adminSettingsCache = null;
+    window._printPapers = null;
+    try { localStorage.removeItem('ee_draft'); } catch(ex){}
+    try { sessionStorage.clear(); } catch(ex){}
+    toast('✓ Database wiped — reloading…', 'ok', 2000);
+    setTimeout(function(){ window.location.reload(true); }, 1800);
   } catch(e) {
     toast('Wipe failed: ' + e.message, 'err');
   }
