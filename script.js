@@ -1083,24 +1083,9 @@ async function renderDash(){
     +'<div class="stat-card"><div class="stat-num">'+thisTerm+'</div><div class="stat-lbl">This Term</div><div class="stat-sub">'+termKey+'</div></div>'
     +'<div class="stat-card"><div class="stat-num">'+drafts.length+'</div><div class="stat-lbl">Drafts</div><div class="stat-sub">In progress</div></div>'
     +'</div>'
-    +'<div class="recent-head">'
-    +'<div class="recent-title">Recent Papers</div>'
-    +'<div class="recent-all" onclick="navTo(\'arch\')">View all →</div>'
+    +'<div style="text-align:center;margin-top:24px;">'
+    +'<button class="btn bq" onclick="navTo(\'arch\')" style="padding:10px 24px;border-radius:20px;font-weight:600;">📚 View My Questions Archive →</button>'
     +'</div>'
-    +(recentAll.length ? recentAll.map(function(p){
-      var statusCls=p.adminStatus==='approved'?'sp-pub':p.adminStatus==='rejected'?'sp-draft':'sp-draft';
-      var statusTxt=p.adminStatus==='approved'?'Approved':p.adminStatus==='rejected'?'Rejected':p.adminStatus==='submitted'?'Pending Admin':'Draft';
-      return '<div class="recent-card" onclick="viewPaperDetail(\''+esc(p.ref)+'\')">'
-        +'<div class="recent-ico">📄</div>'
-        +'<div class="recent-body">'
-        +'<div class="recent-subj">'+esc(p.subj)+' — '+esc(p.cls)+'</div>'
-        +'<div class="recent-meta">'+esc(p.term)+' · '+esc(p.at)+' · '+esc(p.std)+(p.school?' · '+esc(p.school):'')+'</div>'
-        +'<div class="recent-ref">'+esc(p.ref)+'</div>'
-        +'</div>'
-        +'<div class="status-pill '+statusCls+'">'+statusTxt+'</div>'
-        +'</div>';
-    }).join('')
-    : '<div class="dash-empty"><div class="dash-empty-ico">📋</div>No papers yet.<br/>Tap <strong>Set New Questions</strong> to create your first exam paper.</div>')
     +'</div>';
 }
 
@@ -1195,8 +1180,11 @@ async function renderArch(){
   var papers=await getPublished();
 
   el.innerHTML='<div class="pgw fade">'
-    +'<div class="ptl">Archive</div>'
-    +'<div class="pst">All submitted papers — '+papers.length+' total.</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+    +'<div><div class="ptl">Archive</div>'
+    +'<div class="pst">All submitted papers — '+papers.length+' total.</div></div>'
+    +(CURRENT_USER && CURRENT_USER.role !== 'admin' ? '<button class="btn bred bsm" onclick="clearAllData()">🗑 Wipe Database</button>' : '')
+    +'</div>'
     +'<div class="arch-search">'
     +'<input class="fi" id="archSearch" placeholder="Filter by subject, class or ref…" oninput="filterArch()"/>'
     +'</div>'
@@ -4524,48 +4512,11 @@ async function renderAdminPrint(){
 
   el.innerHTML='<div class="pgw fade">'
     +'<div class="ptl">🔬 Digital Lab</div>'
-    +'<div class="pst">Format, brand, and print exam papers using natural language commands.</div>'
-    +'<div class="nl-lab-bar">'
-    +'<div class="nl-lab-header">'
-    +'<div class="nl-lab-icon">✨</div>'
-    +'<div><div class="nl-lab-title">Layout Agent</div>'
-    +'<div class="nl-lab-sub">Type layout instructions or describe a diagram to inject into a specific question</div>'
-    +'</div></div>'
-    +'<div class="nl-lab-input-row">'
-    +'<textarea id="labCommandInput" class="nl-lab-input" rows="2" placeholder="e.g. \'2 columns, landscape, Times New Roman 12pt\' or \'Add a diagram of the water cycle to Question 3\'"></textarea>'
-    +'<button class="nl-lab-go" id="labGoBtn" onclick="runLabCommand()">&#9654; Apply</button>'
-    +'</div>'
-    +'<div class="lab-config-strip" id="labConfigStrip">'+renderLabConfigStrip()+'</div>'
-    +'<div class="lab-history" id="labHistory">'+renderLabHistory()+'</div>'
-    +'</div>'
+    +'<div class="pst">Format and print exam papers.</div>'
     +(papers.length
       ?'<div class="card"><div class="ct">Papers in Lab ('+papers.length+')</div>'+papersHtml+'</div>'
       :papersHtml)
     +previewHtml
-    +'<div class="card">'
-    +'<div class="ct">School Branding</div>'
-    +'<div class="r2"><div>'
-    +'<div class="fl"><label>Institution Name</label>'
-    +'<input type="text" class="fi" id="adminSchoolName" value="'+esc(adm.school)+'" placeholder="e.g. Way To Success Standard Schools"/></div>'
-    +'<div class="fl"><label>School Address</label>'
-    +'<input type="text" class="fi" id="adminAddress" value="'+esc(adm.address)+'" placeholder="e.g. Oko/Ijado Road, Ejigbo, Osun State"/></div>'
-    +'<div class="fl"><label>Watermark Text</label>'
-    +'<input type="text" class="fi" id="adminWatermark" value="'+esc(adm.watermark)+'" placeholder="e.g. CONFIDENTIAL" maxlength="30"/></div>'
-    +'<button class="btn bp bsm" onclick="saveBranding()" style="margin-top:4px;">&#128190; Save Branding</button>'
-    +'</div>'
-    +'<div>'
-    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:8px;">School Logo</label>'
-    +'<div class="brand-preview" id="logoPreview">'
-    +(adm.logo?'<img class="brand-logo-preview" src="'+adm.logo+'" alt="Logo"/>':'<div class="dash-empty-ico" style="font-size:32px;">&#127978;</div><div style="font-size:11px;color:var(--mute);">No logo uploaded</div>')
-    +(adm.watermark?'<div class="watermark-preview">'+esc(adm.watermark)+'</div>':'')
-    +'</div>'
-    +'<label class="upload-zone" style="margin-top:10px;display:block;cursor:pointer;">'
-    +'<div class="upload-zone-ico">&#128193;</div>'
-    +'<div class="upload-zone-text">Upload Logo (PNG/JPG, max 200KB)</div>'
-    +'<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none;" onchange="uploadLogo(event)"/>'
-    +'</label>'
-    +(adm.logo?'<button class="btn bred bsm" onclick="removeLogo()" style="margin-top:6px;width:100%;">&#128465; Remove Logo</button>':'')
-    +'</div></div></div>'
     +(papers.length?(function(){
       var pm=ADMIN.labConfig.printMode;
       var resolved=resolveLayoutMode(papers);
@@ -4881,7 +4832,7 @@ function renderDigitalLabPreview(papers,adm){
     });
     if(ths.length>3) h+='<div style="font-style:italic;color:var(--mute);font-size:9pt;">… '+(ths.length-3)+' more</div>';
   }
-  h+='<div style="font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:3px;margin-top:12px;text-align:center;">'+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12</div>';
+  h+='<div style="font-size:7.5pt;color:#888;border-top:1px solid #ddd;padding-top:3px;margin-top:12px;text-align:center;">'+esc(p.ref)+' &bull; ExamEngine Pro v12</div>';
   h+='</div>';
   el.innerHTML=headerBadge+h;
   setTimeout(function(){ math(el); },200);
@@ -5117,22 +5068,21 @@ function buildPaperHeader(p,adm,compact){
   if(compact){
     // Compact header for economy col
     h+='<div style="display:flex;align-items:center;gap:2mm;">';
-    if(logo) h+='<img src="'+logo+'" style="width:10mm;height:10mm;object-fit:contain;flex-shrink:0;"/>';
+    if(logo) h+='<img src="'+logo+'" style="max-height:10mm;max-width:10mm;object-fit:contain;flex-shrink:0;"/>';
     h+='<div style="flex:1;text-align:left;">'
       +'<div class="ep-school" style="font-size:8.5pt!important;letter-spacing:.2px;">'+esc(school)+'</div>'
       +(address?'<div style="font-size:6pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
       +'<div class="ep-title" style="font-size:7.5pt!important;">'+assessmentLabel(p.at,true)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
-      +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>&bull;<span>'+total+' marks</span>&bull;<span>'+today+'</span></div>'
+      +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>&bull;<span>'+total+' marks</span></div>'
       +'</div></div>';
   } else {
     // Full header for normal
-    if(logo) h+='<img style="width:48pt;height:48pt;object-fit:contain;border-radius:5pt;display:block;margin:0 auto 4pt;" src="'+logo+'"/>';
+    if(logo) h+='<img style="max-height:45pt;max-width:45pt;object-fit:contain;border-radius:5pt;display:block;margin:0 auto 4pt;" src="'+logo+'"/>';
     else h+='<div class="ep-crest">'+initials+'</div>';
     h+='<div class="ep-school">'+esc(school)+'</div>';
     if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
     h+='<div class="ep-title">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
-    h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>';
-    h+='<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span><span>Standard: '+esc(p.std||'')+'</span><span>Ref: '+esc(p.ref)+'</span></div>';
+    h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Total: <strong>'+total+' marks</strong></span><span>Ref: '+esc(p.ref)+'</span></div>';
   }
   h+='</div>';
   return h;
@@ -5698,7 +5648,7 @@ function buildLandscapePaperHtml(p,adm){
     +buildSectionsHtml(p,false)
     +'</div>'
     +buildHouseStyleFooter(p,adm,false)
-    +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12.5</div>'
+    +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; ExamEngine Pro v12.5</div>'
     +'</div>';
   return h;
 }
@@ -5845,37 +5795,37 @@ window.doPrint=function(){
 
   /* ── Exam paper CSS (self-contained — no app chrome) ── */
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:10mm 12mm 8mm!important;font-size:10pt!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:6mm 8mm 6mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
-    '.ep{font-family:"Times New Roman",serif;font-size:11pt;line-height:1.7;color:#000;padding:18mm 20mm 14mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
-    '.ep-header{text-align:center;border-bottom:3pt double #000;padding-bottom:7pt;margin-bottom:9pt;}\n'+
-    '.ep-crest{width:48pt;height:48pt;border:2pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14pt;margin:0 auto 5pt;}\n'+
-    '.ep-school{font-size:14pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2pt;}\n'+
-    '.ep-title{font-size:12pt;font-weight:700;text-transform:uppercase;margin-bottom:2pt;}\n'+
-    '.ep-meta{font-size:10pt;margin-bottom:2pt;}\n'+
-    '.ep-meta span{margin:0 8pt;}\n'+
-    '.ep-instr{font-size:9pt;font-style:italic;border:1pt solid #666;padding:4pt 8pt;margin:6pt 0;}\n'+
-    '.ep-sec{font-size:11pt;font-weight:700;text-transform:uppercase;border-bottom:1.5pt solid #000;padding-bottom:2pt;margin:12pt 0 3pt;}\n'+
-    '.ep-sec-note{font-size:9pt;font-style:italic;color:#333;border-left:2pt solid #999;padding-left:6pt;margin-bottom:5pt;}\n'+
-    '.ep-footer{font-size:8pt;color:#555;text-align:center;border-top:1pt solid #ccc;padding-top:3pt;margin-top:14pt;}\n'+
+    '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
+    '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
+    '.ep-crest{width:36pt;height:36pt;border:1.5pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11pt;margin:0 auto 3pt;}\n'+
+    '.ep-school{font-size:12.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1pt;}\n'+
+    '.ep-title{font-size:10.5pt;font-weight:700;text-transform:uppercase;margin-bottom:1pt;}\n'+
+    '.ep-meta{font-size:9pt;margin-bottom:1pt;}\n'+
+    '.ep-meta span{margin:0 5pt;}\n'+
+    '.ep-instr{font-size:8pt;font-style:italic;border:1pt solid #666;padding:2pt 4pt;margin:3pt 0;}\n'+
+    '.ep-sec{font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1pt solid #000;padding-bottom:1pt;margin:6pt 0 2pt;}\n'+
+    '.ep-sec-note{font-size:8pt;font-style:italic;color:#333;border-left:1.5pt solid #999;padding-left:4pt;margin-bottom:3pt;}\n'+
+    '.ep-footer{font-size:7.5pt;color:#555;text-align:center;border-top:.5pt solid #ccc;padding-top:2pt;margin-top:6pt;}\n'+
     '.ep-wm{position:fixed;bottom:40mm;left:50%;transform:translateX(-50%) rotate(-35deg);font-size:60pt;color:rgba(0,0,0,.04);font-weight:900;white-space:nowrap;pointer-events:none;}\n'+
-    '.ep-q{margin-bottom:8pt;page-break-inside:avoid;break-inside:avoid;}\n'+
-    '.ep-q.compact{margin-bottom:3pt;line-height:1.4;}\n'+
-    '.ep-q.wide{margin-bottom:14pt;line-height:2.0;}\n'+
-    '.ep-q-obj{margin-bottom:4pt;font-size:8.5pt;line-height:1.35;break-inside:avoid;page-break-inside:avoid;}\n'+
-    '.ep-q-obj.compact{margin-bottom:2pt;line-height:1.25;}\n'+
+    '.ep-q{margin-bottom:3pt;page-break-inside:avoid;break-inside:avoid;}\n'+
+    '.ep-q.compact{margin-bottom:1.5pt;line-height:1.2;}\n'+
+    '.ep-q.wide{margin-bottom:6pt;line-height:1.6;}\n'+
+    '.ep-q-obj{margin-bottom:1.5pt;font-size:8pt;line-height:1.2;break-inside:avoid;page-break-inside:avoid;}\n'+
+    '.ep-q-obj.compact{margin-bottom:1pt;line-height:1.1;}\n'+
     '.ep-obj-2col{column-count:2;column-gap:10mm;}\n'+
     '.ep-obj-block{display:block;}\n'+
     '.ep-opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
     '.ep-opt-inline-k{font-weight:700;}\n'+
     '.opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
     '.opt-inline-k{font-weight:700;}\n'+
-    '.objective-item{break-inside:avoid;page-break-inside:avoid;margin-bottom:4px;font-size:8.5pt;line-height:1.2;display:block;}\n'+
+    '.objective-item{break-inside:avoid;page-break-inside:avoid;margin-bottom:2px;font-size:8.5pt;line-height:1.2;display:block;}\n'+
     '.ep-qn{font-weight:700;}\n'+
     '.ep-fitb-blank{display:inline-block;border-bottom:1.5pt solid #000;min-width:70pt;margin:0 2pt;}\n'+
-    '.ep-ans{border-bottom:1pt solid #bbb;min-height:48pt;margin:3pt 0 9pt;}\n'+
-    '.ep-ans.compact{min-height:24pt;}\n'+
-    '.ep-ans.wide{min-height:70pt;}\n'+
+    '.ep-ans{border-bottom:1pt solid #bbb;min-height:36pt;margin:2pt 0 6pt;}\n'+
+    '.ep-ans.compact{min-height:18pt;}\n'+
+    '.ep-ans.wide{min-height:48pt;}\n'+
     '.eco-page-pair{display:grid;grid-template-columns:1fr 1fr;width:100%;min-height:185mm;page-break-after:always;position:relative;}\n'+
     '.eco-page-pair:last-child{page-break-after:auto;}\n'+
     '.eco-col{padding:6mm 7mm;box-sizing:border-box;font-size:8.5pt;line-height:1.35;overflow:hidden;position:relative;font-family:"Times New Roman",serif;}\n'+
@@ -6144,36 +6094,61 @@ function openPrintWindow(bodyHtml, pageRule, title){
   var katexAuto='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
 
   var css=pageRule+'\n'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.ep{padding:6mm 8mm 6mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
-    '.ep{font-family:"Times New Roman",serif;font-size:11pt;line-height:1.7;color:#000;padding:18mm 20mm 14mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
-    '.ep-header{text-align:center;border-bottom:3pt double #000;padding-bottom:7pt;margin-bottom:9pt;}\n'+
-    '.ep-crest{width:48pt;height:48pt;border:2pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14pt;margin:0 auto 5pt;}\n'+
-    '.ep-school{font-size:14pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2pt;}\n'+
-    '.ep-title{font-size:12pt;font-weight:700;text-transform:uppercase;margin-bottom:2pt;}\n'+
-    '.ep-meta{font-size:10pt;margin-bottom:2pt;}\n'+
-    '.ep-meta span{margin:0 8pt;}\n'+
-    '.ep-sec{font-size:11pt;font-weight:700;text-transform:uppercase;border-bottom:1.5pt solid #000;padding-bottom:2pt;margin:12pt 0 3pt;}\n'+
-    '.ep-sec-note{font-size:9pt;font-style:italic;color:#333;border-left:2pt solid #999;padding-left:6pt;margin-bottom:5pt;}\n'+
-    '.ep-footer{font-size:8pt;color:#555;text-align:center;border-top:1pt solid #ccc;padding-top:3pt;margin-top:14pt;}\n'+
+    '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
+    '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
+    '.ep-crest{width:36pt;height:36pt;border:1.5pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11pt;margin:0 auto 3pt;}\n'+
+    '.ep-school{font-size:12.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1pt;}\n'+
+    '.ep-title{font-size:10.5pt;font-weight:700;text-transform:uppercase;margin-bottom:1pt;}\n'+
+    '.ep-meta{font-size:9pt;margin-bottom:1pt;}\n'+
+    '.ep-meta span{margin:0 5pt;}\n'+
+    '.ep-instr{font-size:8pt;font-style:italic;border:1pt solid #666;padding:2pt 4pt;margin:3pt 0;}\n'+
+    '.ep-sec{font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1pt solid #000;padding-bottom:1pt;margin:6pt 0 2pt;}\n'+
+    '.ep-sec-note{font-size:8pt;font-style:italic;color:#333;border-left:1.5pt solid #999;padding-left:4pt;margin-bottom:3pt;}\n'+
+    '.ep-footer{font-size:7.5pt;color:#555;text-align:center;border-top:.5pt solid #ccc;padding-top:2pt;margin-top:6pt;}\n'+
     '.ep-wm{position:fixed;bottom:40mm;left:50%;transform:translateX(-50%) rotate(-35deg);font-size:60pt;color:rgba(0,0,0,.04);font-weight:900;white-space:nowrap;pointer-events:none;}\n'+
-    '.ep-q{margin-bottom:8pt;page-break-inside:avoid;break-inside:avoid;}\n'+
-    '.ep-q.compact{margin-bottom:3pt;line-height:1.4;}\n'+
-    '.ep-q-obj{margin-bottom:4pt;font-size:8.5pt;line-height:1.35;break-inside:avoid;page-break-inside:avoid;}\n'+
-    '.ep-q-obj.compact{margin-bottom:2pt;line-height:1.25;}\n'+
-    '.objective-container{display:block;}\n'+
-    '.objective-2col{column-count:2;column-gap:10mm;}\n'+
+    '.ep-q{margin-bottom:3pt;page-break-inside:avoid;break-inside:avoid;}\n'+
+    '.ep-q.compact{margin-bottom:1.5pt;line-height:1.2;}\n'+
+    '.ep-q.wide{margin-bottom:6pt;line-height:1.6;}\n'+
+    '.ep-q-obj{margin-bottom:1.5pt;font-size:8pt;line-height:1.2;break-inside:avoid;page-break-inside:avoid;}\n'+
+    '.ep-q-obj.compact{margin-bottom:1pt;line-height:1.1;}\n'+
+    '.ep-obj-2col{column-count:2;column-gap:10mm;}\n'+
+    '.ep-obj-block{display:block;}\n'+
     '.ep-opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
     '.ep-opt-inline-k{font-weight:700;}\n'+
+    '.opt-inline{display:inline;margin-left:6pt;white-space:nowrap;}\n'+
+    '.opt-inline-k{font-weight:700;}\n'+
+    '.objective-item{break-inside:avoid;page-break-inside:avoid;margin-bottom:2px;font-size:8.5pt;line-height:1.2;display:block;}\n'+
     '.ep-qn{font-weight:700;}\n'+
     '.ep-fitb-blank{display:inline-block;border-bottom:1.5pt solid #000;min-width:70pt;margin:0 2pt;}\n'+
-    '.ep-ans{border-bottom:1pt solid #bbb;min-height:48pt;margin:3pt 0 9pt;}\n'+
-    '.ep-ans.compact{min-height:24pt;}\n'+
+    '.ep-ans{border-bottom:1pt solid #bbb;min-height:36pt;margin:2pt 0 6pt;}\n'+
+    '.ep-ans.compact{min-height:18pt;}\n'+
+    '.ep-ans.wide{min-height:48pt;}\n'+
     '.eco-page-pair{display:grid;grid-template-columns:1fr 1fr;width:100%;min-height:185mm;page-break-after:always;position:relative;}\n'+
     '.eco-page-pair:last-child{page-break-after:auto;}\n'+
     '.eco-col{padding:6mm 7mm;box-sizing:border-box;font-size:8.5pt;line-height:1.35;overflow:hidden;position:relative;font-family:"Times New Roman",serif;}\n'+
     '.eco-col-left{border-right:0.4mm dashed #aaa;}\n'+
     '.eco-col .ep-school{font-size:9pt!important;}\n'+
     '.eco-col .ep-title{font-size:8pt!important;}\n'+
+    '.eco-col .ep-meta{font-size:7.5pt!important;}\n'+
+    '.eco-col .ep-header{padding-bottom:3pt!important;margin-bottom:4pt!important;}\n'+
+    '.eco-col .ep-sec{font-size:8pt!important;margin:4pt 0 2pt!important;}\n'+
+    '.eco-col .ep-q{margin-bottom:3pt!important;}\n'+
+    '.eco-col .ep-ans{min-height:16pt!important;margin:2pt 0 5pt!important;}\n'+
+    '.eco-col .ep-footer{font-size:6.5pt!important;}\n'+
+    '.eco-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:22pt;font-weight:900;color:rgba(0,0,0,.04);text-transform:uppercase;white-space:nowrap;pointer-events:none;}\n'+
+    '.eco-cut-hint{position:absolute;bottom:2mm;right:4mm;font-size:5.5pt;color:#bbb;white-space:nowrap;}\n'+
+    '.ep-landscape{max-width:297mm;}\n'+
+    '.ep-landscape .ep-header{padding-bottom:5pt;margin-bottom:7pt;}\n'+
+    '.ep-landscape .ep-sec{margin:8pt 0 2pt;}\n'+
+    '.ep-landscape .ep-q{margin-bottom:6pt;}\n'+
+    '.ep-landscape .ep-ans{min-height:36pt;margin:2pt 0 7pt;}\n'+
+    '.ep-multi{position:relative;}\n'+
+    '.multi-subject-block{border:0.5pt solid #999;border-radius:3pt;overflow:hidden;margin-bottom:6pt;padding:0 0 4pt 0;}\n'+
+    '.multi-subject-block .ep-sec{margin:3pt 8pt 1pt!important;}\n'+
+    '.multi-subject-block .ep-q{margin-left:8pt;margin-right:8pt;}\n'+
+    '.multi-subject-block .objective-container{padding:0 8pt;}\n'+
     '.eco-col .ep-sec{font-size:8pt!important;margin:4pt 0 2pt!important;}\n'+
     '.eco-col .ep-q{margin-bottom:3pt!important;}\n'+
     '.eco-col .ep-ans{min-height:16pt!important;margin:2pt 0 5pt!important;}\n'+
@@ -6509,6 +6484,7 @@ function renderAdminSett(){
 
     +'<div class="card">'
     +'<div class="ct">School Branding</div>'
+    +'<div class="r2"><div>'
     +'<div class="fl"><label>School / Admin Name</label>'
     +'<input type="text" class="fi" id="adminSchNm" value="'+esc(school)+'" placeholder="e.g. Way To Success Standard Schools"/>'
     +'</div>'
@@ -6521,6 +6497,19 @@ function renderAdminSett(){
     +'</div>'
     +'<button class="btn bp" onclick="saveAdminBranding()">💾 Save Branding</button>'
     +'</div>'
+    +'<div>'
+    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:8px;">School Logo</label>'
+    +'<div class="brand-preview" id="logoPreview">'
+    +(adm.logo?'<img class="brand-logo-preview" src="'+adm.logo+'" alt="Logo"/>':'<div class="dash-empty-ico" style="font-size:32px;">&#127978;</div><div style="font-size:11px;color:var(--mute);">No logo uploaded</div>')
+    +(adm.watermark?'<div class="watermark-preview">'+esc(adm.watermark)+'</div>':'')
+    +'</div>'
+    +'<label class="upload-zone" style="margin-top:10px;display:block;cursor:pointer;">'
+    +'<div class="upload-zone-ico">&#128193;</div>'
+    +'<div class="upload-zone-text">Upload Logo (PNG/JPG, max 200KB)</div>'
+    +'<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none;" onchange="uploadLogo(event)"/>'
+    +'</label>'
+    +(adm.logo?'<button class="btn bred bsm" onclick="removeLogo()" style="margin-top:6px;width:100%;">&#128465; Remove Logo</button>':'')
+    +'</div></div></div>'
 
     +'<div class="card">'
     +'<div class="ct">\ud83c\udfa8 House Style Template <span style="font-size:11px;font-weight:400;color:var(--mute);margin-left:8px;">(Blank slate \u2014 applies to every printed paper)</span></div>'
