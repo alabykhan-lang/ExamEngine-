@@ -4230,7 +4230,7 @@ window.adminDeletePaper=async function(ref){
     var res=await _supabase.from('papers').delete().eq('ref',ref);
     if(res && res.error) throw new Error(res.error.message);
     var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
-    saveLabQueue(q);
+    await saveLabQueue(q);
     window._publishedPapers=null;
     toast('Subject paper deleted from Production Queue','ok');
     renderAdminDash();
@@ -4398,7 +4398,13 @@ function getLabQueue(){
 }
 function saveLabQueue(arr){
   window._labQueue=arr;
-  _supabase.from('admin_settings').upsert({key:'lab_queue',value:JSON.stringify(arr)},{onConflict:'key'});
+  return _supabase
+    .from('admin_settings')
+    .upsert({key:'lab_queue',value:JSON.stringify(arr)},{onConflict:'key'})
+    .then(function(res){
+      if(res&&res.error) throw new Error(res.error.message);
+      return res;
+    });
 }
 
 // Send to lab — fetch full paper from DB and snapshot it into the queue
@@ -4407,11 +4413,12 @@ window.sendToLab=async function(ref){
   var alreadyRef=q.find(function(x){ return (typeof x==='string'?x:(x&&x.ref))===ref; });
   if(alreadyRef){ toast('Already in Digital Lab','warn'); return; }
   // Fetch the full paper row from Supabase to snapshot questions
+  var snapshot=null;
   try{
     var rowRes=await _supabase.from('papers').select('*').eq('ref',ref).single();
     if(rowRes.data){
       var d=rowRes.data.data||{};
-      var snapshot=Object.assign({},d,{
+      snapshot=Object.assign({},d,{
         _db_id:rowRes.data.id,
         ref:rowRes.data.ref||ref,
         cls:rowRes.data.class_name||d.cls,
@@ -4420,23 +4427,28 @@ window.sendToLab=async function(ref){
         adminStatus:rowRes.data.status||d.adminStatus,
         user_id:rowRes.data.user_id
       });
-      q.push(snapshot);
-      saveLabQueue(q);
-      toast('📤 Sent to Digital Lab: '+ref,'ok');
-      return;
     }
   }catch(e){ console.warn('sendToLab fetch failed',e); }
-  // Fallback: store just the ref string (old behavior)
-  q.push(ref);
-  saveLabQueue(q);
-  toast('📤 Sent to Digital Lab: '+ref,'ok');
+  try{
+    q.push(snapshot||ref); // fallback: old ref-string queue entry
+    await saveLabQueue(q);
+    toast('📤 Sent to Digital Lab: '+ref,'ok');
+  }catch(e){
+    q.pop();
+    window._labQueue=q;
+    toast('Send to Digital Lab failed: '+(e.message||e),'err');
+  }
 };
 
-window.removeFromLab=function(ref){
+window.removeFromLab=async function(ref){
   var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
-  saveLabQueue(q);
-  toast('Removed from lab','ok');
-  renderAdminPrint();
+  try{
+    await saveLabQueue(q);
+    toast('Removed from lab','ok');
+    renderAdminPrint();
+  }catch(e){
+    toast('Remove failed: '+(e.message||e),'err');
+  }
 };
 
 // Repair a paper whose questions were lost (e.g. wiped by old approval bug)
@@ -4472,7 +4484,7 @@ window.repairLabPaper=async function(ref){
   }catch(e){
     toast('Repair failed: '+e.message,'err');
   }
-  saveLabQueue(q);
+  await saveLabQueue(q);
   renderAdminPrint();
 };
 
