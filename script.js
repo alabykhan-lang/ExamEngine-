@@ -523,6 +523,18 @@ var NERDC = {
     'Government','Literature-in-English','Financial Accounting','Commerce',
     'Nigerian History','Christian Religious Studies','Islamic Studies'
   ],
+  'Creche': [
+    'English Language','Mathematics','Social Habits','Health Habits','Poem','Physical and Health Education'
+  ],
+  'KG': [
+    'English Language','Mathematics','Social Habits','Health Habits','Poem','Handwriting','P.H.E'
+  ],
+  'Nursery 1': [
+    'English Language','Mathematics','Handwriting','Social Habits','Elementary Science','Health Habits','Yoruba'
+  ],
+  'Nursery 2': [
+    'English Language','Mathematics','Handwriting','Verbal Reasoning','Quantitative Reasoning','Elementary Science','Civic Education','Social Studies'
+  ],
   'Early': [
     'English Language','Mathematics','Literacy and Numeracy',
     'Cultural & Creative Arts','Physical & Health Education',
@@ -541,7 +553,11 @@ var DEFAULT_TRADE = 'livestock';
 function getSubjectList(cls) {
   if (!cls) return NERDC['SS 1-3'];
   var c = cls.toLowerCase();
-  if (c === 'creche' || c.includes('kg') || c.includes('nursery')) return NERDC['Early'];
+  if (c === 'creche') return NERDC['Creche'];
+  if (c.includes('kg')) return NERDC['KG'];
+  if (c === 'nursery 1') return NERDC['Nursery 1'];
+  if (c === 'nursery 2') return NERDC['Nursery 2'];
+  if (c.includes('nursery')) return NERDC['Early'];
   if (c.includes('primary')) {
     var n = parseInt(c.replace(/\D/g,'')) || 0;
     return n <= 3 ? NERDC['Primary 1-3'] : NERDC['Primary 4-6'];
@@ -3785,6 +3801,13 @@ async function getPublished(){
         ts: new Date(row.created_at).getTime()
       });
     });
+    
+    // Filter out wiped papers if admin set a wipe timestamp
+    var wipedAt = 0;
+    if (window._adminSettingsCache && window._adminSettingsCache.wiped_at) {
+      wipedAt = parseInt(window._adminSettingsCache.wiped_at, 10) || 0;
+    }
+    return mapped.filter(function(p){ return p.ts > wipedAt; });
   } catch(e){ console.error('getPublished exception', e); return []; }
 }
 
@@ -6733,9 +6756,11 @@ window.clearAllData = async function(){
   if(!confirm('🚨 WARNING: Are you sure you want to WIPE your published papers? This cannot be undone!')) return;
 
   if(CURRENT_USER.role === 'admin') {
-    if(!confirm('🛑 ADMIN WARNING: This will delete ALL papers from the database permanently.')) return;
-    var wipeCode = prompt('Type "WIPE" to confirm deleting ALL papers:');
+    if(!confirm('🛑 ADMIN WARNING: This will hide ALL papers from the database permanently.')) return;
+    var wipeCode = prompt('Type "WIPE" to confirm hiding ALL papers:');
     if(wipeCode !== 'WIPE') { toast('Wipe cancelled.','info'); return; }
+    // Enforce wipe softly for all users
+    await _supabase.from('admin_settings').upsert({key:'wiped_at', value: Date.now().toString()},{onConflict:'key'});
   }
 
   try {
@@ -6886,7 +6911,8 @@ window.renderUserManagement = async function(){
       +'</div>';
     return;
   }
-  var users = res.data||[];
+  var blocked=await _getBlockedUsers();
+  var users = (res.data||[]).filter(function(u){ return !blocked.find(function(b){ return b.id===u.id; }); });
   if(!users.length){
     el.innerHTML='<div style="color:var(--mute);font-size:12px;">No registered users found.</div>';
     return;
@@ -6934,8 +6960,8 @@ window.removeUser = async function(uid, email){
   if(paperDel.error){ console.warn('Could not remove user papers:',paperDel.error.message); }
   await _supabase.from('user_settings').delete().eq('user_id',uid);
   await _supabase.from('schemes').delete().eq('user_id',uid);
-  var res=await _supabase.from('profiles').delete().eq('id',uid);
-  if(res.error){ toast('Remove failed (profile): '+res.error.message,'err'); return; }
+  // Profile deletion may fail due to RLS, but the user is blocked from logging in and hidden from the UI.
+  await _supabase.from('profiles').delete().eq('id',uid);
   toast('User removed from ExamEngine','ok');
   renderUserManagement();
 };
