@@ -692,7 +692,8 @@ function renderQuestionText(q,opts){
   var html=renderRichText(q.t||q.q||'');
   if(q.svgInline) html+='<div class="gen-svg-wrap">'+q.svgInline+'</div>';
   if(q._svgDiagram) html+='<div class="gen-svg-wrap">'+q._svgDiagram+'</div>';
-  if(q.svgHint&&!q.svgInline&&!q._svgDiagram&&opts.showVisualPlaceholders) html+='<div class="visual-card shape-card"><strong>Visual:</strong> '+esc(q.svgHint)+'</div>';
+  if(q.svgHint&&!q.svgInline&&!q._svgDiagram&&opts.showVisualPlaceholders&&!q.customImg) html+='<div class="visual-card shape-card"><strong>Visual:</strong> '+esc(q.svgHint)+'</div>';
+  if(q.customImg) html+='<div class="custom-diagram-box" style="margin-top:8px;text-align:center;"><img src="'+q.customImg+'" class="custom-diagram-img" style="max-width:100%;max-height:55mm;object-fit:contain;" alt="Uploaded Diagram"/></div>';
   if(q.diagImg) html+='<div class="diagram-box"><img src="'+q.diagImg+'" alt="Diagram" onclick="showDiagramFull(this.src)" title="Click to expand"/><span class="diagram-label">Source diagram</span></div>';
   else if(q.diagDesc&&opts.showVisualPlaceholders) html+='<div class="visual-card shape-card"><strong>Diagram:</strong> '+esc(q.diagDesc)+'</div>';
   return html;
@@ -707,13 +708,14 @@ function renderVisualEditor(kind,id,q){
     +'<textarea class="fta visual-editor-input" placeholder="Describe a diagram, graph, table, apparatus, shape, labelled figure, axes, measurements..." oninput="updVisualHint(\''+kind+'\','+id+',this.value)">'+hint+'</textarea>'
     +'<div class="visual-editor-actions">'
     +'<button class="btn bq bsm" onclick="drawVisualForSlot(\''+kind+'\','+id+')">▣ Render visual</button>'
+    +'<button class="btn bq bsm" onclick="uploadVisualForSlot(\''+kind+'\','+id+')">🖼️ Upload Image</button>'
     +'<button class="btn bq bsm" onclick="clearVisualForSlot(\''+kind+'\','+id+')">Clear visual</button>'
     +'</div></div>';
 }
 function persistQuestion(q,kind){
   q=q||{};
   var out={k:kind||q.k||'theory',t:q.t||q.q||'',marks:q.marks||null,topic:q.topic||'',layout:q.layout||'standard',
-    svgInline:q.svgInline||q._svgDiagram||null,svgHint:q.svgHint||q.diagDesc||null,diagDesc:q.diagDesc||'',diagImg:q.diagImg||null};
+    svgInline:q.svgInline||q._svgDiagram||null,svgHint:q.svgHint||q.diagDesc||null,diagDesc:q.diagDesc||'',diagImg:q.diagImg||null,customImg:q.customImg||null};
   if(out.k==='obj'){ out.o=q.o||q.options||[]; out.a=q.a!==undefined?q.a:q.answer; out.marks=q.marks!==undefined?q.marks:0; }
   if(out.k==='fitb'){ out.answer=q.answer||''; out.marks=q.marks!==undefined?q.marks:0; }
   if(out.k==='theory'){ out.s=q.s||q.showSteps; out.marks=q.marks!==undefined?q.marks:0; }
@@ -743,10 +745,34 @@ window.updVisualHint=function(kind,id,v){
 };
 window.clearVisualForSlot=function(kind,id){
   var s=findQuestionSlot(kind,id); if(!s||!s.q) return;
-  s.q.svgHint=''; s.q.diagDesc=''; s.q.svgInline=null; s.q._svgDiagram=null;
-  if(kind==='auto'){ var el=$('slot_'+id); if(el) el.outerHTML=renderSlot(s); }
+  s.q.svgHint=''; s.q.diagDesc=''; s.q.svgInline=null; s.q._svgDiagram=null; s.q.customImg=null;
+  if(kind==='auto'){ var el=document.getElementById('slot_'+id); if(el) el.outerHTML=renderSlot(s); }
   else if(kind==='scan') renderScanSlots();
   else renderNtxSlots();
+};
+window.uploadVisualForSlot=function(kind,id){
+  var s=findQuestionSlot(kind,id); if(!s||!s.q) return;
+  var inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=function(e){
+    var file=e.target.files[0]; if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var img=new Image();
+      img.onload=function(){
+        var canvas=document.createElement('canvas'); var ctx=canvas.getContext('2d');
+        var maxW=600,maxH=600,w=img.width,h=img.height;
+        if(w>maxW||h>maxH){ var r=Math.min(maxW/w,maxH/h); w=Math.round(w*r); h=Math.round(h*r); }
+        canvas.width=w; canvas.height=h; ctx.drawImage(img,0,0,w,h);
+        s.q.customImg=canvas.toDataURL('image/jpeg',0.85);
+        if(kind==='auto'){ var el=document.getElementById('slot_'+id); if(el) el.outerHTML=renderSlot(s); }
+        else if(kind==='scan') renderScanSlots();
+        else renderNtxSlots();
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
 };
 window.drawVisualForSlot=async function(kind,id){
   var s=findQuestionSlot(kind,id); if(!s||!s.q) return;
@@ -2453,7 +2479,10 @@ function buildPrompt(cfg,type,count,extra){
        :'balanced mix of recall and application.\n')
     :'';
 
-  var p='You are a Nigerian exam expert following NERDC 2026 curriculum. Generate exactly '+count+' ';
+  var isEarlyChildhood=/creche|cr[eê]che|kg|kindergarten|nursery/i.test(cfg.cls);
+  var p=isEarlyChildhood
+    ? 'CRITICAL: This is an EARLY CHILDHOOD class ('+cfg.cls+'). You MUST use extremely simple vocabulary (3-4 letter words). Focus strictly on basic identification, phonics, number work, and simple daily objects. DO NOT use advanced math or high-school structures. Generate exactly '+count+' '
+    : 'You are a Nigerian exam expert following NERDC 2026 curriculum. Generate exactly '+count+' ';
   if(type==='obj')  p+='multiple-choice (objective) questions with 4 options (A–D).';
   if(type==='fitb') p+='fill-in-the-blank (short-answer) questions. Each question ends with a dash line: ___________. No options provided.';
   if(type==='theory') p+='theory/essay questions.';
@@ -3927,10 +3956,20 @@ async function buildStatusMatrix(){
 }
 
 /* ── ADMIN DASHBOARD — PRODUCTION QUEUE ─── */
-async function renderAdminDash(){
-  var el=$('screen-admin-dash');
+var _realtimeSub=null;
+function initRealtimeQueue(){
+  if(_realtimeSub || !_supabase) return;
+  _realtimeSub = _supabase.channel('public:papers')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'papers' }, function(payload) {
+       var el=document.getElementById('screen-admin-dash');
+       if(el && el.style.display !== 'none') renderAdminDash(true);
+    }).subscribe();
+}
+async function renderAdminDash(isRealtime){
+  initRealtimeQueue();
+  var el=document.getElementById('screen-admin-dash');
   el.style.display='block';
-  el.innerHTML='<div class="pgw fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading production queue…</div></div>';
+  if(!isRealtime) el.innerHTML='<div class="pgw fade"><div style="text-align:center;padding:60px 20px;color:var(--mute);"><span class="spin" style="font-size:22px;display:block;margin-bottom:12px;">⟳</span>Loading production queue…</div></div>';
   await _fetchAdminSettings();
   var papers=await getPublished();
   var adm=getAdminSettings();
@@ -5048,10 +5087,11 @@ function formatObjective(q,i,extraCls){
 function setPageStyle(mode){
   var el=document.getElementById('ee-page-style');
   if(!el){ el=document.createElement('style'); el.id='ee-page-style'; document.head.appendChild(el); }
+  var glo='.gen-svg-wrap svg, .diagram-box img { max-width:100%; max-height:60mm; object-fit:contain; } ';
   if(mode==='economy'||mode==='landscape'){
-    el.textContent='@media print{@page{size:A4 landscape;margin:0mm;}.diagram-box{display:none!important;}}';
+    el.textContent=glo+'@media print{@page{size:A4 landscape;margin:0mm;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}}';
   } else {
-    el.textContent='@media print{@page{size:A4 portrait;margin:0mm;}.diagram-box{display:none!important;}}';
+    el.textContent=glo+'@media print{@page{size:A4 portrait;margin:0mm;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}}';
   }
 }
 
@@ -5154,7 +5194,7 @@ function buildNormalPaperHtml(p,adm){
     +buildPaperHeader(p,adm,false)
     +buildSectionsHtml(p,false)
     +buildHouseStyleFooter(p,adm,false)
-    +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12.5</div>'
+    +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; ExamEngine Pro v12.5</div>'
     +'</div>';
   return h;
 }
@@ -5735,7 +5775,7 @@ function buildMultiSubjectHtml(papers,adm){
   });
 
   h+=buildHouseStyleFooter(papers[0],adm,false);
-  h+='<div class="ep-footer">'+esc(school)+' &bull; '+today+' &bull; ExamEngine Pro v12.5</div>';
+  h+='<div class="ep-footer">'+esc(school)+' &bull; ExamEngine Pro v12.5</div>';
   h+='</div>';
   return {html:h, landscape:useLS};
 }
@@ -5795,7 +5835,7 @@ window.doPrint=function(){
 
   /* ── Exam paper CSS (self-contained — no app chrome) ── */
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
     '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
     '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
@@ -6094,7 +6134,7 @@ function openPrintWindow(bodyHtml, pageRule, title){
   var katexAuto='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
 
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
     '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
     '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
@@ -6265,7 +6305,7 @@ function buildNormalPrintHtml(p,adm){
     });
   }
 
-  h+='<div class="ep-footer">'+esc(school)+' &bull; '+esc(p.ref)+' &bull; '+today+' &bull; ExamEngine Pro v12</div>';
+  h+='<div class="ep-footer">'+esc(school)+' &bull; '+esc(p.ref)+' &bull; ExamEngine Pro v12</div>';
   h+='</div>';
   return h;
 }
@@ -6449,7 +6489,7 @@ function buildMirrorColumn(p,adm,today){
       h+='<div class="eco-q">'+(i+1)+'. '+esc(q.t)+(q.marks?' ['+q.marks+'m]':'')+'</div>';
     });
   }
-  h+='<div class="eco-footer"><span>'+esc(p.ref)+'</span><span>'+today+'</span><span>ExamEngine Pro v10</span></div>';
+  h+='<div class="eco-footer"><span>'+esc(p.ref)+'</span><span>ExamEngine Pro v10</span></div>';
   return h;
 }
 
