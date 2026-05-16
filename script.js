@@ -1225,7 +1225,7 @@ async function renderArch(){
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
     +'<div><div class="ptl">Archive</div>'
     +'<div class="pst">All submitted papers — '+papers.length+' total.</div></div>'
-    +(CURRENT_USER && CURRENT_USER.role !== 'admin' ? '<button class="btn bred bsm" onclick="clearAllData()">🗑 Wipe Database</button>' : '')
+    +''
     +'</div>'
     +'<div class="arch-search">'
     +'<input class="fi" id="archSearch" placeholder="Filter by subject, class or ref…" oninput="filterArch()"/>'
@@ -1322,11 +1322,6 @@ function renderSett(){
         +'</div>';
     }).join('')
     +'<div style="margin-top:14px;"><button class="btn bp" onclick="saveTrade()">💾 Save Trade Subject</button></div>'
-    +'</div>'
-
-    +'<div class="card">'
-    +'<div class="ct">Data Management</div>'
-    +'<button class="btn bred bsm" onclick="clearAllData()" style="margin-top:4px;">🗑 Clear All Published Papers</button>'
     +'</div>'
 
     +'</div>';
@@ -4050,6 +4045,7 @@ async function renderAdminDash(isRealtime){
           +'<button class="sb-approve-btn" onclick="adminApprove(\''+esc(p.ref)+'\')">✓ Approve</button>'
           +'<button class="sb-reject-btn" onclick="showRejectModal(\''+esc(p.ref)+'\')">✕ Reject</button>'
           +'<button class="btn-ghost" style="font-size:11px;color:var(--admin);" onclick="sendToLab(\''+esc(p.ref)+'\')">📤 Lab</button>'
+          +'<button class="sb-reject-btn" onclick="adminDeletePaper(\''+esc(p.ref)+'\')" title="Delete this subject paper">🗑 Delete</button>'
           +'</div>'
           +'</div>';
       }).join('')
@@ -4109,6 +4105,7 @@ async function renderAdminDash(isRealtime){
           +(paper.adminStatus!=='approved'?'<button class="sb-approve-btn" onclick="adminApprove(\''+esc(paper.ref)+'\')">✓ Approve</button>':'<button class="sb-approved-badge" title="Approved">✓ Approved</button>')
           +(paper.adminStatus!=='rejected'?'<button class="sb-reject-btn" onclick="showRejectModal(\''+esc(paper.ref)+'\')">✕ Reject</button>':'<button class="sb-rejected-badge" title="Rejected">✕ Rejected</button>')
           +(paper.adminStatus==='approved'?'<button class="sb-lab-btn" style="background:#6D28D9;color:#fff;border-color:#B8CAFF;" onclick="sendToLab(\''+esc(paper.ref)+'\')" title="Send to Digital Lab">📤 Lab</button>':'')
+          +'<button class="sb-reject-btn" onclick="adminDeletePaper(\''+esc(paper.ref)+'\')" title="Delete this subject paper">🗑 Delete</button>'
           +'</div>';
       } else {
         actBtns='<button class="sb-autogen-btn" onclick="adminAutoGenSingle(\''+esc(r.cls)+'\',\''+esc(r.subj)+'\',\''+esc(r.term)+'\',\''+esc(typeLabel)+'\')">⚡ Gen</button>';
@@ -4174,10 +4171,11 @@ async function renderAdminDash(isRealtime){
     +accordionHtml
 
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">'
-    +'<button class="btn bp" onclick="openBatchPrint()" style="background:#059669;border-color:#059669;">&#128424; Batch Print Term &rarr;</button>'
-    +'<button class="btn bp" onclick="navTo(\'admin-print\')">&#128300; Digital Lab &rarr;</button>'
-    +'<button class="btn bq" onclick="navTo(\'admin-sett\')">&#9881; Admin Settings</button>'
-    +'</div></div>';
+     +'<button class="btn bp" onclick="openBatchPrint()" style="background:#059669;border-color:#059669;">&#128424; Batch Print Term &rarr;</button>'
+     +'<button class="btn bp" onclick="navTo(\'admin-print\')">&#128300; Digital Lab &rarr;</button>'
+     +'<button class="btn bred" onclick="clearAllData()">&#128465; Wipe Production Queue</button>'
+     +'<button class="btn bq" onclick="navTo(\'admin-sett\')">&#9881; Admin Settings</button>'
+     +'</div></div>';
 }
 
 window.setAdminTerm=function(term){
@@ -4221,6 +4219,24 @@ window.adminApprove=async function(ref){
   await _supabase.from('papers').update({status:'approved',data:d}).eq('ref',ref);
   toast('✅ '+ref+' Approved','ok');
   renderAdminDash();
+};
+
+window.adminDeletePaper=async function(ref){
+  if(!_supabase){ toast('Database not connected.','err'); return; }
+  if(!CURRENT_USER || CURRENT_USER.role !== 'admin'){ toast('Only admins can delete production queue papers.','err'); return; }
+  if(!ref){ toast('Paper reference missing.','err'); return; }
+  if(!confirm('Delete this subject paper from the Production Queue? A new submission or generated paper can replace it.')) return;
+  try{
+    var res=await _supabase.from('papers').delete().eq('ref',ref);
+    if(res && res.error) throw new Error(res.error.message);
+    var q=getLabQueue().filter(function(x){ return (typeof x==='string'?x:(x&&x.ref))!==ref; });
+    saveLabQueue(q);
+    window._publishedPapers=null;
+    toast('Subject paper deleted from Production Queue','ok');
+    renderAdminDash();
+  }catch(e){
+    toast('Delete failed: '+(e.message||e),'err');
+  }
 };
 
 window.showRejectModal=async function(ref){
@@ -6725,7 +6741,6 @@ function renderAdminSett(){
     +'<div class="card">'
     +'<div class="ct">Data Management</div>'
     +'<div style="display:flex;gap:9px;flex-wrap:wrap;">'
-    +'<button class="btn bred bsm" onclick="clearAllData()">🗑 Clear All Papers</button>'
     +'<button class="btn bq bsm" onclick="navTo(\'admin-dash\')">← Back to Production Queue</button>'
     +'</div></div>'
 
@@ -6753,31 +6768,32 @@ window.clearDeadline=function(){
 window.clearAllData = async function(){
   if(!_supabase){ toast('Database not connected.','err'); return; }
   if(!CURRENT_USER){ toast('Not logged in.','err'); return; }
-  if(!confirm('🚨 WARNING: Are you sure you want to WIPE your published papers? This cannot be undone!')) return;
-
-  if(CURRENT_USER.role === 'admin') {
-    if(!confirm('🛑 ADMIN WARNING: This will hide ALL papers from the database permanently.')) return;
-    var wipeCode = prompt('Type "WIPE" to confirm hiding ALL papers:');
-    if(wipeCode !== 'WIPE') { toast('Wipe cancelled.','info'); return; }
-    // Enforce wipe softly for all users
-    await _supabase.from('admin_settings').upsert({key:'wiped_at', value: Date.now().toString()},{onConflict:'key'});
+  if(CURRENT_USER.role !== 'admin'){ toast('Only admins can wipe the Production Queue.','err'); return; }
+  var dash=document.getElementById('screen-admin-dash');
+  if(!dash || dash.style.display === 'none'){
+    toast('Wipe is only available from the Production Queue.','err');
+    return;
   }
+  if(!confirm('🚨 WARNING: Wipe ALL papers from the Production Queue? This cannot be undone.')) return;
+  if(!confirm('🛑 ADMIN WARNING: Every teacher submission and generated paper will be removed.')) return;
+  var wipeCode = prompt('Type "WIPE" to confirm wiping the Production Queue:');
+  if(wipeCode !== 'WIPE') { toast('Wipe cancelled.','info'); return; }
 
   try {
-    var res;
-    if(CURRENT_USER.role === 'admin'){
-      res = await _supabase.from('papers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    } else {
-      res = await _supabase.from('papers').delete().eq('user_id', CURRENT_USER.id);
-    }
+    await _supabase.from('admin_settings').upsert({key:'wiped_at', value: Date.now().toString()},{onConflict:'key'});
+    await _supabase.from('admin_settings').upsert({key:'lab_queue', value:'[]'},{onConflict:'key'});
+    var res = await _supabase.from('papers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     if(res && res.error) throw new Error(res.error.message);
-    /* Nuclear cache clear — destroy all in-memory state, then hard reload */
     window._publishedPapers = null;
-    window._adminSettingsCache = null;
+    if(window._adminSettingsCache){
+      window._adminSettingsCache.wiped_at = Date.now().toString();
+      window._adminSettingsCache.lab_queue = '[]';
+    }
+    window._labQueue = [];
     window._printPapers = null;
     try { localStorage.removeItem('ee_draft'); } catch(ex){}
     try { sessionStorage.clear(); } catch(ex){}
-    toast('✓ Database wiped — reloading…', 'ok', 2000);
+    toast('✓ Production Queue wiped — reloading…', 'ok', 2000);
     setTimeout(function(){ window.location.reload(true); }, 1800);
   } catch(e) {
     toast('Wipe failed: ' + e.message, 'err');
