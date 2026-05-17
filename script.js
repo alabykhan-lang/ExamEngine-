@@ -5415,7 +5415,7 @@ function buildPaperHeader(p,adm,compact){
       +'</div></div>';
   } else {
     // Full header for normal
-    if(logo) h+='<img style="max-height:45pt;max-width:45pt;object-fit:contain;border-radius:5pt;display:block;margin:0 auto 4pt;" src="'+logo+'"/>';
+    if(logo) h+='<img style="max-height:28pt;max-width:28pt;object-fit:contain;border-radius:3pt;display:block;margin:0 auto 3pt;" src="'+logo+'"/>';
     else h+='<div class="ep-crest">'+initials+'</div>';
     h+='<div class="ep-school">'+esc(school)+'</div>';
     if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
@@ -5506,14 +5506,14 @@ function buildNormalPaperHtml(p,adm){
   var wm=adm.watermark||'ExamEngine';
   var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
-  var h='<div class="ep" style="font-family:'+fontFam+';">'
+  var h='<div style="width:210mm;height:297mm;overflow:hidden;box-sizing:border-box;page-break-after:always;"><div class="ep" style="font-family:'+fontFam+';height:100%;box-sizing:border-box;">'
     +'<div class="ep-wm">'+esc(wm)+'</div>'
     +buildHouseStyleHeader(p,adm,false)
     +buildPaperHeader(p,adm,false)
     +buildSectionsHtml(p,false)
     +buildHouseStyleFooter(p,adm,false)
     +'<div class="ep-footer">'+esc(adm.school||p.school||'')+' &bull; '+esc(p.ref)+' &bull; ExamEngine Pro v12.5</div>'
-    +'</div>';
+    +'</div></div>';
   return h;
 }
 
@@ -6146,10 +6146,22 @@ function buildDupNHtml(p, adm, n) {
   var h='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr);width:210mm;height:297mm;overflow:hidden;box-sizing:border-box;">';
   var font=isSix?'7.2pt':'8pt';
   var pad=isSix?'3mm':'3.5mm 5mm';
+  var school=adm.school||p.school||'School';
+  var logo=adm.logo||p.logo||'';
+  var total=sumQuestionMarks(p.questions||[]);
+  var initials=school.split(' ').map(function(w){return w[0]||''}).join('').substring(0,3).toUpperCase();
   for(var i=0;i<n;i++){
+    // Slip header: centred, logo capped tiny, school name prominent
+    var slipHdr='<div class="ep-header" style="text-align:center;border-bottom:1pt solid #000;padding-bottom:2pt;margin-bottom:3pt;">';
+    if(logo) slipHdr+='<img src="'+logo+'" style="max-height:14pt;max-width:14pt;object-fit:contain;display:block;margin:0 auto 1pt;border-radius:2pt;"/>';
+    else slipHdr+='<div style="width:14pt;height:14pt;border:1pt solid #000;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:6pt;margin-bottom:1pt;">'+initials+'</div>';
+    slipHdr+='<div style="font-size:'+font+';font-weight:700;text-transform:uppercase;letter-spacing:.3px;line-height:1.2;">'+esc(school)+'</div>';
+    slipHdr+='<div style="font-size:6.5pt;font-weight:700;">'+assessmentLabel(p.at,true)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
+    slipHdr+='<div style="font-size:6pt;"><span>'+esc(p.subj)+'</span> &bull; <span>'+esc(p.cls)+'</span>'+(marksLabel(total)?'&bull;<span>'+marksLabel(total)+'</span>':'')+'</div>';
+    slipHdr+='</div>';
     h+='<div style="overflow:hidden;border-right:'+(cols>1&&i%cols===0?'1px dashed #ccc':'0')+';border-bottom:1px dashed #ccc;position:relative;box-sizing:border-box;">'
       +'<div class="ep" style="padding:'+pad+';font-size:'+font+'!important;line-height:1.12!important;max-width:100%;height:100%;box-sizing:border-box;">'
-      +buildPaperHeader(p,adm,true)
+      +slipHdr
       +buildSectionsHtml(p,true)
       +buildHouseStyleFooter(p,adm,true)
       +'<div class="ep-footer" style="font-size:5.8pt!important;">'+esc(p.ref)+'</div>'
@@ -6254,9 +6266,9 @@ window.doPrint=function(){
 
   /* ── Exam paper CSS (self-contained — no app chrome) ── */
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}.ep{padding:8mm 10mm 8mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:40mm!important;object-fit:contain!important;height:auto!important;}.ep-slip img,.ep-slip canvas,.ep-slip svg{max-height:12mm!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
-    '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
+    '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:10mm 14mm 8mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
     '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
     '.ep-crest{width:36pt;height:36pt;border:1.5pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11pt;margin:0 auto 3pt;}\n'+
     '.ep-school{font-size:12.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1pt;}\n'+
@@ -6296,7 +6308,7 @@ window.doPrint=function(){
     '.eco-col .ep-sec{font-size:8pt!important;margin:4pt 0 2pt!important;}\n'+
     '.eco-col .ep-q{margin-bottom:3pt!important;}\n'+
     '.eco-col .ep-ans{min-height:16pt!important;margin:2pt 0 5pt!important;}\n'+
-    '.eco-col .ep-footer{font-size:6.5pt!important;}\n'+
+    '.eco-col .ep-footer{font-size:6.5pt!important;}.ep .custom-diagram-img{max-height:40mm!important;max-width:100%!important;object-fit:contain!important;}\n'+
     '.eco-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:22pt;font-weight:900;color:rgba(0,0,0,.04);text-transform:uppercase;white-space:nowrap;pointer-events:none;}\n'+
     '.eco-cut-hint{position:absolute;bottom:2mm;right:4mm;font-size:5.5pt;color:#bbb;white-space:nowrap;}\n'+
     '.ep-landscape{max-width:297mm;}\n'+
@@ -6612,9 +6624,9 @@ function openPrintWindow(bodyHtml, pageRule, title){
   var katexAuto='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
 
   var css=pageRule+'\n'+
-    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}.ep{padding:10mm 12mm 10mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}'+
+    '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.diagram-box{display:none!important;}.ep-ans{display:none!important;}.ep{padding:8mm 10mm 8mm!important;font-size:9.5pt!important;line-height:1.25!important;}.eco-page-pair{min-height:unset!important;height:138mm!important;}img,canvas,svg{max-width:100%!important;max-height:40mm!important;object-fit:contain!important;height:auto!important;}.ep-slip img,.ep-slip canvas,.ep-slip svg{max-height:12mm!important;}table{width:100%!important;table-layout:fixed!important;}'+
     'body{margin:0;padding:0;background:#fff;}\n'+
-    '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:12mm 15mm 10mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
+    '.ep{font-family:"Times New Roman",serif;font-size:10pt;line-height:1.35;color:#000;padding:10mm 14mm 8mm;background:#fff;max-width:210mm;margin:0 auto;box-sizing:border-box;}\n'+
     '.ep-header{text-align:center;border-bottom:2pt double #000;padding-bottom:3pt;margin-bottom:4pt;}\n'+
     '.ep-crest{width:36pt;height:36pt;border:1.5pt solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11pt;margin:0 auto 3pt;}\n'+
     '.ep-school{font-size:12.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1pt;}\n'+
@@ -6654,7 +6666,7 @@ function openPrintWindow(bodyHtml, pageRule, title){
     '.eco-col .ep-sec{font-size:8pt!important;margin:4pt 0 2pt!important;}\n'+
     '.eco-col .ep-q{margin-bottom:3pt!important;}\n'+
     '.eco-col .ep-ans{min-height:16pt!important;margin:2pt 0 5pt!important;}\n'+
-    '.eco-col .ep-footer{font-size:6.5pt!important;}\n'+
+    '.eco-col .ep-footer{font-size:6.5pt!important;}.ep .custom-diagram-img{max-height:40mm!important;max-width:100%!important;object-fit:contain!important;}\n'+
     '.eco-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:22pt;font-weight:900;color:rgba(0,0,0,.04);text-transform:uppercase;white-space:nowrap;pointer-events:none;}\n'+
     '.eco-cut-hint{position:absolute;bottom:2mm;right:4mm;font-size:5.5pt;color:#bbb;white-space:nowrap;}\n'+
     '.ep-landscape{max-width:297mm;}\n'+
