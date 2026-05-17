@@ -1760,7 +1760,7 @@ async function callLabNL(command){
     +'Parse this admin command and return a JSON object with ONLY the fields the command explicitly mentions.\n\n'
     +'COMMAND: "'+command+'"\n\n'
     +'POSSIBLE OUTPUT FIELDS:\n'
-    +'  "printMode": "auto" or "portrait" or "landscape" or "split" or "multi"\n'
+    +'  "printMode": "auto" or "portrait" or "landscape" or "split" or "multi" or "dup2" or "dup4" or "dup5" or "dup6"\n'
     +'  "columns": 1 or 2\n'
     +'  "orientation": "portrait" or "landscape"\n'
     +'  "fontFamily": "Times New Roman" or "Arial" or "Georgia" or "Helvetica" or "Verdana"\n'
@@ -1776,6 +1776,7 @@ async function callLabNL(command){
     +'- Words like "normal", "standard", "portrait", "full page" → printMode:"portrait"\n'
     +'- Words like "landscape", "horizontal", "wide page" → printMode:"landscape"\n'
     +'- Words like "multi", "multiple subjects", "combined", "stack", "compact subjects" → printMode:"multi"\n'
+    +'- Words like "2/4", "duplicate 2" → printMode:"dup2"; "4/4" → "dup4"; "5/5" → "dup5"; "6/6" → "dup6"\n'
     +'- Words like "auto", "automatic", "best fit", "smart" → printMode:"auto"\n'
     +'- If command mentions draw/diagram/figure/illustrate/sketch/SVG → isDrawingCommand:true\n'
     +'- JSON object ONLY. No explanation. No markdown.';
@@ -1864,6 +1865,8 @@ function advisDiagramFit(paper, mode){
 ══════════════════════════════════════ */
 function s1Auto(){
   S.scr=1; hdr();
+  S.screen='app';
+  S.path='auto';
   applyAdminSettings();
   enforceAdminTerm();
   $('s1').style.display='block';
@@ -2064,7 +2067,12 @@ function s1Auto(){
     var sg0=$('subjGrid'); if(sg0) sg0.innerHTML=renderSubjectPills();
     var note0=$('subjFetchNote'); if(note0) note0.innerHTML='<span style="color:var(--green);font-size:11px;">✓ NERDC 2026 subjects loaded ('+S.subjects.length+')</span>';
   }
+  checkS1Ready();
 }
+window.backToAutoContract=function(){
+  S.generating=false;
+  s1Auto();
+};
 
 /* ── Subject pills ── */
 function renderSubjectPills(){
@@ -2520,6 +2528,8 @@ window.doLoadScheme=async function(){
 ══════════════════════════════════════ */
 function goWorkshop(){
   S.scr=2; hdr();
+  S.screen='app';
+  S.path=S.path||'auto';
   $('s1').style.display='none';
   $('s2').style.display='block';
   $('s3').style.display='none';
@@ -2530,7 +2540,9 @@ function goWorkshop(){
   var fitbN=Math.max(0,parseInt(c.fitbN)||0);
   var thN=Math.max(0,parseInt(c.thN)||0);
 
-  if(!S.slots.length){
+  var desiredTotal=objN+fitbN+thN;
+  var canRebuild=!S.slots.length || (S.slots.length!==desiredTotal && !S.slots.some(function(s){ return s&&s.q; }));
+  if(canRebuild){
     S.slots=[];
     for(var i=0;i<objN;i++)  S.slots.push({id:i,           k:'obj',  q:null,included:true,loading:false,err:null});
     for(var j=0;j<fitbN;j++) S.slots.push({id:objN+j,      k:'fitb', q:null,included:true,loading:false,err:null});
@@ -2562,7 +2574,7 @@ function renderWorkshop(){
     
     +'<div style="display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap;">'
     +('<button class="btn bp" id="genAllBtn" onclick="generateAll()">⚡ Generate All Questions</button>')
-    +'<button class="btn bq" onclick="s1Auto()">← Back to Contract</button>'
+    +'<button class="btn bq" onclick="backToAutoContract()">← Back to Contract</button>'
     +'</div>'
 
     +(objSlots.length?'<div class="ws-sec">'
@@ -3729,9 +3741,10 @@ function goReview(){
       fs.map(function(s){ return persistQuestion(s.q,'fitb'); }),
       ts.map(function(s){ return persistQuestion(s.q,'theory'); })
     );
+    var admBrand=getAdminSettings();
     var paper={
       ref:ref, cls:c.cls, subj:dispSubj2, term:c.term, session:c.session||'2025/2026',
-      std:c.std, at:S.at, school:'',
+      std:c.std, at:S.at, school:admBrand.school||c.school||'', logo:admBrand.logo||'',
       objCount:os.length, fitbCount:fs.length, thCount:ts.length,
       instr:c.instr||'', theoryPaperInstr:c.theoryPaperInstr||'',
       date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
@@ -4564,9 +4577,10 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
     for(var ti=0; ti<ths.length; ti++) await pushAutoQ('theory',ths[ti]);
 
     var ref='EE-AG-'+Date.now().toString(36).toUpperCase();
+    var admBrand2=getAdminSettings();
     var paper={
       ref:ref, cls:cls, subj:subj, term:term,
-      std:'WAEC', at:typeLabel, school:getAdminSettings().school,
+      std:'WAEC', at:typeLabel, school:admBrand2.school, logo:admBrand2.logo||'',
       objCount:objs.length, fitbCount:fitbs.length, thCount:ths.length,
       date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),
       ts:Date.now(),
@@ -4849,6 +4863,8 @@ async function renderAdminPrint(){
       +'📑 Multi-Sub<br/><span style="font-size:9px;font-weight:400;opacity:.7;">2+ on page</span></button>'
       +'<button class="btn'+(!isAuto&&modeForUI==='dup2'?' bp':' bq')+'" onclick="setPrintMode(\'dup2\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='dup2')?'background:var(--admin);border-color:var(--admin);':'')+'">&#128111; 2/4 Print<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Duplicate x2</span></button>'
       +'<button class="btn'+(!isAuto&&modeForUI==='dup4'?' bp':' bq')+'" onclick="setPrintMode(\'dup4\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='dup4')?'background:var(--admin);border-color:var(--admin);':'')+'">&#128111; 4/4 Print<br/><span style="font-size:9px;font-weight:400;opacity:.7;">Duplicate x4</span></button>'
+      +'<button class="btn'+(!isAuto&&modeForUI==='dup5'?' bp':' bq')+'" onclick="setPrintMode(\'dup5\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='dup5')?'background:var(--admin);border-color:var(--admin);':'')+'">&#128111; 5/5 Print<br/><span style="font-size:9px;font-weight:400;opacity:.7;">5 slips</span></button>'
+      +'<button class="btn'+(!isAuto&&modeForUI==='dup6'?' bp':' bq')+'" onclick="setPrintMode(\'dup6\')" style="text-align:left;padding:8px 10px;'+((!isAuto&&modeForUI==='dup6')?'background:var(--admin);border-color:var(--admin);':'')+'">&#128111; 6/6 Print<br/><span style="font-size:9px;font-weight:400;opacity:.7;">2 × 3 grid</span></button>'
       +'</div>'
       +(isAuto?'<div class="banner b-info" style="margin-bottom:10px;font-size:11px;">🤖 <strong>Auto-selected: '+getModeName(resolved)+'</strong> — '+getModeDesc(resolved)+'</div>':'')
       +(modeForUI==='split'?'<div class="banner b-info" style="margin-bottom:10px;font-size:11px;">&#9988; <strong>Split 2-in-1:</strong> Landscape A4 with two side-by-side copies. Cut down the middle. Front: [A|B] · Back: [B|A] (duplex aligned).'+(paperFitsHalfPage(papers[0])?'<br/><span style="color:var(--green);font-weight:700;">✓ Content fits half-page</span>':'<br/><span style="color:var(--amber);font-weight:700;">⚠ Content may overflow — consider Portrait or Landscape</span>')+'</div>':'')
@@ -4875,6 +4891,10 @@ function renderLabConfigStrip(){
     if(m==='split'||m==='economy') return '✂️ Split 2-in-1';
     if(m==='landscape') return '🖥 Landscape';
     if(m==='multi') return '📑 Multi';
+    if(m==='dup2') return '👯 2/4 Print';
+    if(m==='dup4') return '👯 4/4 Print';
+    if(m==='dup5') return '👯 5/5 Print';
+    if(m==='dup6') return '👯 6/6 Print';
     if(m==='portrait'||m==='normal') return '📃 Portrait';
     return '📃 Portrait';
   })(c.printMode);
@@ -5304,22 +5324,26 @@ window.setAllLayout=function(layout){
 
 window.uploadLogo=function(e){
   var file=(e.target.files||[])[0]; if(!file) return;
-  if(file.size>210000){ toast('Logo must be under 200KB','warn'); return; }
+  if(file.size>820000){ toast('Logo must be under 800KB','warn'); return; }
   var reader=new FileReader();
-  reader.onload=function(ev){
+  reader.onload=async function(ev){
     var logoData=ev.target.result;
+    if(!window._adminSettingsCache) window._adminSettingsCache=getAdminSettings();
     if(window._adminSettingsCache) window._adminSettingsCache.logo=logoData;
-    _supabase.from('admin_settings').upsert({key:'logo',value:logoData},{onConflict:'key'});
-    toast('Logo uploaded ✓','ok');
+    var ok=await _saveAdminSetting('logo',logoData);
+    toast(ok?'Logo uploaded and saved ✓':'Logo preview updated, but global save failed',ok?'ok':'err',4500);
+    renderAdminSett();
     renderAdminPrint();
   };
   reader.readAsDataURL(file);
 };
 
-window.removeLogo=function(){
+window.removeLogo=async function(){
+  if(!window._adminSettingsCache) window._adminSettingsCache=getAdminSettings();
   if(window._adminSettingsCache) window._adminSettingsCache.logo='';
-  _supabase.from('admin_settings').upsert({key:'logo',value:''},{onConflict:'key'});
-  toast('Logo removed','ok');
+  var ok=await _saveAdminSetting('logo','');
+  toast(ok?'Logo removed':'Logo removed locally, but global save failed',ok?'ok':'err');
+  renderAdminSett();
   renderAdminPrint();
 };
 
@@ -5374,7 +5398,7 @@ function setPageStyle(mode){
 function buildPaperHeader(p,adm,compact){
   var school=adm.school||p.school||'School';
   var address=adm.address||'';
-  var logo=adm.logo;
+  var logo=adm.logo||p.logo||'';
   var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
   var today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
   var total=sumQuestionMarks(p.questions||[]);
@@ -5931,6 +5955,8 @@ function resolveLayoutMode(papers){
   if(cfg.printMode==='multi') return 'multi';
   if(cfg.printMode==='dup2') return 'dup2';
   if(cfg.printMode==='dup4') return 'dup4';
+  if(cfg.printMode==='dup5') return 'dup5';
+  if(cfg.printMode==='dup6') return 'dup6';
   if(cfg.printMode==='portrait'||cfg.printMode==='normal') return 'portrait';
   return 'portrait';
 }
@@ -5948,7 +5974,7 @@ function paperFitsHalfPage(paper){
 
 /* Human-readable mode labels */
 function getModeName(mode){
-  var map={portrait:'📃 Portrait A4',landscape:'🖥 Full Landscape',split:'✂️ Split 2-in-1',multi:'📑 Multi-Subject',dup2:'👯 2/4 Print',dup4:'👯 4/4 Print',auto:'🤖 Auto'};
+  var map={portrait:'📃 Portrait A4',landscape:'🖥 Full Landscape',split:'✂️ Split 2-in-1',multi:'📑 Multi-Subject',dup2:'👯 2/4 Print',dup4:'👯 4/4 Print',dup5:'👯 5/5 Print',dup6:'👯 6/6 Print',auto:'🤖 Auto'};
   return map[mode]||map.portrait;
 }
 
@@ -5959,7 +5985,9 @@ function getModeDesc(mode){
     split:'Landscape · two copies side-by-side · Front [A|B] · Back [B|A] duplex',
     multi:'Multiple short subjects stacked on one page',
     dup2:'A4 portrait with 2 identical copies split horizontally (A5 each)',
-    dup4:'A4 portrait with 4 identical copies in a grid (A6 each)'
+    dup4:'A4 portrait with 4 identical copies in a grid (A6 each)',
+    dup5:'A4 portrait with 5 identical horizontal slips',
+    dup6:'A4 portrait with 6 identical copies in a 2-by-3 grid'
   };
   return map[mode]||map.portrait;
 }
@@ -6110,6 +6138,27 @@ function buildDup4Html(p, adm) {
   return h;
 }
 
+function buildDupNHtml(p, adm, n) {
+  n=parseInt(n)||5;
+  var isSix=n===6;
+  var cols=isSix?2:1;
+  var rows=isSix?3:5;
+  var h='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr);width:210mm;height:297mm;overflow:hidden;box-sizing:border-box;">';
+  var font=isSix?'7.2pt':'8pt';
+  var pad=isSix?'3mm':'3.5mm 5mm';
+  for(var i=0;i<n;i++){
+    h+='<div style="overflow:hidden;border-right:'+(cols>1&&i%cols===0?'1px dashed #ccc':'0')+';border-bottom:1px dashed #ccc;position:relative;box-sizing:border-box;">'
+      +'<div class="ep" style="padding:'+pad+';font-size:'+font+'!important;line-height:1.12!important;max-width:100%;height:100%;box-sizing:border-box;">'
+      +buildPaperHeader(p,adm,true)
+      +buildSectionsHtml(p,true)
+      +buildHouseStyleFooter(p,adm,true)
+      +'<div class="ep-footer" style="font-size:5.8pt!important;">'+esc(p.ref)+'</div>'
+      +'</div></div>';
+  }
+  h+='</div>';
+  return h;
+}
+
 function isLikelyApkWebView(){
   var ua=(navigator.userAgent||'').toLowerCase();
   return /; wv\)|\bwv\b|crosswalk|capacitor|cordova|examengine/.test(ua) || !!(window.Capacitor||window.cordova);
@@ -6168,6 +6217,12 @@ window.doPrint=function(){
     papers.forEach(function(p,i){
       if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
       bodyHtml+=buildDup4Html(p,adm);
+    });
+  } else if(mode==='dup5'||mode==='dup6'){
+    isLandscape=false;
+    papers.forEach(function(p,i){
+      if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
+      bodyHtml+=buildDupNHtml(p,adm,mode==='dup6'?6:5);
     });
   } else if(mode==='multi'){
     var result=buildMultiSubjectHtml(papers,adm);
@@ -6392,6 +6447,8 @@ window.openBatchPrint=async function(){
       +'<option value="multi">Multi-Subject</option>'
       +'<option value="dup2">2/4 Print</option>'
       +'<option value="dup4">4/4 Print</option>'
+      +'<option value="dup5">5/5 Print</option>'
+      +'<option value="dup6">6/6 Print</option>'
     +'</select></label>'
     +'<button class="btn bq" onclick="batchToggleAll(true)">\u2713 Select All</button>'
     +'<button class="btn bq" onclick="batchToggleAll(false)">\u2717 Clear All</button>'
@@ -6477,6 +6534,8 @@ function executeBatchPrint(papers,forcedMode){
         if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
         if(forcedMode==='dup2') bodyHtml+=buildDup2Html(p,adm);
         else if(forcedMode==='dup4') bodyHtml+=buildDup4Html(p,adm);
+        else if(forcedMode==='dup5') bodyHtml+=buildDupNHtml(p,adm,5);
+        else if(forcedMode==='dup6') bodyHtml+=buildDupNHtml(p,adm,6);
         else if(forcedMode==='landscape'){ bodyHtml+=buildLandscapePaperHtml(p,adm); anyLandscape=true; }
         else bodyHtml+=buildNormalPaperHtml(p,adm);
       });
@@ -6523,6 +6582,10 @@ function executeBatchPrint(papers,forcedMode){
       bodyHtml+=buildDup2Html(p,adm);
     } else if(m==='dup4'){
       bodyHtml+=buildDup4Html(p,adm);
+    } else if(m==='dup5'){
+      bodyHtml+=buildDupNHtml(p,adm,5);
+    } else if(m==='dup6'){
+      bodyHtml+=buildDupNHtml(p,adm,6);
     } else if(m==='landscape'){
       bodyHtml+=buildLandscapePaperHtml(p,adm);
       anyLandscape=true;
@@ -6964,7 +7027,7 @@ function renderAdminSett(){
     +'</div>'
     +'<label class="upload-zone" style="margin-top:10px;display:block;cursor:pointer;">'
     +'<div class="upload-zone-ico">&#128193;</div>'
-    +'<div class="upload-zone-text">Upload Logo (PNG/JPG, max 200KB)</div>'
+    +'<div class="upload-zone-text">Upload Logo (PNG/JPG, max 800KB)</div>'
     +'<input type="file" accept="image/png,image/jpeg,image/svg+xml" style="display:none;" onchange="uploadLogo(event)"/>'
     +'</label>'
     +(adm.logo?'<button class="btn bred bsm" onclick="removeLogo()" style="margin-top:6px;width:100%;">&#128465; Remove Logo</button>':'')
@@ -7102,12 +7165,13 @@ window.saveAdminBranding=function(){
   var sc=($('adminSchNm')||{}).value||'';
   var wm=($('adminWmInp')||{}).value||'';
   var addr=($('adminAddrInp')||{}).value||'';
-  var br={school:sc.trim(),watermark:wm.trim(),address:addr.trim()};
+  var br={school:sc.trim(),watermark:wm.trim(),address:addr.trim(),logo:(getAdminSettings().logo||'')};
   if(window._adminSettingsCache) Object.assign(window._adminSettingsCache,br);
-  ['school','watermark','address'].forEach(function(k){
+  ['school','watermark','address','logo'].forEach(function(k){
     _supabase.from('admin_settings').upsert({key:k,value:br[k]},{onConflict:'key'});
   });
   toast('Admin branding saved ✓','ok');
+  renderAdminPrint();
 };
 window.saveHouseStyleForm=function(){
   var hs={
