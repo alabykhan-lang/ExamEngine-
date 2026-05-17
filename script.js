@@ -8,7 +8,8 @@ var MODELS = {
   fallback: 'google/gemini-2.5-flash',
   scheme:   'google/gemini-2.5-flash',
   lab:      'anthropic/claude-3.5-sonnet',
-  drawing:  'google/gemini-2.5-flash'
+  drawing:  'google/gemini-2.5-flash',
+  autoGen:  'openai/gpt-oss-20b:free'
 };
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -724,6 +725,15 @@ function questionMarks(q){
 function hasPositiveMarks(q){ return questionMarks(q)>0; }
 function sumQuestionMarks(qs){
   return (qs||[]).reduce(function(a,q){ return a+questionMarks(q); },0);
+}
+function marksLabel(n){
+  n=Number(n);
+  return isFinite(n)&&n>0?(n+' mark'+(n===1?'':'s')):'';
+}
+function totalMarksHtml(total, strong){
+  var label=marksLabel(total);
+  if(!label) return '';
+  return strong?'<strong>'+label+'</strong>':label;
 }
 function renderVisualEditor(kind,id,q){
   q=q||{};
@@ -1567,7 +1577,10 @@ async function extractApiError(resp){
 async function _fetchOR(messages,model,isJson){
   var key=ensureApiKey();
   if(!key) throw new Error('No API key configured.');
-  if(apiProviderForKey(key)==='google') return _fetchGoogleGemini(messages,model,isJson,key);
+  if(apiProviderForKey(key)==='google'){
+    if(String(model||'').indexOf('gemini')<0) throw new Error('This generation path requires an OpenRouter sk-or-v1 key for '+model+'.');
+    return _fetchGoogleGemini(messages,model,isJson,key);
+  }
   var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
   if(isJson) body.response_format={type:'json_object'};
   var r;
@@ -1641,8 +1654,9 @@ async function _fetchGoogleGemini(messages,model,isJson,key){
   var parts=(((data.candidates||[])[0]||{}).content||{}).parts||[];
   return parts.map(function(p){ return p.text||''; }).join('');
 }
-async function _callWithRetry(messages,isJson){
-  var models=[MODELS.primary,MODELS.fallback];
+async function _callWithRetry(messages,isJson,opts){
+  opts=opts||{};
+  var models=opts.model?[opts.model]:[MODELS.primary,MODELS.fallback];
   var lastErr;
   for(var mi=0;mi<models.length;mi++){
     var attempts=0,max=3;
@@ -1703,7 +1717,7 @@ async function callGemini(prompt,opts){
     {role:'system',content:sysInstr},
     {role:'user',content:prompt}
   ];
-  var result=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true); }));
+  var result=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true,opts); }));
   return parseJsonText(result);
 }
 async function callGeminiVision(base64Image,mimeType,prompt){
@@ -1916,7 +1930,7 @@ function s1Auto(){
     +'<option value=""'+(!c.std?' selected':'')+'>Choose exam standard...</option>'
     +STANDARDS.map(function(x){ return '<option'+(x===c.std?' selected':'')+'>'+x+'</option>'; }).join('')
     +'</select>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:5px;">Sets tone, format, and difficulty Gemini will follow.</div>'
+    +'<div style="font-size:11px;color:var(--mute);margin-top:5px;">Sets tone, format, and difficulty ChatGPT will follow.</div>'
     +'</div>'
     +(c.std==='Custom/Internal'?renderDifficultyToggle():'')
     +'</div>'
@@ -1945,10 +1959,10 @@ function s1Auto(){
     +'<div class="fl"><label>📄 Instructions printed on paper</label>'
     +'<textarea class="fta" id="ftheoryPaper" style="min-height:64px;" placeholder="e.g. Answer any 3 questions. Section A: Short answer (5 marks each).">'+esc(c.theoryPaperInstr||'')+'</textarea>'
     +'</div>'
-    +'<div class="fl" style="margin-top:10px;"><label>🤖 How do you want your questions to be set? <span style="font-weight:400;text-transform:none;letter-spacing:0;">(sent to Gemini as a system instruction — not printed)</span></label>'
+    +'<div class="fl" style="margin-top:10px;"><label>🤖 How do you want your questions to be set? <span style="font-weight:400;text-transform:none;letter-spacing:0;">(sent to ChatGPT as a system instruction — not printed)</span></label>'
     +'<textarea class="fta" id="ftheoryAi" style="min-height:78px;" placeholder="e.g. Set 3 questions, make the second a diagram-based question. Focus on real-world application, not memorisation.">'+esc(c.theoryAiInstr||'')+'</textarea>'
-    +'<div class="banner b-teal" style="margin-top:8px;margin-bottom:0;font-size:11.5px;">🎯 <strong>These instructions are mandatory</strong> — Gemini will follow them exactly when generating theory questions.</div>'
-    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Private — only sent to Gemini. Not printed on paper.</div>'
+    +'<div class="banner b-teal" style="margin-top:8px;margin-bottom:0;font-size:11.5px;">🎯 <strong>These instructions are mandatory</strong> — ChatGPT will follow them exactly when generating theory questions.</div>'
+    +'<div style="font-size:11px;color:var(--mute);margin-top:4px;">Private — only sent to ChatGPT. Not printed on paper.</div>'
     +'</div></div>'
 
     +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="metaCard">'
@@ -2753,7 +2767,10 @@ async function generateAll(){
   async function batchGen(slots,type){
     if(!slots.length) return;
     try{
-      var qs=await callGemini(buildPrompt(S.cfg,type,slots.length));
+      var qs=await callGemini(buildPrompt(S.cfg,type,slots.length),{
+        model:MODELS.autoGen,
+        systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Follow the teacher/user tone and instructions, stay aligned to the selected curriculum details, and return valid JSON only — no explanation, no markdown, no code fences.'
+      });
       if(Array.isArray(qs)){
         for(var i=0; i<qs.length; i++){
           var raw=qs[i];
@@ -2802,7 +2819,10 @@ async function genSingleSlot(s,isReload){
   var el=$('slot_'+s.id); if(el) el.outerHTML=renderSlot(s);
   try{
     var extra=isReload?'Generate a completely different question — variety is important.':'';
-    var res=await callGemini(buildPrompt(S.cfg,s.k,1,extra));
+    var res=await callGemini(buildPrompt(S.cfg,s.k,1,extra),{
+      model:MODELS.autoGen,
+      systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Follow the teacher/user tone and instructions, stay aligned to the selected curriculum details, and return valid JSON only — no explanation, no markdown, no code fences.'
+    });
     var raw=Array.isArray(res)?res[0]:res;
     s.loading=false;
     
@@ -3144,8 +3164,6 @@ window.transcribeAll=async function(){
         // Image-based OCR
         var b64=item.dataUrl.split(',')[1]; if(!b64) throw new Error('Could not read image data');
         questions=await doScannerOcr(b64,item.mimeType,item.label);
-        // Attach source image for diagram display
-        questions.forEach(function(q){ q._sourceImg=item.dataUrl; });
       }
       if(questions&&questions.length){
         allExtracted=allExtracted.concat(questions);
@@ -3176,7 +3194,7 @@ window.transcribeAll=async function(){
         o:Array.isArray(raw.options)?raw.options:null,
         marks:raw.marks||0,
         tr:true,
-        diagImg:raw.hasDiagram&&raw._sourceImg?raw._sourceImg:null,
+        diagImg:null,
         diagDesc:raw.hasDiagram?(raw.diagramDescription||''):'',
         svgHint:svgHint,
         svgInline:svgInline
@@ -3851,9 +3869,9 @@ function buildPrint(os,fs,ts,includeGuide){
     h+='<div style="page-break-before:always;"></div>'
       +'<div class="ep-header" style="margin-bottom:8pt;">'
       +'<div class="mg-head">MARKING GUIDE / MARKING SCHEME</div>'
-      +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span><span>Total: <strong>'+totalMarks+' marks</strong></span></div>'
+      +'<div class="ep-meta"><span>Subject: <strong>'+esc(dispSubj)+'</strong></span><span>Class: <strong>'+esc(c.cls)+'</strong></span>'+(totalMarksHtml(totalMarks,true)?'<span>Total: '+totalMarksHtml(totalMarks,true)+'</span>':'')+'</div>'
       +'</div>'
-      +'<div class="mg-conf">CONFIDENTIAL — For Teacher\'s Use Only · Total: '+totalMarks+' marks</div>';
+      +'<div class="mg-conf">CONFIDENTIAL — For Teacher\'s Use Only'+(marksLabel(totalMarks)?' · Total: '+marksLabel(totalMarks):'')+'</div>';
 
     if(os.length){
       h+='<div class="mg-sec">Section A — Objectives: Answer Key</div>'
@@ -3863,7 +3881,7 @@ function buildPrint(os,fs,ts,includeGuide){
         h+='<div><strong>'+(i+1)+'.</strong> '+ans+'</div>';
       });
       var objTotal=os.reduce(function(a,s){ return a+questionMarks(s.q); },0);
-      h+='</div><div style="font-size:9pt;font-style:italic;color:#555;margin-bottom:10pt;">Objective section total: '+objTotal+' marks.</div>';
+      h+='</div>'+(marksLabel(objTotal)?'<div style="font-size:9pt;font-style:italic;color:#555;margin-bottom:10pt;">Objective section total: '+marksLabel(objTotal)+'.</div>':'');
     }
 
     if(fs.length){
@@ -3876,7 +3894,7 @@ function buildPrint(os,fs,ts,includeGuide){
           +'</div>';
       });
       var fitbTotal=fs.reduce(function(a,s){ return a+questionMarks(s.q); },0);
-      h+='<div style="font-size:9pt;font-style:italic;color:#555;margin-top:6pt;">Section '+fSecLbl+' total: '+fitbTotal+' marks.</div>';
+      if(marksLabel(fitbTotal)) h+='<div style="font-size:9pt;font-style:italic;color:#555;margin-top:6pt;">Section '+fSecLbl+' total: '+marksLabel(fitbTotal)+'.</div>';
     }
 
     if(ts.length){
@@ -3899,7 +3917,7 @@ function buildPrint(os,fs,ts,includeGuide){
         h+='</div></div>';
       });
       var thTotal=ts.reduce(function(a,s){ return a+questionMarks(s.q); },0);
-      h+='<div style="font-size:9pt;font-style:italic;color:#555;">Section '+tSecLbl2+' total: '+thTotal+' marks. Grand Total: '+totalMarks+' marks.</div>';
+      if(marksLabel(thTotal)||marksLabel(totalMarks)) h+='<div style="font-size:9pt;font-style:italic;color:#555;">'+(marksLabel(thTotal)?'Section '+tSecLbl2+' total: '+marksLabel(thTotal)+'. ':'')+(marksLabel(totalMarks)?'Grand Total: '+marksLabel(totalMarks)+'.':'')+'</div>';
     }
     h+='</div>'; // end marking guide
   }
@@ -4487,7 +4505,7 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
   var bg=$('autoGenModalBg'); if(bg) bg.remove();
 
   var area=$('adminAutoGenArea');
-  if(area) area.innerHTML='<div class="autogen-progress"><span class="spin">⟳</span> Auto-generating: <strong>'+esc(cls)+' — '+esc(subj)+' ('+esc(typeLabel)+')</strong> via OpenRouter…</div>';
+  if(area) area.innerHTML='<div class="autogen-progress"><span class="spin">⟳</span> Auto-generating: <strong>'+esc(cls)+' — '+esc(subj)+' ('+esc(typeLabel)+')</strong> via '+esc(MODELS.autoGen)+'…</div>';
 
   var isTest=typeLabel.toLowerCase().includes('c.a.');
   var prompt='You are a NERDC 2026 Nigerian curriculum expert. Auto-generate a complete '+(isTest?'Continuous Assessment test':'end-of-term exam')+' paper for:\n'
@@ -4503,14 +4521,17 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
   }
 
   prompt+='Generate:\n- '+objN+' multiple-choice objectives (options A-D)\n- '+fitbN+' fill-in-the-blank questions (sentence ending with ___________)\n- '+thN+' theory/essay questions\n\n'
-    +'Rules: use valid LaTeX for mathematics, chemistry and physics. Include diagrams, shapes, tables and graphs where educationally useful. For drawings, fill svgDescription precisely. For inline tables, use [TABLE:Heading 1;Heading 2|Row A;Row B].\n\n'
+    +'Rules: match the admin/user tone and difficulty implied by the instructions, while keeping all questions standard, examinable, age-appropriate, and aligned to Nigerian curriculum expectations. Use valid LaTeX for mathematics, chemistry and physics. Include diagrams, shapes, tables and graphs where educationally useful. For drawings, fill svgDescription precisely. For inline tables, use [TABLE:Heading 1;Heading 2|Row A;Row B].\n\n'
     +'Return ONLY a valid JSON object:\n'
     +'{"objectives":[{"q":"...","options":["A","B","C","D"],"answer":0,"topic":"...","svgDescription":""}],'
     +'"fillInBlank":[{"q":"sentence with ___________","answer":"...","marks":2,"svgDescription":""}],'
     +'"theory":[{"q":"...","marks":10,"showSteps":true,"svgDescription":""}]}';
 
   try{
-    var res=await callGemini(prompt);
+    var res=await callGemini(prompt,{
+      model:MODELS.autoGen,
+      systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Follow the user/admin tone and instructions, but return valid JSON only — no explanation, no markdown, no code fences.'
+    });
     var obj=Array.isArray(res)?res[0]:res;
     var objs=obj.objectives||obj.questions||[];
     var fitbs=obj.fillInBlank||obj.fill_in_blank||[];
@@ -5036,7 +5057,7 @@ function renderDigitalLabPreview(papers,adm){
       var sqs=sp.questions||[];
       var stotal=sumQuestionMarks(sqs);
       mh+='<div style="border:0.5px solid #999;border-radius:3px;margin-top:'+(si===0?'4':'8')+'px;overflow:hidden;">';
-      mh+='<div style="background:#222;color:#fff;padding:2px 8px;font-size:8.5pt;font-weight:700;display:flex;justify-content:space-between;">'+esc(sp.subj)+' — '+esc(sp.cls)+'<span style="font-weight:400;font-size:7.5pt;">'+stotal+' marks</span></div>';
+      mh+='<div style="background:#222;color:#fff;padding:2px 8px;font-size:8.5pt;font-weight:700;display:flex;justify-content:space-between;">'+esc(sp.subj)+' — '+esc(sp.cls)+(marksLabel(stotal)?'<span style="font-weight:400;font-size:7.5pt;">'+marksLabel(stotal)+'</span>':'')+'</div>';
       var sobjs=sqs.filter(function(q){ return q.k==='obj'; });
       var sths=sqs.filter(function(q){ return q.k==='theory'; });
       var sfitbs=sqs.filter(function(q){ return q.k==='fitb'; });
@@ -5083,7 +5104,7 @@ function renderDigitalLabPreview(papers,adm){
   h+='<div style="font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;">'+esc(school2)+'</div>';
   if(address2) h+='<div style="font-size:7.5pt;text-transform:uppercase;opacity:.7;">'+esc(address2)+'</div>';
   h+='<div style="font-size:10pt;font-weight:600;margin-top:3px;">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
-  h+='<div style="font-size:9pt;margin-top:2px;">Subject: <strong>'+esc(p.subj)+'</strong> &nbsp; Class: <strong>'+esc(p.cls)+'</strong> &nbsp; Total: <strong>'+total+' marks</strong></div>';
+  h+='<div style="font-size:9pt;margin-top:2px;">Subject: <strong>'+esc(p.subj)+'</strong> &nbsp; Class: <strong>'+esc(p.cls)+'</strong>'+(marksLabel(total)?' &nbsp; Total: <strong>'+marksLabel(total)+'</strong>':'')+'</div>';
   h+='</div>';
   if(objs.length){
     h+='<div style="font-size:10pt;font-weight:700;text-transform:uppercase;border-bottom:1.5px solid #000;padding-bottom:2px;margin:10px 0 4px;">Section A &mdash; Objectives ('+objs.length+')</div>';
@@ -5131,7 +5152,7 @@ function buildPreviewCol(p,adm,today){
   var h='<div style="border-bottom:.5px solid #000;margin-bottom:3px;padding-bottom:2px;display:flex;align-items:center;gap:2mm;">';
   if(logo) h+='<img src="'+logo+'" style="width:12px;height:12px;object-fit:contain;"/>';
   h+='<div><div style="font-size:8pt;font-weight:800;text-transform:uppercase;">'+esc(school)+'</div>'
-    +'<div style="font-size:6.5pt;">'+esc(p.subj)+' &bull; '+esc(p.cls)+' &bull; '+total+' marks</div></div></div>';
+    +'<div style="font-size:6.5pt;">'+esc(p.subj)+' &bull; '+esc(p.cls)+(marksLabel(total)?' &bull; '+marksLabel(total):'')+'</div></div></div>';
   if(objs.length){
     h+='<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;margin:3px 0 1px;">Section A &mdash; Objectives</div>';
     objs.slice(0,15).forEach(function(q,i){
@@ -5355,7 +5376,7 @@ function buildPaperHeader(p,adm,compact){
       +'<div class="ep-school" style="font-size:8.5pt!important;letter-spacing:.2px;">'+esc(school)+'</div>'
       +(address?'<div style="font-size:6pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
       +'<div class="ep-title" style="font-size:7.5pt!important;">'+assessmentLabel(p.at,true)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
-      +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>&bull;<span>'+total+' marks</span></div>'
+      +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span>&bull;<span>'+esc(p.cls)+'</span>'+(marksLabel(total)?'&bull;<span>'+marksLabel(total)+'</span>':'')+'</div>'
       +'</div></div>';
   } else {
     // Full header for normal
@@ -5364,7 +5385,7 @@ function buildPaperHeader(p,adm,compact){
     h+='<div class="ep-school">'+esc(school)+'</div>';
     if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
     h+='<div class="ep-title">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>';
-    h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Total: <strong>'+total+' marks</strong></span><span>Ref: '+esc(p.ref)+'</span></div>';
+    h+='<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span><span>Class: <strong>'+esc(p.cls)+'</strong></span>'+(totalMarksHtml(total,true)?'<span>Total: '+totalMarksHtml(total,true)+'</span>':'')+'<span>Ref: '+esc(p.ref)+'</span></div>';
   }
   h+='</div>';
   return h;
@@ -6003,7 +6024,7 @@ function buildMultiSubjectHtml(papers,adm){
     h+='<div class="multi-subject-block" style="margin-top:'+(idx===0?'4pt':'10pt')+';page-break-inside:avoid;break-inside:avoid;">';
     h+='<div style="background:#222;color:#fff;padding:3pt 8pt;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center;">';
     h+='<span>'+esc(p.subj)+' — '+esc(p.cls)+'</span>';
-    h+='<span style="font-weight:400;font-size:8pt;">'+total+' marks</span>';
+    if(marksLabel(total)) h+='<span style="font-weight:400;font-size:8pt;">'+marksLabel(total)+'</span>';
     h+='</div>';
 
     // Render sections with compact spacing
@@ -6076,6 +6097,31 @@ function buildDup4Html(p, adm) {
   h += cell + cell + cell + cell;
   h += '</div>';
   return h;
+}
+
+function isLikelyApkWebView(){
+  var ua=(navigator.userAgent||'').toLowerCase();
+  return /; wv\)|\bwv\b|crosswalk|capacitor|cordova|examengine/.test(ua) || !!(window.Capacitor||window.cordova);
+}
+function printHtmlInCurrentView(bodyHtml, css, title){
+  var root=ensurePrintTarget('print-root');
+  if(!root){ toast('Print area unavailable','err',5000); return; }
+  var style=$('ee-apk-print-style');
+  if(!style){ style=document.createElement('style'); style.id='ee-apk-print-style'; document.head.appendChild(style); }
+  style.textContent=css||'';
+  root.innerHTML='<div data-print-title="'+esc(title||'ExamEngine Print')+'">'+bodyHtml+'</div>';
+  root.style.display='block';
+  document.body.classList.remove('normal-mode','economy-mode');
+  document.body.classList.add('lab-print-mode');
+  setTimeout(function(){
+    try{ math(root); }catch(e){}
+    window.print();
+    setTimeout(function(){
+      document.body.classList.remove('lab-print-mode');
+      root.innerHTML='';
+      root.style.display='none';
+    },1600);
+  },700);
 }
 
 window.doPrint=function(){
@@ -6207,10 +6253,15 @@ window.doPrint=function(){
     '.mg-th-q-text{font-size:10pt;margin:3pt 0;font-style:italic;}\n'+
     '.mg-mark-breakdown{font-size:9.5pt;color:#333;line-height:1.8;border-left:2pt solid #999;padding-left:6pt;margin-top:4pt;}\n';
 
+  if(isLikelyApkWebView()){
+    printHtmlInCurrentView(bodyHtml,css,'ExamEngine Print');
+    return;
+  }
+
   /* ── Open dedicated print window ── */
   var win=window.open('','_blank','width=900,height=700');
   if(!win){
-    toast('⚠ Pop-up blocked — please allow pop-ups for this page, then try again.','warn',7000);
+    printHtmlInCurrentView(bodyHtml,css,'ExamEngine Print');
     return;
   }
 
@@ -6314,7 +6365,7 @@ window.openBatchPrint=async function(){
     +'<div style="padding:14px 18px;background:linear-gradient(135deg,#059669,#047857);color:#fff;display:flex;align-items:center;gap:10px;">'
     +'<span style="font-size:20px;">\ud83d\udda8</span>'
     +'<div style="flex:1;"><div style="font-weight:800;font-size:16px;">Batch Print \u2014 '+esc(termKey)+'</div>'
-    +'<div style="font-size:11px;opacity:.85;">'+all.length+' approved paper(s) across '+classes.length+' class(es). Each auto-formatted through its ideal mode.</div></div>'
+    +'<div style="font-size:11px;opacity:.85;">'+all.length+' approved paper(s) across '+classes.length+' class(es). Choose a print mode or leave Auto.</div></div>'
     +'<button onclick="closeBatchPrint()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:700;">\u2715 Close</button>'
     +'</div>'
     +'<div style="padding:16px 18px;overflow-y:auto;flex:1;background:#f8fafc;">'
@@ -6322,6 +6373,15 @@ window.openBatchPrint=async function(){
     +'</div>'
     +'<div style="padding:12px 18px;background:#fff;border-top:1px solid #e5e7eb;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
     +'<span style="font-size:12px;color:#64748b;flex:1;min-width:150px;">Select subjects above, then print.</span>'
+    +'<label style="font-size:11px;font-weight:700;color:#475569;display:flex;align-items:center;gap:6px;">Mode <select id="batchPrintMode" class="fs" style="width:auto;min-width:150px;padding:7px 9px;font-size:12px;">'
+      +'<option value="auto">Auto Fit</option>'
+      +'<option value="portrait">Portrait A4</option>'
+      +'<option value="landscape">Landscape</option>'
+      +'<option value="split">Split 2-in-1</option>'
+      +'<option value="multi">Multi-Subject</option>'
+      +'<option value="dup2">2/4 Print</option>'
+      +'<option value="dup4">4/4 Print</option>'
+    +'</select></label>'
     +'<button class="btn bq" onclick="batchToggleAll(true)">\u2713 Select All</button>'
     +'<button class="btn bq" onclick="batchToggleAll(false)">\u2717 Clear All</button>'
     +'<button class="btn bp" onclick="batchPrintSelected()" style="background:#059669;border-color:#059669;">\ud83d\udda8 Print Selected</button>'
@@ -6333,6 +6393,11 @@ window.openBatchPrint=async function(){
 window.closeBatchPrint=function(){
   var o=$('batchPrintOverlay'); if(o) o.remove();
 };
+
+function getBatchPrintMode(){
+  var el=$('batchPrintMode');
+  return (el&&el.value)||'auto';
+}
 
 window.batchToggleAll=function(checked){
   document.querySelectorAll('.bp-subj-chk').forEach(function(c){ c.checked=!!checked; });
@@ -6346,8 +6411,9 @@ window.batchPrintSingle=async function(ref){
   var all=await getPublished();
   var p=all.find(function(x){ return x.ref===ref; });
   if(!p){ toast('Paper not found','warn'); return; }
+  var mode=getBatchPrintMode();
   closeBatchPrint();
-  executeBatchPrint([p]);
+  executeBatchPrint([p],mode);
 };
 
 window.batchPrintClass=async function(safeCls){
@@ -6358,8 +6424,9 @@ window.batchPrintClass=async function(safeCls){
   if(!refs.length){ toast('No subjects selected in this class','warn'); return; }
   var all=await getPublished();
   var selected=refs.map(function(r){ return all.find(function(x){ return x.ref===r; }); }).filter(Boolean);
+  var mode=getBatchPrintMode();
   closeBatchPrint();
-  executeBatchPrint(selected);
+  executeBatchPrint(selected,mode);
 };
 
 window.batchPrintSelected=async function(){
@@ -6370,19 +6437,45 @@ window.batchPrintSelected=async function(){
   if(!refs.length){ toast('No subjects selected','warn'); return; }
   var all=await getPublished();
   var selected=refs.map(function(r){ return all.find(function(x){ return x.ref===r; }); }).filter(Boolean);
+  var mode=getBatchPrintMode();
   closeBatchPrint();
-  executeBatchPrint(selected);
+  executeBatchPrint(selected,mode);
 };
 
 /* Execute batch print: each paper routed through its correct mode,
    stacked into ONE print window. Mode resolution per-paper. */
-function executeBatchPrint(papers){
+function executeBatchPrint(papers,forcedMode){
   if(!papers||!papers.length){ toast('Nothing to print','warn'); return; }
   var adm=getAdminSettings();
   window._printPapers=papers;
+  forcedMode=forcedMode||'auto';
 
   var bodyHtml='';
   var anyLandscape=false;
+
+  if(forcedMode!=='auto'){
+    if(forcedMode==='split'){
+      bodyHtml=buildEconomyFrame(papers,adm);
+      anyLandscape=true;
+    } else if(forcedMode==='multi'){
+      var multiResult=buildMultiSubjectHtml(papers,adm);
+      bodyHtml=multiResult.html;
+      anyLandscape=!!multiResult.landscape;
+    } else {
+      papers.forEach(function(p,i){
+        if(i>0) bodyHtml+='<div style="page-break-before:always;"></div>';
+        if(forcedMode==='dup2') bodyHtml+=buildDup2Html(p,adm);
+        else if(forcedMode==='dup4') bodyHtml+=buildDup4Html(p,adm);
+        else if(forcedMode==='landscape'){ bodyHtml+=buildLandscapePaperHtml(p,adm); anyLandscape=true; }
+        else bodyHtml+=buildNormalPaperHtml(p,adm);
+      });
+    }
+    var forcedPageRule=anyLandscape
+      ?'@page{size:A4 landscape;margin:0;}'
+      :'@page{size:A4 portrait;margin:0;}';
+    openPrintWindow(bodyHtml, forcedPageRule, 'Batch Print — '+papers.length+' paper(s) · '+getModeName(forcedMode));
+    return;
+  }
 
   /* Group papers by their auto-resolved mode.
      Multi-Subject groups merge. Single papers print individually. */
@@ -6510,8 +6603,12 @@ function openPrintWindow(bodyHtml, pageRule, title){
     '.multi-subject-block{border:0.5pt solid #999;border-radius:3pt;overflow:hidden;margin-bottom:6pt;padding:0 0 4pt 0;}\n'+
     '.hs-header strong,.hs-footer strong{font-weight:800;}\n';
 
+  if(isLikelyApkWebView()){
+    printHtmlInCurrentView(bodyHtml,css,title||'Print');
+    return;
+  }
   var win=window.open('','_blank');
-  if(!win){ toast('Pop-up blocked \u2014 allow pop-ups to print','err',5000); return; }
+  if(!win){ printHtmlInCurrentView(bodyHtml,css,title||'Print'); return; }
   win.document.open();
   win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"/>'+
     '<title>'+esc(title||'Print')+'</title>'+
@@ -6571,7 +6668,7 @@ function buildNormalPrintHtml(p,adm){
     +'<div class="ep-title">'+assessmentLabel(p.at,false)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
     +'<div class="ep-meta"><span>Subject: <strong>'+esc(p.subj)+'</strong></span>'
     +'<span>Class: <strong>'+esc(p.cls)+'</strong></span><span>Date: '+today+'</span></div>'
-    +'<div class="ep-meta"><span>Total: <strong>'+total+' marks</strong></span>'
+    +'<div class="ep-meta">'+(totalMarksHtml(total,true)?'<span>Total: '+totalMarksHtml(total,true)+'</span>':'')
     +(p.std?'<span>Standard: '+esc(p.std)+'</span>':'')+'<span>Ref: '+esc(p.ref)+'</span></div>'
     +'</div>';
 
@@ -6679,7 +6776,7 @@ function buildEcoColumn(p,adm,today,wm,side){
     +'<div class="ep-school" style="font-size:8.5pt!important;">'+esc(school)+'</div>'
     +(address?'<div style="font-size:6.5pt;text-transform:uppercase;opacity:.7;">'+esc(address)+'</div>':'')
     +'<div class="ep-title" style="font-size:8pt!important;">'+assessmentLabel(p.at,true)+' &mdash; '+esc(p.term)+(p.session?' ('+esc(p.session)+')':'')+'</div>'
-    +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span> &bull; <span>'+esc(p.cls)+'</span> &bull; <span>'+total+' marks</span></div>'
+    +'<div class="ep-meta" style="font-size:7pt!important;"><span>'+esc(p.subj)+'</span> &bull; <span>'+esc(p.cls)+'</span>'+(marksLabel(total)?' &bull; <span>'+marksLabel(total)+'</span>':'')+'</div>'
     +'</div></div>';
 
   // Objectives — ultra compact inline
@@ -6911,7 +7008,7 @@ function renderAdminSett(){
     +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp2\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
-    +'<div class="api-note">Used for auto-generation when teachers miss the deadline.<br/>Primary: <strong>'+MODELS.primary+'</strong></div>'
+    +'<div class="api-note">Used for auto-generation when teachers miss the deadline.<br/>Auto-generation model: <strong>'+MODELS.autoGen+'</strong></div>'
     +'<div style="margin-top:12px;display:flex;gap:9px;">'
     +'<button class="btn bq" onclick="clearApiKey()">🗑 Clear</button>'
     +'<button class="btn bp" onclick="saveApiKeyAdmin()">💾 Save Key</button>'
