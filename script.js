@@ -1661,7 +1661,7 @@ async function _callWithRetry(messages,isJson,opts){
   for(var mi=0;mi<models.length;mi++){
     var attempts=0,max=3;
     while(attempts<max){
-      try{ await _gapWait(); return await _fetchOR(messages,models[mi],isJson); }
+      try{ await _gapWait(); return await _fetchOR(messages,models[mi],isJson&&!opts.noResponseFormat); }
       catch(e){
         lastErr=e; attempts++;
         if(e.is429&&attempts<max){
@@ -1700,12 +1700,20 @@ function updateApiStatus(state,msg){
   }
 }
 function parseJsonText(text){
-  text=(text||'').replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+  text=(text||'').replace(/^\s*```(?:json)?\s*/i,'').replace(/```\s*$/,'').trim();
   try{ return JSON.parse(text); }catch(e){}
   var arrM=text.match(/\[\s*[\s\S]*\]/); if(arrM){ try{ return JSON.parse(arrM[0]); }catch(e2){} }
   var objM=text.match(/\{[\s\S]*\}/);
   if(objM){ try{ var o=JSON.parse(objM[0]); var keys=['questions','items','data','results']; for(var i=0;i<keys.length;i++){ if(Array.isArray(o[keys[i]])) return o[keys[i]]; } return o; }catch(e3){} }
   throw new Error('Could not parse API response as JSON.');
+}
+function unwrapQuestionArray(result){
+  if(Array.isArray(result)) return result;
+  if(result&&typeof result==='object'){
+    var keys=['questions','items','data','results','objectives','fillInBlank','fill_in_blank','theory'];
+    for(var i=0;i<keys.length;i++){ if(Array.isArray(result[keys[i]])) return result[keys[i]]; }
+  }
+  return [];
 }
 async function callGemini(prompt,opts){
   opts=opts||{};
@@ -1918,10 +1926,7 @@ function s1Auto(){
     +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:7px;">Topic Tags <span style="font-weight:400;text-transform:none;letter-spacing:0;">(✕ to remove any you didn\'t cover)</span></label>'
     +'<div class="tag-cloud" id="tagCloud">'+renderTagCloud()+'</div>'
     +'</div>'
-    +'<div style="margin-top:11px;">'
-    +'<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mute);display:block;margin-bottom:5px;">Or type topics manually</label>'
-    +'<textarea class="fta" id="ftp" style="min-height:58px;" placeholder="e.g. Quadratic Equations, Trigonometry (comma-separated)">'+esc(c.topicText||'')+'</textarea>'
-    +'</div></div>'
+    +'</div>'
 
     // Exam Standard
     +'<div class="card flow-step'+(c.subj?' unlocked':'')+'" id="stdCard">'
@@ -2038,7 +2043,7 @@ function s1Auto(){
     checkS1Ready();
   };
   $('fin').oninput=function(e){ S.cfg.instr=e.target.value; };
-  $('ftp').oninput=function(e){ S.cfg.topicText=e.target.value; checkS1Ready(); };
+  var ftp=$('ftp'); if(ftp) ftp.oninput=function(e){ S.cfg.topicText=e.target.value; checkS1Ready(); };
   $('ftheoryPaper').oninput=function(e){ S.cfg.theoryPaperInstr=e.target.value; };
   $('ftheoryAi').oninput=function(e){ S.cfg.theoryAiInstr=e.target.value; };
   $('s1n').onclick=function(){
@@ -2404,7 +2409,7 @@ window.doLoadScheme=async function(){
 
   var sa=$('schemeArea');
   if(!getEffectiveApiKey()){
-    if(sa) sa.innerHTML='<div class="banner b-warn">⚠ No valid API key is saved in Admin Settings. Paste a working <strong>OpenRouter sk-or-v1-...</strong> key or <strong>Gemini AIza...</strong> key, then retry.<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below in the meantime.</div></div>'+renderSchemePrompt();
+    if(sa) sa.innerHTML='<div class="banner b-warn">⚠ No valid API key is saved in Admin Settings. Paste a working <strong>OpenRouter sk-or-v1-...</strong> key or <strong>Gemini AIza...</strong> key, then retry.<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Use the Manual scheme option in the meantime.</div></div>'+renderSchemePrompt();
     toast('No valid API key saved','err',4500);
     return;
   }
@@ -2489,7 +2494,7 @@ window.doLoadScheme=async function(){
         if(sa){
           sa.innerHTML='<div class="banner b-warn" style="flex-direction:column;align-items:flex-start;">'
             +'<div><strong>⏳ Rate limit</strong> — auto-retrying in <strong id="schemeCountdown">'+secs+'</strong>s…</div>'
-            +'<div style="margin-top:4px;font-size:11.5px;opacity:.8;">Type topics manually below in the meantime.</div>'
+            +'<div style="margin-top:4px;font-size:11.5px;opacity:.8;">Use the Manual scheme option in the meantime.</div>'
             +'</div>'+renderSchemePrompt();
           var rem=secs;
           var cd=setInterval(function(){ rem--; var el=$('schemeCountdown'); if(el) el.textContent=rem; if(rem<=0){ clearInterval(cd); doLoadScheme(); } },1000);
@@ -2504,7 +2509,7 @@ window.doLoadScheme=async function(){
           +'</div>'+renderSchemePrompt();
       } else {
         if(sa) sa.innerHTML='<div class="banner b-warn">⚠ Could not load scheme: '+esc(e.message.substring(0,120))
-          +retryBtn+'<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Type your topics manually below.</div></div>'+renderSchemePrompt();
+          +retryBtn+'<div style="margin-top:6px;font-size:11.5px;color:var(--mute);">Use the Manual scheme option.</div></div>'+renderSchemePrompt();
       }
       checkS1Ready();
     });
@@ -2769,8 +2774,11 @@ async function generateAll(){
     try{
       var qs=await callGemini(buildPrompt(S.cfg,type,slots.length),{
         model:MODELS.autoGen,
-        systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Follow the teacher/user tone and instructions, stay aligned to the selected curriculum details, and return valid JSON only — no explanation, no markdown, no code fences.'
+        noResponseFormat:true,
+        systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Return only a raw valid JSON array. The first character must be [ and the last character must be ]. No explanation, no markdown, no code fences.'
       });
+      qs=unwrapQuestionArray(qs);
+      if(!qs.length) throw new Error('AI returned no usable questions.');
       if(Array.isArray(qs)){
         for(var i=0; i<qs.length; i++){
           var raw=qs[i];
@@ -2821,9 +2829,12 @@ async function genSingleSlot(s,isReload){
     var extra=isReload?'Generate a completely different question — variety is important.':'';
     var res=await callGemini(buildPrompt(S.cfg,s.k,1,extra),{
       model:MODELS.autoGen,
-      systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Follow the teacher/user tone and instructions, stay aligned to the selected curriculum details, and return valid JSON only — no explanation, no markdown, no code fences.'
+      noResponseFormat:true,
+      systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Return only a raw valid JSON array. The first character must be [ and the last character must be ]. No explanation, no markdown, no code fences.'
     });
+    res=unwrapQuestionArray(res);
     var raw=Array.isArray(res)?res[0]:res;
+    if(!raw) throw new Error('AI returned no usable question.');
     s.loading=false;
     
     var qText = raw.q||raw.question||'';
