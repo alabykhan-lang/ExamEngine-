@@ -1615,7 +1615,8 @@ async function _fetchOR(messages,model,isJson){
     return _fetchGoogleGemini(messages,model,isJson,key);
   }
   var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
-  if(isJson) body.response_format={type:'json_object'};
+  // Only use response_format for known high-tier models; free OpenRouter models often reject the request entirely (400 Bad Request) if this is passed.
+  if(isJson && !String(model).includes(':free')) body.response_format={type:'json_object'};
   var r;
   try{
     r=await fetch(OR_BASE,{
@@ -1702,8 +1703,8 @@ async function _callWithRetry(messages,isJson,opts){
       catch(e){
         lastErr=e; attempts++;
         var msg=String((e&&e.message)||'').toLowerCase();
-        // 'No endpoints found' or model unavailable — skip to next model immediately
-        if(msg.includes('no endpoint')||msg.includes('no provider')||msg.includes('not found')||e.status===404||e.status===503){
+        // Skip model immediately on 'No endpoints', 'Provider not found', 404, 503, OR a 400 Bad Request which usually means the specific free model rejected our parameters (like JSON format).
+        if(msg.includes('no endpoint')||msg.includes('no provider')||msg.includes('not found')||msg.includes('bad request')||e.status===404||e.status===503||e.status===400){
           if(mi<allModels.length-1) toast('⚡ Model unavailable, trying next…','warn',1500);
           break;
         }
