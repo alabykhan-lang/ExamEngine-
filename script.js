@@ -4,12 +4,12 @@
    MODELS
 ══════════════════════════════════════ */
 var MODELS = {
-  primary:  'google/gemini-2.5-flash:free',
-  fallback: 'google/gemini-2.5-flash:free',
-  scheme:   'google/gemini-2.5-flash:free',
-  lab:      'google/gemini-2.5-flash:free',
-  drawing:  'google/gemini-2.5-flash:free',
-  autoGen:  'google/gemini-2.5-flash:free'
+  primary:  'google/gemini-2.0-flash-exp:free',
+  fallback: 'meta-llama/llama-3.3-70b-instruct:free',
+  scheme:   'google/gemini-2.0-flash-exp:free',
+  lab:      'google/gemini-2.0-flash-exp:free',
+  drawing:  'google/gemini-2.0-flash-exp:free',
+  autoGen:  'google/gemini-2.0-flash-exp:free'
 };
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -1349,8 +1349,8 @@ function renderSett(){
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
     +'<div class="api-note">🔑 Accepts <strong>OpenRouter</strong> keys (<code>sk-or-v1-...</code>) or <strong>Google Gemini</strong> keys (<code>AIza...</code>).<br/>'
-    +'Primary: <strong>Gemini</strong> · Fallback model: <strong>gemini-2.5-flash</strong><br/>'
-    +'Scheme Engine: <strong>google/gemini-2.5-flash</strong><br/>'
+    +'Primary: <strong>Gemini 2.0 Flash</strong> · Fallback: <strong>Llama 3.3 70B</strong><br/>'
+    +'Scheme Engine: <strong>google/gemini-2.0-flash-exp:free</strong><br/>'
     +'Lab Agent: <strong>anthropic/claude-3.5-sonnet</strong><br/>'
     +'Costs pennies per full exam paper.</div>'
     +'<div style="margin-top:14px;display:flex;gap:9px;">'
@@ -5476,7 +5476,7 @@ function buildPaperHeader(p,adm,compact){
       +'</div></div>';
   } else {
     // Full header for normal
-    if(logo) h+='<img style="max-height:45pt;max-width:45pt;object-fit:contain;border-radius:5pt;display:block;margin:0 auto 4pt;" src="'+logo+'"/>';
+    if(logo) h+='<img style="max-height:36pt;max-width:72pt;object-fit:contain;border-radius:4pt;display:block;margin:0 auto 4pt;" src="'+logo+'"/>';
     else h+='<div class="ep-crest">'+initials+'</div>';
     h+='<div class="ep-school">'+esc(school)+'</div>';
     if(address) h+='<div style="font-size:8pt;text-transform:uppercase;margin-bottom:2pt;">'+esc(address)+'</div>';
@@ -6108,7 +6108,7 @@ function buildMultiSubjectHtml(papers,adm){
 
   // Shared school header (once for all subjects)
   h+='<div class="ep-header">';
-  if(logo) h+='<img style="width:40pt;height:40pt;object-fit:contain;border-radius:4pt;display:block;margin:0 auto 3pt;" src="'+logo+'"/>';
+  if(logo) h+='<img style="max-height:32pt;max-width:64pt;object-fit:contain;border-radius:4pt;display:block;margin:0 auto 3pt;" src="'+logo+'"/>';
   else h+='<div class="ep-crest" style="width:36pt;height:36pt;font-size:11pt;">'+initials+'</div>';
   h+='<div class="ep-school" style="font-size:12pt;">'+esc(school)+'</div>';
   if(address) h+='<div style="font-size:7.5pt;text-transform:uppercase;margin-bottom:1pt;">'+esc(address)+'</div>';
@@ -6379,7 +6379,11 @@ window.doPrint=function(){
     '.mg-fitb-ans{margin-bottom:5pt;font-size:10pt;}\n'+
     '.mg-th-q{margin-bottom:12pt;page-break-inside:avoid;}\n'+
     '.mg-th-q-text{font-size:10pt;margin:3pt 0;font-style:italic;}\n'+
-    '.mg-mark-breakdown{font-size:9.5pt;color:#333;line-height:1.8;border-left:2pt solid #999;padding-left:6pt;margin-top:4pt;}\n';
+    '.mg-mark-breakdown{font-size:9.5pt;color:#333;line-height:1.8;border-left:2pt solid #999;padding-left:6pt;margin-top:4pt;}\n'+
+    '.eco-header{display:flex;align-items:center;gap:3mm;border-bottom:0.3mm solid #333;padding-bottom:1.5mm;margin-bottom:2mm;}\n'+
+    '.eco-logo{max-height:8mm!important;max-width:8mm!important;object-fit:contain;flex-shrink:0;display:block;}\n'+
+    '.ep-header img{max-height:36pt!important;max-width:72pt!important;object-fit:contain!important;width:auto!important;height:auto!important;}\n'+
+    '.custom-diagram-img{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;display:block;margin:3pt auto;}\n';
 
   if(isLikelyApkWebView()){
     printHtmlInCurrentView(bodyHtml,css,'ExamEngine Print');
@@ -6737,7 +6741,11 @@ function openPrintWindow(bodyHtml, pageRule, title){
     '.ep-landscape{max-width:297mm;}\n'+
     '.ep-landscape-flow{column-count:2;column-gap:10mm;column-rule:.25pt solid #ccc;}\n'+
     '.multi-subject-block{border:0.5pt solid #999;border-radius:3pt;overflow:hidden;margin-bottom:6pt;padding:0 0 4pt 0;}\n'+
-    '.hs-header strong,.hs-footer strong{font-weight:800;}\n';
+    '.hs-header strong,.hs-footer strong{font-weight:800;}\n'+
+    '.eco-header{display:flex;align-items:center;gap:3mm;border-bottom:0.3mm solid #333;padding-bottom:1.5mm;margin-bottom:2mm;}\n'+
+    '.eco-logo{max-height:8mm!important;max-width:8mm!important;object-fit:contain;flex-shrink:0;display:block;}\n'+
+    '.ep-header img{max-height:36pt!important;max-width:72pt!important;object-fit:contain!important;width:auto!important;height:auto!important;}\n'+
+    '.custom-diagram-img{max-width:100%!important;max-height:55mm!important;object-fit:contain!important;display:block;margin:3pt auto;}\n';
 
   if(isLikelyApkWebView()){
     printHtmlInCurrentView(bodyHtml,css,title||'Print');
@@ -6771,9 +6779,11 @@ function buildObjInlineHtml(q,i,compact){
       return '<span class="ep-opt-inline"><span class="ep-opt-inline-k">('+L[oi]+')</span> '+esc(o)+'</span>';
     }).join('');
   }
+  var imgHtml='';
+  if(q.customImg) imgHtml='<div style="margin:3pt 0;text-align:center;page-break-inside:avoid;"><img src="'+q.customImg+'" style="max-width:100%;max-height:'+(compact?'30mm':'55mm')+';object-fit:contain;"/></div>';
+  else if(q._svgDiagram) imgHtml='<div style="margin:3pt 0;text-align:center;">'+q._svgDiagram+'</div>';
   return '<div class="ep-q-obj'+(compact?' compact':'')+'">'
-    +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t+opts
-    +(q._svgDiagram?'<div style="margin:3pt 0;text-align:center;">'+q._svgDiagram+'</div>':'')
+    +'<span class="ep-qn">'+(i+1)+'. </span>'+q.t+imgHtml+opts
     +'</div>';
 }
 
@@ -6782,7 +6792,7 @@ function buildNormalPrintHtml(p,adm){
   var cfg=ADMIN.labConfig;
   var fontMap={'Times New Roman':'"Times New Roman",serif','Arial':'Arial,sans-serif','Georgia':'Georgia,serif','Helvetica':'Helvetica,sans-serif','Verdana':'Verdana,sans-serif'};
   var fontFam=fontMap[cfg.fontFamily]||'"Times New Roman",serif';
-  var logo=adm.logo?'<img style="width:48pt;height:48pt;object-fit:contain;border-radius:5pt;" src="'+adm.logo+'"/>':'';
+  var logo=adm.logo?'<img style="max-height:36pt;max-width:72pt;object-fit:contain;border-radius:4pt;display:block;margin:0 auto 4pt;" src="'+adm.logo+'"/>':'';
   var school=adm.school||p.school||'School';
   var address=adm.address||'';
   var initials=school.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,3).toUpperCase();
