@@ -1744,24 +1744,34 @@ function updateApiStatus(state,msg){
 }
 function parseJsonText(text){
   if(!text) throw new Error('Empty API response.');
-  try { return JSON.parse(text.trim()); } catch(e) {}
-  var cleaned = text.trim();
+  // Strip thinking model wrappers: <think>...</think>, <reasoning>...</reasoning>, etc.
+  var cleaned = String(text).replace(/<think[\s\S]*?<\/think>/gi, '')
+    .replace(/<reasoning[\s\S]*?<\/reasoning>/gi, '')
+    .replace(/<reflection[\s\S]*?<\/reflection>/gi, '')
+    .replace(/<output[\s>]([\s\S]*?)<\/output>/gi, '$1')
+    .trim();
+  if(!cleaned) cleaned = text.trim(); // fallback if everything was stripped
+  // Try direct parse first
+  try { return JSON.parse(cleaned); } catch(e) {}
+  // Try extracting from code fences
   var fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fenceMatch) {
     try { return JSON.parse(fenceMatch[1].trim()); } catch(e) {}
     cleaned = fenceMatch[1];
   }
+  // Try extracting array
   var startArr = cleaned.indexOf('[');
   var endArr = cleaned.lastIndexOf(']');
   if(startArr !== -1 && endArr !== -1 && endArr > startArr){
     try { return JSON.parse(cleaned.slice(startArr, endArr + 1)); } catch(e){}
   }
+  // Try extracting object
   var startObj = cleaned.indexOf('{');
   var endObj = cleaned.lastIndexOf('}');
   if(startObj !== -1 && endObj !== -1 && endObj > startObj){
     try {
       var o = JSON.parse(cleaned.slice(startObj, endObj + 1));
-      var keys = ['questions', 'items', 'data', 'results', 'objectives', 'fillInBlank', 'fill_in_blank', 'theory'];
+      var keys = ['questions', 'items', 'data', 'results', 'objectives', 'fillInBlank', 'fill_in_blank', 'theory', 'weeks', 'scheme', 'topics'];
       for(var i = 0; i < keys.length; i++){ if(Array.isArray(o[keys[i]])) return o[keys[i]]; }
       return o;
     } catch(e){}
