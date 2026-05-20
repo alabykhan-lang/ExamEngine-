@@ -1065,6 +1065,13 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 /* ══════════════════════════════════════
    AUTH / LOGIN SCREEN
 ══════════════════════════════════════ */
+#c-auth{
+  display:none;position:fixed;inset:0;z-index:10000;
+  pointer-events:none;
+}
+#c-auth.auth-active{
+  display:block;pointer-events:all;
+}
 #screen-auth{
   display:none;position:fixed;inset:0;
   background:linear-gradient(135deg,#0A0F1E 0%,#1B2A4A 100%);
