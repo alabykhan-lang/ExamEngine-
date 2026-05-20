@@ -4,21 +4,23 @@
    MODELS
 ══════════════════════════════════════ */
 var MODELS = {
-  primary:  'deepseek/deepseek-r1:free',
+  primary:  'deepseek/deepseek-v4-flash:free',
   fallback: 'meta-llama/llama-3.3-70b-instruct:free',
-  scheme:   'qwen/qwen3-235b-a22b:free',
-  lab:      'deepseek/deepseek-chat-v3-0324:free',
-  drawing:  'mistralai/devstral-small:free',
-  autoGen:  'deepseek/deepseek-r1:free'
+  scheme:   'qwen/qwen3-coder:free',
+  lab:      'google/gemma-4-31b-it:free',
+  drawing:  'openai/gpt-oss-120b:free',
+  autoGen:  'nvidia/nemotron-3-super-120b-a12b:free'
 };
 /* Free model rotation pool — tried in order when a model has no endpoints */
 var FREE_MODEL_POOL = [
-  'deepseek/deepseek-r1:free',
+  'deepseek/deepseek-v4-flash:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen3-235b-a22b:free',
-  'deepseek/deepseek-chat-v3-0324:free',
-  'microsoft/phi-4-reasoning-plus:free',
-  'mistralai/mistral-7b-instruct:free'
+  'qwen/qwen3-coder:free',
+  'google/gemma-4-31b-it:free',
+  'openai/gpt-oss-120b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'google/gemma-4-26b-a4b-it:free'
 ];
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -403,18 +405,20 @@ function clearDraft(){
   window._savedDraft=null;
 }
 function showAuthScreen(){
-  var c=$('c-auth'); if(c) c.classList.add('auth-active');
-  var s=$('screen-auth'); if(s) s.classList.add('visible');
-  var nav=$('nav'); if(nav) nav.style.display='none';
-  var sb=$('sidebar'); if(sb) sb.style.display='none';
+  var c=$('c-auth'); if(c){ c.style.display='block'; c.style.position='fixed'; c.style.inset='0'; c.style.zIndex='10000'; }
+  var s=$('screen-auth'); if(s){ s.style.display='flex'; s.style.position='fixed'; s.style.inset='0'; s.style.zIndex='10001'; s.style.background='linear-gradient(135deg,#0A0F1E 0%,#1B2A4A 100%)'; s.style.alignItems='center'; s.style.justifyContent='center'; s.style.flexDirection='column'; s.style.padding='24px'; }
+  var nav=$('c-nav'); if(nav) nav.style.display='none';
+  var sb=$('c-sidebar'); if(sb) sb.style.display='none';
+  var sc=$('c-screens'); if(sc) sc.style.display='none';
   clearAuthErr(); setAuthLoading(false);
   var p=$('authPass'); if(p) p.value='';
 }
 function hideAuthScreen(){
-  var s=$('screen-auth'); if(s) s.classList.remove('visible');
-  var c=$('c-auth'); if(c) c.classList.remove('auth-active');
-  var nav=$('nav'); if(nav) nav.style.display='';
-  var sb=$('sidebar'); if(sb) sb.style.display='';
+  var c=$('c-auth'); if(c) c.style.display='none';
+  var s=$('screen-auth'); if(s) s.style.display='none';
+  var nav=$('c-nav'); if(nav) nav.style.display='';
+  var sb=$('c-sidebar'); if(sb) sb.style.display='';
+  var sc=$('c-screens'); if(sc) sc.style.display='';
 }
 
 /* ── Boot the app after auth ────────── */
