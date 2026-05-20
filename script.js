@@ -4,13 +4,22 @@
    MODELS
 ══════════════════════════════════════ */
 var MODELS = {
-  primary:  'google/gemini-2.0-flash-exp:free',
+  primary:  'deepseek/deepseek-r1:free',
   fallback: 'meta-llama/llama-3.3-70b-instruct:free',
-  scheme:   'google/gemini-2.0-flash-exp:free',
-  lab:      'google/gemini-2.0-flash-exp:free',
-  drawing:  'google/gemini-2.0-flash-exp:free',
-  autoGen:  'google/gemini-2.0-flash-exp:free'
+  scheme:   'qwen/qwen3-235b-a22b:free',
+  lab:      'deepseek/deepseek-chat-v3-0324:free',
+  drawing:  'mistralai/devstral-small:free',
+  autoGen:  'deepseek/deepseek-r1:free'
 };
+/* Free model rotation pool — tried in order when a model has no endpoints */
+var FREE_MODEL_POOL = [
+  'deepseek/deepseek-r1:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen3-235b-a22b:free',
+  'deepseek/deepseek-chat-v3-0324:free',
+  'microsoft/phi-4-reasoning-plus:free',
+  'mistralai/mistral-7b-instruct:free'
+];
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 var OR_REFERER = 'https://examengine.pro';
@@ -394,6 +403,7 @@ function clearDraft(){
   window._savedDraft=null;
 }
 function showAuthScreen(){
+  var c=$('c-auth'); if(c) c.classList.add('auth-active');
   var s=$('screen-auth'); if(s) s.classList.add('visible');
   var nav=$('nav'); if(nav) nav.style.display='none';
   var sb=$('sidebar'); if(sb) sb.style.display='none';
@@ -402,6 +412,7 @@ function showAuthScreen(){
 }
 function hideAuthScreen(){
   var s=$('screen-auth'); if(s) s.classList.remove('visible');
+  var c=$('c-auth'); if(c) c.classList.remove('auth-active');
   var nav=$('nav'); if(nav) nav.style.display='';
   var sb=$('sidebar'); if(sb) sb.style.display='';
 }
@@ -1349,8 +1360,8 @@ function renderSett(){
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
     +'<div class="api-note">🔑 Accepts <strong>OpenRouter</strong> keys (<code>sk-or-v1-...</code>) or <strong>Google Gemini</strong> keys (<code>AIza...</code>).<br/>'
-    +'Primary: <strong>Gemini 2.0 Flash</strong> · Fallback: <strong>Llama 3.3 70B</strong><br/>'
-    +'Scheme Engine: <strong>google/gemini-2.0-flash-exp:free</strong><br/>'
+    +'Primary: <strong>DeepSeek R1</strong> · Fallback: <strong>Llama 3.3 70B, Qwen3, DeepSeek Chat, Phi-4, Mistral</strong><br/>'
+    +'Scheme Engine: <strong>qwen/qwen3-235b-a22b:free</strong><br/>'
     +'Lab Agent: <strong>anthropic/claude-3.5-sonnet</strong><br/>'
     +'Costs pennies per full exam paper.</div>'
     +'<div style="margin-top:14px;display:flex;gap:9px;">'
@@ -1674,30 +1685,40 @@ async function _fetchGoogleGemini(messages,model,isJson,key){
 }
 async function _callWithRetry(messages,isJson,opts){
   opts=opts||{};
-  var models=opts.model?[opts.model]:[MODELS.primary,MODELS.fallback];
+  // Build full model list: specified model → primary+fallback → full pool
+  var specified=opts.model?[opts.model]:[];
+  var base=[MODELS.primary,MODELS.fallback];
+  // Merge: unique, preserve order
+  var allModels=specified.concat(base).concat(FREE_MODEL_POOL).filter(function(m,i,a){ return a.indexOf(m)===i; });
   var lastErr;
-  for(var mi=0;mi<models.length;mi++){
-    var attempts=0,max=3;
+  for(var mi=0;mi<allModels.length;mi++){
+    var attempts=0,max=2;
     while(attempts<max){
-      try{ await _gapWait(); return await _fetchOR(messages,models[mi],isJson&&!opts.noResponseFormat); }
+      try{ await _gapWait(); return await _fetchOR(messages,allModels[mi],isJson&&!opts.noResponseFormat); }
       catch(e){
         lastErr=e; attempts++;
+        var msg=String((e&&e.message)||'').toLowerCase();
+        // 'No endpoints found' or model unavailable — skip to next model immediately
+        if(msg.includes('no endpoint')||msg.includes('no provider')||msg.includes('not found')||e.status===404||e.status===503){
+          if(mi<allModels.length-1) toast('⚡ Model unavailable, trying next…','warn',1500);
+          break;
+        }
         if(e.is429&&attempts<max){
           var w=Math.max(e.seconds||10,10);
           toast('⏳ Rate limit — waiting '+w+'s…','warn',(w+2)*1000);
           updateApiStatus('waiting','waiting '+w+'s');
           await _wait(w*1000);
           updateApiStatus('ready');
-        } else if(e.status===401 && e.apiKey && !_badApiKeys[e.apiKey]){
+        } else if(e.status===401&&e.apiKey&&!_badApiKeys[e.apiKey]){
           await markApiKeyInvalid(e.apiKey);
           refreshApiStatus();
           toast('The API provider rejected the key being sent. Re-save a working OpenRouter or Gemini key in Admin Settings.','err',7000);
-          break; // exit inner while — no valid key remains; outer loop will also fail fast
+          break;
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
           toast('Network hiccup — retrying in '+tw+'s…','warn',(tw+1)*1000);
           await _wait(tw*1000);
-        } else if(e.is429&&mi===0){ toast('⚡ Trying fallback model…','warn',2500); break; }
+        } else if(e.is429&&mi<allModels.length-1){ toast('⚡ Trying next model…','warn',2500); break; }
         else if(!e.is429&&!e.isTransient){ break; }
       }
     }
