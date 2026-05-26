@@ -4,23 +4,19 @@
    MODELS
 ══════════════════════════════════════ */
 var MODELS = {
-  primary:  'deepseek/deepseek-v4-flash:free',
+  primary:  'google/gemini-2.5-flash:free',
   fallback: 'meta-llama/llama-3.3-70b-instruct:free',
-  scheme:   'qwen/qwen3-coder:free',
-  lab:      'google/gemma-4-31b-it:free',
-  drawing:  'openai/gpt-oss-120b:free',
-  autoGen:  'nvidia/nemotron-3-super-120b-a12b:free'
+  scheme:   'google/gemini-2.5-flash:free',
+  lab:      'google/gemini-2.5-flash:free',
+  drawing:  'google/gemini-2.5-flash:free',
+  autoGen:  'google/gemini-2.5-flash:free'
 };
 /* Free model rotation pool — tried in order when a model has no endpoints */
 var FREE_MODEL_POOL = [
-  'deepseek/deepseek-v4-flash:free',
+  'google/gemini-2.5-flash:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen3-coder:free',
-  'google/gemma-4-31b-it:free',
-  'openai/gpt-oss-120b:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'qwen/qwen3-next-80b-a3b-instruct:free',
-  'google/gemma-4-26b-a4b-it:free'
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'qwen/qwen-2.5-72b-instruct:free'
 ];
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -1611,7 +1607,7 @@ async function _fetchOR(messages,model,isJson){
   var key=ensureApiKey();
   if(!key) throw new Error('No API key configured.');
   if(apiProviderForKey(key)==='google'){
-    if(String(model||'').indexOf('gemini')<0) throw new Error('This generation path requires an OpenRouter sk-or-v1 key for '+model+'.');
+    if(String(model||'').indexOf('gemini')<0) throw new Error('Model not found for Google Gemini key: '+model+'.');
     return _fetchGoogleGemini(messages,model,isJson,key);
   }
   var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
@@ -1634,9 +1630,9 @@ async function _fetchOR(messages,model,isJson){
   return(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
 }
 function googleModelName(model){
-  model=String(model||MODELS.fallback);
+  model=String(model||MODELS.primary);
   if(model.indexOf('gemini')>=0) return model.replace(/^google\//,'').replace(/:free$/i,'');
-  return MODELS.fallback.replace(/^google\//,'').replace(/:free$/i,'');
+  return MODELS.primary.replace(/^google\//,'').replace(/:free$/i,'');
 }
 function googlePartFromContent(part){
   if(typeof part==='string') return [{text:part}];
