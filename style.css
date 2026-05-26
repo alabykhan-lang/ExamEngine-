@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --ink:#0A0F1E; --ink2:#1E2A3A; --ink3:#334155; --mute:#6B7A99;
   --surf:#FFFFFF; --surf2:#F4F6FA; --surf3:#EBEEf7;
   --bdr:#DDE3EE; --bdr2:#C4CDDE;
@@ -931,7 +931,6 @@ body{font-family:var(--sans);background:var(--surf2);color:var(--ink);min-height
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 #c-auth{
   display:none;position:fixed;inset:0;z-index:10000;
-  pointer-events:none;
 }
 #c-auth.auth-active{
   display:block;pointer-events:all;
