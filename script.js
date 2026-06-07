@@ -15,8 +15,12 @@ var MODELS = {
 var FREE_MODEL_POOL = [
   'google/gemini-2.5-flash:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen-2.5-coder-32b-instruct:free',
-  'qwen/qwen-2.5-72b-instruct:free'
+  'qwen/qwen-2.5-72b-instruct:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free'
+];
+var GEMINI_MODEL_POOL = [
+  'gemini-2.0-flash',
+  'gemini-2.5-flash'
 ];
 var OR_BASE    = 'https://openrouter.ai/api/v1/chat/completions';
 var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
@@ -658,6 +662,13 @@ function getEffectiveApiKey(){
   if(key && key!==API_KEY) API_KEY=key;
   return key;
 }
+function hasVisionProvider(){
+  var key=getEffectiveApiKey();
+  var provider=apiProviderForKey(key);
+  if(provider==='google') return true;
+  var m=String(MODELS.vision||MODELS.primary||'').toLowerCase();
+  return provider==='openrouter'&&(/vision|gemini|gpt-4o|qwen.*vl|llava/.test(m));
+}
 function ensureApiKey(){
   var key=getEffectiveApiKey();
   var visible=getVisibleApiKeyInput();
@@ -960,11 +971,29 @@ async function pdfToImages(file){
   return pages;
 }
 
+async function pdfToText(file){
+  if(typeof pdfjsLib==='undefined'){ throw new Error('PDF.js not loaded. Try refreshing.'); }
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var arrayBuffer=await file.arrayBuffer();
+  var pdf=await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+  var chunks=[];
+  for(var i=1;i<=Math.min(pdf.numPages,30);i++){
+    var page=await pdf.getPage(i);
+    var tc=await page.getTextContent();
+    var line=(tc.items||[]).map(function(it){ return it.str||''; }).join(' ');
+    if(line.trim()) chunks.push(line);
+  }
+  return cleanExtractedText(chunks.join('\n'));
+}
+function cleanExtractedText(text){
+  return String(text||'').replace(/\r/g,'\n').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+}
+
 async function docxToText(file){
   if(typeof mammoth==='undefined'){ throw new Error('Mammoth.js not loaded. Try refreshing.'); }
   var arrayBuffer=await file.arrayBuffer();
   var result=await mammoth.extractRawText({arrayBuffer:arrayBuffer});
-  return result.value||'';
+  return cleanExtractedText(result.value||'');
 }
 
 async function processFileForScanner(file){
@@ -974,6 +1003,8 @@ async function processFileForScanner(file){
     return {type:'images',pages:[{dataUrl:await readFileAsDataURL(file),mimeType:type,label:name}]};
   }
   if(type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
+    var text=await pdfToText(file);
+    if(text) return {type:'text',text:text,label:name};
     var pages=await pdfToImages(file);
     return {type:'images',pages:pages};
   }
@@ -991,6 +1022,8 @@ async function processFileForNTX(file){
     return {type:'image',dataUrl:await readFileAsDataURL(file),mimeType:type,label:name};
   }
   if(type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
+    var text=await pdfToText(file);
+    if(text) return {type:'text',text:text,label:name};
     var pages=await pdfToImages(file);
     // For NTX we extract text from each rendered page
     return {type:'pdf_images',pages:pages,label:name};
@@ -1132,11 +1165,14 @@ window.addEventListener('load',function(){
 ══════════════════════════════════════ */
 function refreshApiStatus(){
   var dot=$('apiDot'), lbl=$('apiLbl'), sd=$('sbDot'), sl=$('sbApiLbl');
-  var ok=!!getEffectiveApiKey();
+  var key=getEffectiveApiKey();
+  var ok=!!key;
+  var provider=apiProviderForKey(key)==='google'?'Gemini':(ok?'OpenRouter':'');
+  var text=ok?provider+' Ready':'No API Key';
   if(dot){ dot.className='api-dot'+(ok?' ok':''); }
-  if(lbl){ lbl.textContent=ok?'OpenRouter Ready':'No API Key'; }
+  if(lbl){ lbl.textContent=text; }
   if(sd) { sd.className='sb-dot'+(ok?' ok':''); }
-  if(sl) { sl.textContent=ok?'OpenRouter Ready':'No API Key'; }
+  if(sl) { sl.textContent=text; }
 }
 
 /* ══════════════════════════════════════
@@ -1354,7 +1390,7 @@ function renderSett(){
     +'<div class="pst">Configure your API key, school details, and defaults.</div>'
 
     +'<div class="card">'
-    +'<div class="ct">OpenRouter API Key</div>'
+    +'<div class="ct">AI API Key</div>'
     +'<div class="fl"><div class="key-row">'
     +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
@@ -1603,14 +1639,14 @@ async function extractApiError(resp){
     return{is429:false,msg:msg||('API error '+resp.status)};
   }catch(e){ return{is429:resp.status===429,seconds:10,msg:'API error '+resp.status}; }
 }
-async function _fetchOR(messages,model,isJson){
+async function _fetchOR(messages,model,isJson,opts){
+  opts=opts||{};
   var key=ensureApiKey();
   if(!key) throw new Error('No API key configured.');
   if(apiProviderForKey(key)==='google'){
-    if(String(model||'').indexOf('gemini')<0) throw new Error('Model not found for Google Gemini key: '+model+'.');
-    return _fetchGoogleGemini(messages,model,isJson,key);
+    return _fetchGoogleGemini(messages,model,isJson,key,opts);
   }
-  var body={model:model,messages:messages,max_tokens:4096,temperature:0.7};
+  var body={model:model,messages:messages,max_tokens:4096,temperature:opts.temperature==null?0.2:opts.temperature};
   // Only use response_format for known high-tier models; free OpenRouter models often reject the request entirely (400 Bad Request) if this is passed.
   if(isJson && !String(model).includes(':free')) body.response_format={type:'json_object'};
   var r;
@@ -1646,7 +1682,8 @@ function googlePartFromContent(part){
     return {text:''};
   }).filter(function(p){ return p.text||p.inlineData; });
 }
-async function _fetchGoogleGemini(messages,model,isJson,key){
+async function _fetchGoogleGemini(messages,model,isJson,key,opts){
+  opts=opts||{};
   var sys='';
   var contents=[];
   (messages||[]).forEach(function(m){
@@ -1655,7 +1692,7 @@ async function _fetchGoogleGemini(messages,model,isJson,key){
   });
   var body={
     contents:contents,
-    generationConfig:{temperature:0.7,maxOutputTokens:4096}
+    generationConfig:{temperature:opts.temperature==null?0.2:opts.temperature,maxOutputTokens:4096}
   };
   if(sys) body.systemInstruction={parts:[{text:sys}]};
   if(isJson) body.generationConfig.responseMimeType='application/json';
@@ -1686,21 +1723,27 @@ async function _fetchGoogleGemini(messages,model,isJson,key){
 }
 async function _callWithRetry(messages,isJson,opts){
   opts=opts||{};
+  var provider=apiProviderForKey(getEffectiveApiKey());
   // Build full model list: specified model → primary+fallback → full pool
   var specified=opts.model?[opts.model]:[];
-  var base=[MODELS.primary,MODELS.fallback];
+  var base=provider==='google'?GEMINI_MODEL_POOL:[MODELS.primary,MODELS.fallback].concat(FREE_MODEL_POOL);
   // Merge: unique, preserve order
-  var allModels=specified.concat(base).concat(FREE_MODEL_POOL).filter(function(m,i,a){ return a.indexOf(m)===i; });
+  var allModels=specified.concat(base).map(function(m){ return provider==='google'?googleModelName(m):m; }).filter(function(m,i,a){ return a.indexOf(m)===i; });
   var lastErr;
   for(var mi=0;mi<allModels.length;mi++){
     var attempts=0,max=2;
     while(attempts<max){
-      try{ await _gapWait(); return await _fetchOR(messages,allModels[mi],isJson&&!opts.noResponseFormat); }
+      try{
+        await _gapWait();
+        var raw=await _fetchOR(messages,allModels[mi],isJson&&!opts.noResponseFormat,opts);
+        if(isJson&&!opts.skipJsonProbe){ try{ safeJsonParse(raw); }catch(parseProbe){ parseProbe.isJsonParse=true; parseProbe.raw=raw; throw parseProbe; } }
+        return raw;
+      }
       catch(e){
         lastErr=e; attempts++;
         var msg=String((e&&e.message)||'').toLowerCase();
         // Skip model immediately on 'No endpoints', 'Provider not found', 404, 503, OR a 400 Bad Request which usually means the specific free model rejected our parameters (like JSON format).
-        if(msg.includes('no endpoint')||msg.includes('no provider')||msg.includes('not found')||msg.includes('bad request')||e.status===404||e.status===503||e.status===400){
+        if(e.isJsonParse||msg.includes('no endpoint')||msg.includes('no provider')||msg.includes('not found')||msg.includes('bad request')||e.status===404||e.status===503||e.status===400){
           if(mi<allModels.length-1) toast('⚡ Model unavailable, trying next…','warn',1500);
           break;
         }
@@ -1724,7 +1767,7 @@ async function _callWithRetry(messages,isJson,opts){
       }
     }
   }
-  throw lastErr||new Error('API unavailable.');
+  throw lastErr||new Error(provider==='openrouter'?'All free models are busy. Please try again shortly.':'API unavailable.');
 }
 function updateApiStatus(state,msg){
   var dot=$('apiDot'),lbl=$('apiLbl'),qc=$('queueChip'),ql=$('queueLbl');
@@ -1739,41 +1782,68 @@ function updateApiStatus(state,msg){
     if(qc) qc.style.display='none';
   }
 }
-function parseJsonText(text){
-  if(!text) throw new Error('Empty API response.');
-  // Strip thinking model wrappers: <think>...</think>, <reasoning>...</reasoning>, etc.
-  var cleaned = String(text).replace(/<think[\s\S]*?<\/think>/gi, '')
-    .replace(/<reasoning[\s\S]*?<\/reasoning>/gi, '')
-    .replace(/<reflection[\s\S]*?<\/reflection>/gi, '')
-    .replace(/<output[\s>]([\s\S]*?)<\/output>/gi, '$1')
+function stripMarkdownFence(text){
+  return String(text||'').replace(/<think[\s\S]*?<\/think>/gi,'')
+    .replace(/<reasoning[\s\S]*?<\/reasoning>/gi,'')
+    .replace(/<reflection[\s\S]*?<\/reflection>/gi,'')
+    .replace(/<output[\s\S]*?>([\s\S]*?)<\/output>/gi,'$1')
+    .replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+}
+function extractJsonBlock(text){
+  var cleaned=stripMarkdownFence(text);
+  var fence=cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if(fence) cleaned=fence[1].trim();
+  var ai=cleaned.indexOf('['), aj=cleaned.lastIndexOf(']');
+  var oi=cleaned.indexOf('{'), oj=cleaned.lastIndexOf('}');
+  if(ai!==-1&&aj>ai&&(oi===-1||ai<oi)) return cleaned.slice(ai,aj+1);
+  if(oi!==-1&&oj>oi) return cleaned.slice(oi,oj+1);
+  return cleaned;
+}
+function repairJsonText(text){
+  return extractJsonBlock(text)
+    .replace(/,\s*([}\]])/g,'$1')
+    .replace(/[“”]/g,'"').replace(/[‘’]/g,"'")
+    .replace(/^\uFEFF/,'')
     .trim();
-  if(!cleaned) cleaned = text.trim(); // fallback if everything was stripped
-  // Try direct parse first
-  try { return JSON.parse(cleaned); } catch(e) {}
-  // Try extracting from code fences
-  var fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenceMatch) {
-    try { return JSON.parse(fenceMatch[1].trim()); } catch(e) {}
-    cleaned = fenceMatch[1];
-  }
-  // Try extracting array
-  var startArr = cleaned.indexOf('[');
-  var endArr = cleaned.lastIndexOf(']');
-  if(startArr !== -1 && endArr !== -1 && endArr > startArr){
-    try { return JSON.parse(cleaned.slice(startArr, endArr + 1)); } catch(e){}
-  }
-  // Try extracting object
-  var startObj = cleaned.indexOf('{');
-  var endObj = cleaned.lastIndexOf('}');
-  if(startObj !== -1 && endObj !== -1 && endObj > startObj){
-    try {
-      var o = JSON.parse(cleaned.slice(startObj, endObj + 1));
-      var keys = ['questions', 'items', 'data', 'results', 'objectives', 'fillInBlank', 'fill_in_blank', 'theory', 'weeks', 'scheme', 'topics'];
-      for(var i = 0; i < keys.length; i++){ if(Array.isArray(o[keys[i]])) return o[keys[i]]; }
-      return o;
-    } catch(e){}
-  }
+}
+function safeJsonParse(text){
+  if(!text) throw new Error('Empty API response.');
+  var cleaned=repairJsonText(text);
+  try{ return JSON.parse(cleaned); }catch(e1){}
+  var relaxed=cleaned.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,'$1"$2":');
+  try{ return JSON.parse(relaxed); }catch(e2){}
   throw new Error('Could not parse API response as JSON.');
+}
+function normalizeQuestionItem(q){
+  q=q||{};
+  var opts=q.options||q.opts||q.o||null;
+  if(opts&&!Array.isArray(opts)&&typeof opts==='object') opts=['A','B','C','D'].map(function(k){ return opts[k]||opts[k.toLowerCase()]||''; }).filter(Boolean);
+  if(Array.isArray(opts)) opts=opts.map(function(o){ return String(o||'').replace(/^[A-D][\).\s-]+/i,'').trim(); });
+  var ans=q.answer==null?q.a:q.answer;
+  if(Array.isArray(opts)&&typeof ans==='string'){
+    var ix=['A','B','C','D'].indexOf(ans.trim().toUpperCase());
+    if(ix<0){ ix=opts.map(function(o){ return o.toLowerCase(); }).indexOf(ans.trim().toLowerCase()); }
+    ans=ix>=0?ix:ans;
+  }
+  return Object.assign({},q,{q:q.q||q.question||q.text||'',question:q.question||q.q||q.text||'',options:opts,answer:ans,explanation:q.explanation||''});
+}
+function validateQuestionsPayload(data){
+  if(data&&typeof data==='object'&&!Array.isArray(data)&&(data.q||data.question||data.text)) return true;
+  var arr=unwrapQuestionArray(data);
+  return Array.isArray(arr)&&arr.some(function(q){ return q&&(q.q||q.question||q.text); });
+}
+function normalizeQuestionsPayload(data){
+  if(Array.isArray(data)) return data.map(normalizeQuestionItem);
+  if(data&&typeof data==='object'&&(data.q||data.question||data.text)) return [normalizeQuestionItem(data)];
+  if(data&&typeof data==='object'){
+    var keys=['questions','items','data','results','objectives','fillInBlank','fill_in_blank','theory','extracted'];
+    for(var i=0;i<keys.length;i++){ if(Array.isArray(data[keys[i]])) return data[keys[i]].map(normalizeQuestionItem); }
+  }
+  return data;
+}
+function parseJsonText(text){
+  var parsed=safeJsonParse(text);
+  return validateQuestionsPayload(parsed)?normalizeQuestionsPayload(parsed):parsed;
 }
 function unwrapQuestionArray(result){
   if(Array.isArray(result)) return result;
@@ -1782,6 +1852,16 @@ function unwrapQuestionArray(result){
     for(var i=0;i<keys.length;i++){ if(Array.isArray(result[keys[i]])) return result[keys[i]]; }
   }
   return [];
+}
+async function repairJsonWithProvider(raw,opts){
+  opts=opts||{};
+  toast('The AI returned an invalid format. Repairing automatically...','warn',2500);
+  var messages=[
+    {role:'system',content:'Convert malformed exam-question output into valid JSON only. Do not add new questions. Do not remove readable questions. No markdown.'},
+    {role:'user',content:'Convert this into valid JSON only. Do not add new questions.\n\n'+String(raw||'').slice(0,18000)}
+  ];
+  var fixed=await _callWithRetry(messages,true,Object.assign({},opts,{noResponseFormat:true,skipJsonProbe:true,temperature:0.1}));
+  return parseJsonText(fixed);
 }
 async function callGemini(prompt,opts){
   opts=opts||{};
@@ -1793,15 +1873,20 @@ async function callGemini(prompt,opts){
     {role:'system',content:sysInstr},
     {role:'user',content:prompt}
   ];
-  var result=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true,opts); }));
-  return parseJsonText(result);
+  var result;
+  try{ result=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true,opts); })); }
+  catch(apiErr){ if(apiErr&&apiErr.isJsonParse&&apiErr.raw) return repairJsonWithProvider(apiErr.raw,opts); throw apiErr; }
+  try{ return parseJsonText(result); }
+  catch(parseErr){ return repairJsonWithProvider(result,opts); }
 }
 async function callGeminiVision(base64Image,mimeType,prompt){
   ensureApiKey();
+  if(!hasVisionProvider()) throw new Error('Image transcription requires a Gemini API key or vision-capable model.');
   mimeType=mimeType||'image/jpeg';
   var messages=[{role:'user',content:[{type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64Image}},{type:'text',text:prompt}]}];
   var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false); }));
-  return parseJsonText(text);
+  try{ return parseJsonText(text); }
+  catch(parseErr){ return repairJsonWithProvider(text,{temperature:0.1}); }
 }
 
 /* ══════════════════════════════════════
@@ -1815,8 +1900,11 @@ async function callGeminiScheme(prompt){
     {role:'user',content:prompt}
   ];
   // Route through _callWithRetry so 401s are caught, key is blacklisted and user is prompted
-  var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true); }));
-  return parseJsonText(text);
+  var text;
+  try{ text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,true); })); }
+  catch(apiErr){ if(apiErr&&apiErr.isJsonParse&&apiErr.raw) return repairJsonWithProvider(apiErr.raw,{temperature:0.1}); throw apiErr; }
+  try{ return parseJsonText(text); }
+  catch(parseErr){ return repairJsonWithProvider(text,{temperature:0.1}); }
 }
 
 /* ══════════════════════════════════════
@@ -1943,7 +2031,7 @@ function s1Auto(){
   window.scrollTo({top:0,behavior:'smooth'});
 
   var c=S.cfg;
-  var apiWarn=!getEffectiveApiKey()?'<div class="banner b-warn">⚠️ <div>No OpenRouter API key. <a onclick="navTo(\'sett\')">Add your key in Settings</a> to enable AI generation.</div></div>':'';
+  var apiWarn=!getEffectiveApiKey()?'<div class="banner b-warn">⚠️ <div>No API key. <a onclick="navTo(\'sett\')">Add your key in Settings</a> to enable AI generation.</div></div>':'';
 
   $('s1').innerHTML='<div class="pg fade">'
     +'<div class="ptl">The Contract</div>'
@@ -2579,8 +2667,8 @@ window.doLoadScheme=async function(){
         // Key was rejected — blacklist it and guide admin to re-enter
         if(API_KEY){ markApiKeyInvalid(API_KEY); refreshApiStatus(); }
         if(sa) sa.innerHTML='<div class="banner b-warn">'
-          +'<strong>🔑 Invalid API Key</strong> — OpenRouter rejected the key. '
-          +'An admin must re-save a valid key in <strong>Admin Settings → OpenRouter API Key</strong>.'
+          +'<strong>🔑 Invalid API Key</strong> — the API provider rejected the key. '
+          +'An admin must re-save a valid key in <strong>Admin Settings → AI API Key</strong>.'
           +retryBtn
           +'</div>'+renderSchemePrompt();
       } else {
@@ -2800,6 +2888,9 @@ function buildPrompt(cfg,type,count,extra){
     +caNote+diffNote;
   if(topicStr) p+='  Topics covered: '+topicStr+'\n';
   p+='\nOutput quality rules:\n'
+    +'  - Return JSON only. No markdown, no prose before or after JSON, no code fences.\n'
+    +'  - Match Nigerian school/exam standard and respect class, subject, topic, term, difficulty, and exam body.\n'
+    +'  - Do not include numbering inside question text.\n'
     +'  - Every question MUST come directly from the listed topics. Do not introduce topics outside the chosen scheme.\n'
     +'  - Distribute questions across the chosen topics and keep each question visibly relevant to one of them.\n'
     +'  - Use perfect LaTeX for mathematics, chemistry and physics: $x^2$, $\\frac{a}{b}$, $H_2O$, $CO_2$, $F=ma$, $V=IR$.\n'
@@ -2822,7 +2913,7 @@ function buildPrompt(cfg,type,count,extra){
 
   if(type==='obj'){
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
-      +'{"q":"question text (LaTeX for math/science; optional [TABLE:...])","options":["A","B","C","D"],"answer":0,"topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
+      +'{"q":"question text (LaTeX for math/science; optional [TABLE:...])","type":"objective","options":["option text","option text","option text","option text"],"answer":"A","explanation":"","topic":"topic","difficulty":"easy|medium|hard","svgDescription":""}\n'
       +'Return ONLY the JSON array. No explanation. No markdown.';
   } else if(type==='fitb'){
     p+='\nReturn ONLY a valid JSON array of exactly '+count+' objects:\n'
@@ -2855,7 +2946,7 @@ async function generateAll(){
       var qs=await callGemini(buildPrompt(S.cfg,type,slots.length),{
         model:MODELS.autoGen,
         noResponseFormat:true,
-        systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Return only a raw valid JSON array. The first character must be [ and the last character must be ]. No explanation, no markdown, no code fences.'
+        systemInstruction:'You are a Nigerian school exam question generator. Return only a raw valid JSON array. The first character must be [ and the last character must be ]. Use A, B, C, D answers only for objectives. No explanation, no markdown, no code fences.'
       });
       qs=unwrapQuestionArray(qs);
       if(!qs.length) throw new Error('AI returned no usable questions.');
@@ -2875,7 +2966,7 @@ async function generateAll(){
           }
           
           if(type==='obj'){
-            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
+            s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:normalizeAnswerIndex(raw.answer,raw.options||raw.opts),topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
           } else if(type==='fitb'){
             s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
           } else {
@@ -2910,7 +3001,7 @@ async function genSingleSlot(s,isReload){
     var res=await callGemini(buildPrompt(S.cfg,s.k,1,extra),{
       model:MODELS.autoGen,
       noResponseFormat:true,
-      systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Return only a raw valid JSON array. The first character must be [ and the last character must be ]. No explanation, no markdown, no code fences.'
+      systemInstruction:'You are a Nigerian school exam question generator. Return only a raw valid JSON array. The first character must be [ and the last character must be ]. Use A, B, C, D answers only for objectives. No explanation, no markdown, no code fences.'
     });
     res=unwrapQuestionArray(res);
     var raw=Array.isArray(res)?res[0]:res;
@@ -2927,7 +3018,7 @@ async function genSingleSlot(s,isReload){
     }
     
     if(s.k==='obj'){
-      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:raw.answer,topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
+      s.q={t:qText,k:'obj',o:raw.options||raw.opts,a:normalizeAnswerIndex(raw.answer,raw.options||raw.opts),topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
     } else if(s.k==='fitb'){
       s.q={t:qText,k:'fitb',answer:raw.answer||'',topic:raw.topic,diff:raw.difficulty,g:S.cfg.std,ai:true,marks:raw.marks||0,svgInline:svgInline,svgHint:raw.svgDescription||''};
     } else {
@@ -3181,10 +3272,19 @@ window.handleScanUpload=async function(e){
         var reader=new FileReader();
         await new Promise(function(res){ reader.onload=function(ev){ addScanImageToGallery(ev.target.result,file.type,name.replace(/\.[^.]+$/,'')); res(); }; reader.readAsDataURL(file); });
       } else if(file.type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
-        toast('📄 Converting PDF pages…','info',3000);
-        var pages=await pdfToImages(file);
-        pages.forEach(function(p){ addScanImageToGallery(p.dataUrl,p.mimeType,p.label); });
-        toast('✓ PDF converted — '+pages.length+' pages ready','ok',3000);
+        toast('Reading PDF text...','info',2500);
+        var pdfText=await pdfToText(file);
+        if(pdfText){
+          var pidx=S._imgQueue.length;
+          S._imgQueue.push({type:'text',text:pdfText,label:name,dataUrl:null,mimeType:'text/plain'});
+          addScanTextEntry(pidx,name,pdfText);
+          toast('The document text was extracted, please review before generating.','ok',3000);
+        } else {
+          toast('Converting PDF pages...','info',3000);
+          var pages=await pdfToImages(file);
+          pages.forEach(function(p){ addScanImageToGallery(p.dataUrl,p.mimeType,p.label); });
+          toast('PDF converted - '+pages.length+' pages ready','ok',3000);
+        }
       } else if(file.type.includes('word')||name.toLowerCase().endsWith('.docx')||name.toLowerCase().endsWith('.doc')){
         toast('📝 Reading Word document…','info',2500);
         var text=await docxToText(file);
@@ -3454,10 +3554,19 @@ window.handleNtxUpload=async function(e){
         var reader=new FileReader();
         await new Promise(function(res){ reader.onload=function(ev){ addNtxImage(ev.target.result,file.type,name.replace(/\.[^.]+$/,'')); res(); }; reader.readAsDataURL(file); });
       } else if(file.type==='application/pdf'||name.toLowerCase().endsWith('.pdf')){
-        toast('📄 Converting PDF…','info',2500);
-        var pages=await pdfToImages(file);
-        pages.forEach(function(p){ addNtxImage(p.dataUrl,p.mimeType,p.label); });
-        toast('✓ PDF ready — '+pages.length+' pages','ok',2500);
+        toast('Reading PDF text...','info',2500);
+        var pdfText=await pdfToText(file);
+        if(pdfText){
+          var pidx=S._ntxQueue.length;
+          S._ntxQueue.push({type:'text',text:pdfText,label:name,dataUrl:null,mimeType:'text/plain'});
+          addNtxTextEntry(pidx,name);
+          toast('The document text was extracted, please review before generating.','ok',2500);
+        } else {
+          toast('Converting PDF...','info',2500);
+          var pages=await pdfToImages(file);
+          pages.forEach(function(p){ addNtxImage(p.dataUrl,p.mimeType,p.label); });
+          toast('PDF ready - '+pages.length+' pages','ok',2500);
+        }
       } else if(file.type.includes('word')||name.toLowerCase().endsWith('.docx')||name.toLowerCase().endsWith('.doc')){
         toast('📝 Reading DOCX…','info',2000);
         var text=await docxToText(file);
@@ -4637,7 +4746,7 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
   try{
     var res=await callGemini(prompt,{
       model:MODELS.autoGen,
-      systemInstruction:'You are ChatGPT setting standard Nigerian school exam questions through OpenRouter. Follow the user/admin tone and instructions, but return valid JSON only — no explanation, no markdown, no code fences.'
+      systemInstruction:'You are a Nigerian school exam question generator. Follow the user/admin tone and instructions, but return valid JSON only — no explanation, no markdown, no code fences.'
     });
     var obj=Array.isArray(res)?res[0]:res;
     var objs=obj.objectives||obj.questions||[];
@@ -4651,7 +4760,7 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
         try{ svgInline=await callGeminiDraw(q.svgDescription,{width:420,height:250}); }
         catch(svgErr){ console.warn('Auto-gen SVG failed:',svgErr.message); }
       }
-      if(kind==='obj') allQs.push({k:'obj',t:q.q||'',o:q.options||[],a:q.answer||0,marks:1,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
+      if(kind==='obj') allQs.push({k:'obj',t:q.q||'',o:q.options||[],a:normalizeAnswerIndex(q.answer,q.options||[]),marks:1,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
       else if(kind==='fitb') allQs.push({k:'fitb',t:q.q||'',answer:q.answer||'',marks:q.marks||2,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
       else allQs.push({k:'theory',t:q.q||'',marks:q.marks||10,s:q.showSteps,topic:q.topic||'',layout:'standard',svgInline:svgInline,svgHint:q.svgDescription||''});
     }
@@ -7096,7 +7205,7 @@ function renderAdminSett(){
     +'<div class="card">'
     +'<div class="ct">Exam Submission Deadline</div>'
     +'<div style="font-size:12.5px;color:var(--mute);margin-bottom:14px;line-height:1.7;">'
-    +'Set the final deadline for teachers to submit exam papers. After the deadline, the system can auto-generate any missing papers using OpenRouter.'
+    +'Set the final deadline for teachers to submit exam papers. After the deadline, the system can auto-generate any missing papers using the saved AI key.'
     +'</div>'
     +'<div class="fl"><label>Deadline Date &amp; Time</label>'
     +'<input type="datetime-local" class="fi" id="adminDeadlineInp" value="'+esc(deadline)+'" style="font-family:var(--mono);"/>'
@@ -7181,7 +7290,7 @@ function renderAdminSett(){
     +'</div>'
 
     +'<div class="card">'
-    +'<div class="ct">OpenRouter API Key</div>'
+    +'<div class="ct">AI API Key</div>'
     +'<div class="fl"><div class="key-row">'
     +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp2\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
