@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /* ══════════════════════════════════════
    MODELS
@@ -1932,7 +1932,7 @@ async function repairJsonWithProvider(raw,opts){
     var fixed=await _callWithRetry(messages,true,Object.assign({},opts,{noResponseFormat:true,skipJsonProbe:true,temperature:0.1,model:MODELS.manual}));
     return parseJsonText(fixed);
   }catch(e){
-    throw new Error('We could not structure the questions at the moment. Please try again.');
+    throw e;
   }
 }
 async function callGemini(prompt,opts){
@@ -3549,7 +3549,7 @@ async function extractQuestionsFromText(text,label){
     if(result&&typeof result==='object'){ var keys=['questions','items','data']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
     return [];
   }catch(e){
-    throw new Error('We could not structure the questions at the moment. Please try again.');
+    throw e;
   }
 }
 function renderScanSlots(){
@@ -3750,7 +3750,7 @@ async function structureQuestionsFromWordText(text,customInstr){
     if(result&&typeof result==='object'){ var keys=['questions','items','data','results']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
     return [];
   }catch(e){
-    throw new Error('We could not structure the questions at the moment. Please try again.');
+    throw e;
   }
 }
 window.generateFromNotes=async function(){
@@ -7689,3 +7689,4 @@ window.inviteUser = async function(){
   var inp=$('inviteEmail'); if(inp) inp.value='';
   renderUserManagement();
 };
+
