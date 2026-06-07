@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /* ══════════════════════════════════════
    MODELS
@@ -14,7 +14,10 @@ var MODELS = {
 };
 /* Manual path only uses Gemini for reliability during exam period */
 var FREE_MODEL_POOL = [
-  'google/gemini-2.5-flash:free'
+  'google/gemini-2.5-flash:free',
+  'google/gemini-2.0-flash-lite-preview-02-05:free',
+  'google/gemini-2.5-pro:free',
+  'google/gemini-2.5-flash'
 ];
 var GEMINI_MODEL_POOL = [
   'gemini-2.0-flash',
@@ -1962,7 +1965,7 @@ async function callGeminiVision(base64Image,mimeType,prompt){
   try{
     text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false,{model:MODELS.manual}); }));
   }catch(e){
-    throw new Error('Image transcription is temporarily unavailable. Please paste the questions as text or upload a Word/PDF document.');
+    throw e;
   }
   try{ return parseJsonText(text); }
   catch(parseErr){ return repairJsonWithProvider(text,{temperature:0.1}); }
@@ -7689,4 +7692,5 @@ window.inviteUser = async function(){
   var inp=$('inviteEmail'); if(inp) inp.value='';
   renderUserManagement();
 };
+
 
