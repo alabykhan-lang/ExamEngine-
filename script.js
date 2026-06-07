@@ -291,6 +291,7 @@ async function _loadUserSettings(){
     }
     // Store per-user api_key + term/session temporarily
     window._userApiKey      = m.api_key     || '';
+    window._userApiProvider = m.api_provider || '';
     window._userDefTerm     = m.defterm     || '';
     window._userDefSession  = m.defsession  || '';
   }catch(e){ console.warn('_loadUserSettings exception:', e.message); }
@@ -305,6 +306,7 @@ async function _loadUserSettings(){
   if(CURRENT_USER && CURRENT_USER.role==='admin' && isUsableApiKey(window._userApiKey) && !adm.api_key){
     adm.api_key = cleanApiKey(window._userApiKey);
     await _saveAdminSetting('api_key',adm.api_key);
+    if(window._userApiProvider) await _saveAdminSetting('api_provider',window._userApiProvider);
   }
   // Apply key: global > per-user. Empty means no valid key is configured.
   API_KEY = isUsableApiKey(adm.api_key) ? cleanApiKey(adm.api_key) : (isUsableApiKey(window._userApiKey) ? cleanApiKey(window._userApiKey) : '');
@@ -623,19 +625,47 @@ function cleanApiKey(v){
   return String(v||'').trim().replace(/^["']|["']$/g,'').replace(/\s+/g,'');
 }
 var _badApiKeys={};
-function looksLikeOpenRouterKey(v){
-  v=cleanApiKey(v);
-  return !!(v && (/^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v)||/^AIza[0-9A-Za-z_-]{20,}$/.test(v)));
+function normalizeApiProvider(v){
+  v=String(v||'').toLowerCase().trim();
+  if(v==='gemini'||v==='google') return 'google';
+  if(v==='openrouter') return 'openrouter';
+  return '';
+}
+function getVisibleApiProvider(){
+  var ids=['settProviderInp2','settProviderInp'];
+  for(var i=0;i<ids.length;i++){
+    var el=$(ids[i]);
+    if(el && el.value && el.getClientRects && el.getClientRects().length) return normalizeApiProvider(el.value);
+  }
+  return '';
 }
 function apiProviderForKey(v){
   v=cleanApiKey(v);
-  if(/^AIza[0-9A-Za-z_-]{20,}$/.test(v)) return 'google';
-  if(/^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v)) return 'openrouter';
+  if(/^sk-or-v1-/i.test(v)) return 'openrouter';
+  if(/^(AIza|AQ)/.test(v)) return 'google';
   return '';
+}
+function getConfiguredApiProvider(v){
+  v=cleanApiKey(v);
+  return getVisibleApiProvider()
+    || apiProviderForKey(v)
+    || normalizeApiProvider((window._adminSettingsCache&&window._adminSettingsCache.api_provider)||'')
+    || normalizeApiProvider(window._userApiProvider||'');
+}
+function isValidApiKeyForProvider(v,provider){
+  v=cleanApiKey(v);
+  provider=normalizeApiProvider(provider)||apiProviderForKey(v);
+  if(!v) return false;
+  if(provider==='openrouter') return /^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(v);
+  if(provider==='google') return true;
+  return !!apiProviderForKey(v);
+}
+function looksLikeOpenRouterKey(v){
+  return isValidApiKeyForProvider(v,getConfiguredApiProvider(v));
 }
 function isUsableApiKey(v){
   v=cleanApiKey(v);
-  return !!(looksLikeOpenRouterKey(v) && !_badApiKeys[v]);
+  return !!(isValidApiKeyForProvider(v,getConfiguredApiProvider(v)) && !_badApiKeys[v]);
 }
 function getVisibleApiKeyInput(){
   var ids=['settKeyInp2','settKeyInp'];
@@ -643,7 +673,7 @@ function getVisibleApiKeyInput(){
     var el=$(ids[i]);
     if(el && el.value && el.getClientRects && el.getClientRects().length){
       var v=cleanApiKey(el.value);
-      if(looksLikeOpenRouterKey(v)) return v;
+      if(isValidApiKeyForProvider(v,getVisibleApiProvider()||getConfiguredApiProvider(v))) return v;
     }
   }
   return '';
@@ -664,7 +694,7 @@ function getEffectiveApiKey(){
 }
 function hasVisionProvider(){
   var key=getEffectiveApiKey();
-  var provider=apiProviderForKey(key);
+  var provider=getConfiguredApiProvider(key);
   if(provider==='google') return true;
   var m=String(MODELS.vision||MODELS.primary||'').toLowerCase();
   return provider==='openrouter'&&(/vision|gemini|gpt-4o|qwen.*vl|llava/.test(m));
@@ -678,6 +708,29 @@ function ensureApiKey(){
   }
   refreshApiStatus();
   return key;
+}
+async function validateApiKeyForSave(key,provider){
+  key=cleanApiKey(key);
+  provider=normalizeApiProvider(provider)||apiProviderForKey(key);
+  if(!key) return true;
+  if(provider==='openrouter'){
+    if(!/^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(key)) throw new Error('Paste a valid OpenRouter sk-or-v1- key.');
+    return true;
+  }
+  if(provider==='google'){
+    var r=await fetch(GEMINI_BASE+'gemini-2.0-flash:generateContent?key='+encodeURIComponent(key),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:'Return OK'}]}],generationConfig:{temperature:0,maxOutputTokens:8}})
+    });
+    if(!r.ok){
+      var msg='Gemini key test failed.';
+      try{ var j=await r.json(); msg=(j.error&&j.error.message)||msg; }catch(e){}
+      throw new Error(msg);
+    }
+    return true;
+  }
+  throw new Error('Select Gemini or OpenRouter as the API provider.');
 }
 
 var S = {
@@ -1167,7 +1220,7 @@ function refreshApiStatus(){
   var dot=$('apiDot'), lbl=$('apiLbl'), sd=$('sbDot'), sl=$('sbApiLbl');
   var key=getEffectiveApiKey();
   var ok=!!key;
-  var provider=apiProviderForKey(key)==='google'?'Gemini':(ok?'OpenRouter':'');
+  var provider=getConfiguredApiProvider(key)==='google'?'Gemini':(ok?'OpenRouter':'');
   var text=ok?provider+' Ready':'No API Key';
   if(dot){ dot.className='api-dot'+(ok?' ok':''); }
   if(lbl){ lbl.textContent=text; }
@@ -1384,6 +1437,7 @@ function renderSett(){
   el.style.display='block';
   var school=S.cfg.school||'';
   var defTerm=S.cfg.term||'1st Term';
+  var apiProvider=getConfiguredApiProvider(getEffectiveApiKey())||'openrouter';
 
   el.innerHTML='<div class="pg fade">'
     +'<div class="ptl">Settings</div>'
@@ -1391,11 +1445,15 @@ function renderSett(){
 
     +'<div class="card">'
     +'<div class="ct">AI API Key</div>'
+    +'<div class="fl"><label>Provider</label><select class="fs" id="settProviderInp">'
+    +'<option value="openrouter"'+(apiProvider==='openrouter'?' selected':'')+'>OpenRouter</option>'
+    +'<option value="google"'+(apiProvider==='google'?' selected':'')+'>Gemini</option>'
+    +'</select></div>'
     +'<div class="fl"><div class="key-row">'
-    +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
+    +'<input type="password" class="fi" id="settKeyInp" placeholder="sk-or-v1-..., AIza..., AQ..." value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
-    +'<div class="api-note">🔑 Accepts <strong>OpenRouter</strong> keys (<code>sk-or-v1-...</code>) or <strong>Google Gemini</strong> keys (<code>AIza...</code>).<br/>'
+    +'<div class="api-note">Accepts <strong>OpenRouter</strong> keys (<code>sk-or-v1-...</code>) or <strong>Google Gemini</strong> keys, including <code>AIza...</code> and <code>AQ...</code>. Gemini keys are tested directly with Google AI Studio before saving.<br/>'
     +'Primary: <strong>DeepSeek R1</strong> · Fallback: <strong>Llama 3.3 70B, Qwen3, DeepSeek Chat, Phi-4, Mistral</strong><br/>'
     +'Scheme Engine: <strong>qwen/qwen3-235b-a22b:free</strong><br/>'
     +'Lab Agent: <strong>anthropic/claude-3.5-sonnet</strong><br/>'
@@ -1439,13 +1497,18 @@ function renderSett(){
 
 window.saveApiKey = async function(){
   var v=cleanApiKey(($('settKeyInp')||{}).value||'');
-  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter sk-or-v1- key or Gemini AIza key','err',4500); return; }
+  var provider=apiProviderForKey(v)||normalizeApiProvider(($('settProviderInp')||{}).value)||getConfiguredApiProvider(v);
+  try{ await validateApiKeyForSave(v,provider); }
+  catch(e){ toast(e.message||'API key validation failed','err',6000); return; }
   if(v) delete _badApiKeys[v];
   API_KEY=v;
   window._userApiKey=v;
+  window._userApiProvider=provider;
   await _saveSetting('api_key', v);
+  await _saveSetting('api_provider', provider);
   // Also push to admin_settings so it works across all devices
   var ok=await _saveAdminSetting('api_key',v);
+  await _saveAdminSetting('api_provider',provider);
   refreshApiStatus(); toast(ok?'API key saved ✓ — active across all devices':'API key saved locally, but global admin save failed',''+(ok?'ok':'err'),4500);
 };
 window.clearApiKey = async function(){
@@ -1643,7 +1706,7 @@ async function _fetchOR(messages,model,isJson,opts){
   opts=opts||{};
   var key=ensureApiKey();
   if(!key) throw new Error('No API key configured.');
-  if(apiProviderForKey(key)==='google'){
+  if(getConfiguredApiProvider(key)==='google'){
     return _fetchGoogleGemini(messages,model,isJson,key,opts);
   }
   var body={model:model,messages:messages,max_tokens:4096,temperature:opts.temperature==null?0.2:opts.temperature};
@@ -1723,7 +1786,7 @@ async function _fetchGoogleGemini(messages,model,isJson,key,opts){
 }
 async function _callWithRetry(messages,isJson,opts){
   opts=opts||{};
-  var provider=apiProviderForKey(getEffectiveApiKey());
+  var provider=getConfiguredApiProvider(getEffectiveApiKey());
   // Build full model list: specified model → primary+fallback → full pool
   var specified=opts.model?[opts.model]:[];
   var base=provider==='google'?GEMINI_MODEL_POOL:[MODELS.primary,MODELS.fallback].concat(FREE_MODEL_POOL);
@@ -4266,7 +4329,7 @@ function getAdminSettings(){
   return window._adminSettingsCache || {
     deadline:'', logo:'', watermark:'ExamEngine',
     school:'School Administration', address:'', motto:'',
-    api_key:'', selected_term:'1st Term', selected_session:'2025/2026', trade_subject:''
+    api_key:'', api_provider:'', selected_term:'1st Term', selected_session:'2025/2026', trade_subject:''
   };
 }
 function applyAdminSettings(){
@@ -4303,6 +4366,7 @@ async function _fetchAdminSettings(){
       address:m.address||'',
       motto:m.motto||'',
       api_key:rawKey,
+      api_provider:normalizeApiProvider(m.api_provider||''),
       selected_term:m.selected_term||'',
       selected_session:m.selected_session||'',
       trade_subject:m.trade_subject||''
@@ -7197,6 +7261,7 @@ function renderAdminSett(){
   var school=adm.school||'';
   var watermark=adm.watermark||'';
   var address=adm.address||'';
+  var apiProvider=getConfiguredApiProvider(getEffectiveApiKey())||'openrouter';
 
   el.innerHTML='<div class="pg fade">'
     +'<div class="ptl">Admin Settings</div>'
@@ -7291,11 +7356,15 @@ function renderAdminSett(){
 
     +'<div class="card">'
     +'<div class="ct">AI API Key</div>'
+    +'<div class="fl"><label>Provider</label><select class="fs" id="settProviderInp2">'
+    +'<option value="openrouter"'+(apiProvider==='openrouter'?' selected':'')+'>OpenRouter</option>'
+    +'<option value="google"'+(apiProvider==='google'?' selected':'')+'>Gemini</option>'
+    +'</select></div>'
     +'<div class="fl"><div class="key-row">'
-    +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-…" value="'+esc(getEffectiveApiKey()||'')+'"/>'
+    +'<input type="password" class="fi" id="settKeyInp2" placeholder="sk-or-v1-..., AIza..., AQ..." value="'+esc(getEffectiveApiKey()||'')+'"/>'
     +'<button class="btn bq bsm" onclick="var i=$(\'settKeyInp2\');i.type=i.type===\'password\'?\'text\':\'password\'">👁</button>'
     +'</div></div>'
-    +'<div class="api-note">Used for auto-generation when teachers miss the deadline.<br/>Auto-generation model: <strong>'+MODELS.autoGen+'</strong></div>'
+    +'<div class="api-note">Used for auto-generation when teachers miss the deadline. Gemini accepts Google AI Studio keys including <code>AIza...</code> and <code>AQ...</code>; Gemini keys are tested directly before saving.<br/>Auto-generation model: <strong>'+MODELS.autoGen+'</strong></div>'
     +'<div style="margin-top:12px;display:flex;gap:9px;">'
     +'<button class="btn bq" onclick="clearApiKey()">🗑 Clear</button>'
     +'<button class="btn bp" onclick="saveApiKeyAdmin()">💾 Save Key</button>'
@@ -7414,14 +7483,19 @@ window.clearHouseStyleForm=function(){
 };
 window.saveApiKeyAdmin=async function(){
   var v=cleanApiKey(($('settKeyInp2')||{}).value||'');
-  if(v && !looksLikeOpenRouterKey(v)){ toast('Paste a valid OpenRouter sk-or-v1- key or Gemini AIza key','err',4500); return; }
+  var provider=apiProviderForKey(v)||normalizeApiProvider(($('settProviderInp2')||{}).value)||getConfiguredApiProvider(v);
+  try{ await validateApiKeyForSave(v,provider); }
+  catch(e){ toast(e.message||'API key validation failed','err',6000); return; }
   if(v) delete _badApiKeys[v];
   API_KEY=v;
   window._userApiKey=v;
+  window._userApiProvider=provider;
   // Save to user_settings for this admin user
   await _saveSetting('api_key', v);
+  await _saveSetting('api_provider', provider);
   // ALSO save to admin_settings so ALL devices/teachers share the same key
   var ok=await _saveAdminSetting('api_key',v);
+  await _saveAdminSetting('api_provider',provider);
   refreshApiStatus(); toast(ok?'API key saved ✓ — active across all devices':'API key saved locally, but global admin save failed',ok?'ok':'err',4500);
 };
 
