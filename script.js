@@ -5,18 +5,16 @@
 ══════════════════════════════════════ */
 var MODELS = {
   primary:  'google/gemini-2.5-flash:free',
-  fallback: 'meta-llama/llama-3.3-70b-instruct:free',
+  fallback: 'google/gemini-2.5-flash:free',
   scheme:   'google/gemini-2.5-flash:free',
   lab:      'google/gemini-2.5-flash:free',
   drawing:  'google/gemini-2.5-flash:free',
-  autoGen:  'google/gemini-2.5-flash:free'
+  autoGen:  'google/gemini-2.5-flash:free',
+  manual:   'google/gemini-2.5-flash:free'
 };
-/* Free model rotation pool — tried in order when a model has no endpoints */
+/* Manual path only uses Gemini for reliability during exam period */
 var FREE_MODEL_POOL = [
-  'google/gemini-2.5-flash:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'qwen/qwen-2.5-72b-instruct:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free'
+  'google/gemini-2.5-flash:free'
 ];
 var GEMINI_MODEL_POOL = [
   'gemini-2.0-flash',
@@ -1303,12 +1301,12 @@ function showGate(){
   el.innerHTML = '<div class="gate-headline">How will you build<br>today\'s paper?</div>'
     +'<div class="gate-sub">Choose your path. Everything else follows from here.</div>'
     +'<div class="gate-grid">'
-    +'<div class="gate-card" onclick="choosePath(\'auto\')">'
-    +'<span class="gate-badge">Recommended</span>'
+    +'<div class="gate-card gate-card-disabled" onclick="showAutoUnavailable()" style="opacity:0.72;cursor:not-allowed;">'
+    +'<span class="gate-badge" style="background:var(--amber,#D97706);color:#fff;">Upgrading</span>'
     +'<span class="gate-icon">🤖</span>'
-    +'<div class="gate-title">Automated System Path</div>'
-    +'<div class="gate-desc">Select Term, Class, and Subject — AI fetches the official NERDC 2026 Scheme of Work, then generates every question automatically.</div>'
-    +'<div class="gate-cta">Set up my paper →</div>'
+    +'<div class="gate-title" style="color:var(--mute);">Automated System Path</div>'
+    +'<div class="gate-desc" style="color:var(--mute);">Select Term, Class, and Subject — AI fetches the official NERDC 2026 Scheme of Work, then generates every question automatically.</div>'
+    +'<div class="gate-cta" style="background:var(--surf3,#e2e8f0);color:var(--mute);border-color:transparent;">Temporarily unavailable</div>'
     +'</div>'
     +'<div class="gate-card" onclick="choosePath(\'manual\')">'
     +'<span class="gate-icon">📄</span>'
@@ -1319,7 +1317,15 @@ function showGate(){
     +'</div>';
 }
 
+window.showAutoUnavailable = function(){
+  toast('Automated AI generation is temporarily unavailable while we upgrade it for better reliability. Please use Word/Text-to-Questions, Document-to-Questions, or Image-to-Questions for now.','warn',7000);
+};
+
 window.choosePath = function(path){
+  if(path==='auto'){
+    showAutoUnavailable();
+    return;
+  }
   S.path = path;
   if(S.screen&&S.screen!=='app') S._navStack.push(S.screen);
   S.screen='app';
@@ -1328,8 +1334,7 @@ window.choosePath = function(path){
   });
   $('app').style.display='';
   refreshApiStatus();
-  if(path==='auto'){ S.scr=1; hdr(); s1Auto(); }
-  else             { S.scr=2; hdr(); s2Manual(); }
+  S.scr=2; hdr(); s2Manual();
 };
 
 /* ══════════════════════════════════════
@@ -1787,9 +1792,9 @@ async function _fetchGoogleGemini(messages,model,isJson,key,opts){
 async function _callWithRetry(messages,isJson,opts){
   opts=opts||{};
   var provider=getConfiguredApiProvider(getEffectiveApiKey());
-  // Build full model list: specified model → primary+fallback → full pool
+  // Manual path: only use Gemini for reliability
   var specified=opts.model?[opts.model]:[];
-  var base=provider==='google'?GEMINI_MODEL_POOL:[MODELS.primary,MODELS.fallback].concat(FREE_MODEL_POOL);
+  var base=provider==='google'?GEMINI_MODEL_POOL:[MODELS.manual].concat(FREE_MODEL_POOL);
   // Merge: unique, preserve order
   var allModels=specified.concat(base).map(function(m){ return provider==='google'?googleModelName(m):m; }).filter(function(m,i,a){ return a.indexOf(m)===i; });
   var lastErr;
@@ -1805,32 +1810,32 @@ async function _callWithRetry(messages,isJson,opts){
       catch(e){
         lastErr=e; attempts++;
         var msg=String((e&&e.message)||'').toLowerCase();
-        // Skip model immediately on 'No endpoints', 'Provider not found', 404, 503, OR a 400 Bad Request which usually means the specific free model rejected our parameters (like JSON format).
+        // Skip model immediately on 'No endpoints', 'Provider not found', 404, 503, or 400 Bad Request
         if(e.isJsonParse||msg.includes('no endpoint')||msg.includes('no provider')||msg.includes('not found')||msg.includes('bad request')||e.status===404||e.status===503||e.status===400){
-          if(mi<allModels.length-1) toast('⚡ Model unavailable, trying next…','warn',1500);
+          if(mi<allModels.length-1) toast('⚡ Retrying…','warn',1500);
           break;
         }
         if(e.is429&&attempts<max){
           var w=Math.max(e.seconds||10,10);
-          toast('⏳ Rate limit — waiting '+w+'s…','warn',(w+2)*1000);
+          toast('⏳ The AI service is busy. Waiting '+w+'s…','warn',(w+2)*1000);
           updateApiStatus('waiting','waiting '+w+'s');
           await _wait(w*1000);
           updateApiStatus('ready');
         } else if(e.status===401&&e.apiKey&&!_badApiKeys[e.apiKey]){
           await markApiKeyInvalid(e.apiKey);
           refreshApiStatus();
-          toast('The API provider rejected the key being sent. Re-save a working OpenRouter or Gemini key in Admin Settings.','err',7000);
+          toast('The API key was rejected. Please re-save a working OpenRouter or Gemini key in Admin Settings.','err',7000);
           break;
         } else if(e.isTransient&&attempts<max){
           var tw=2+attempts*2;
-          toast('Network hiccup — retrying in '+tw+'s…','warn',(tw+1)*1000);
+          toast('Network issue — retrying in '+tw+'s…','warn',(tw+1)*1000);
           await _wait(tw*1000);
-        } else if(e.is429&&mi<allModels.length-1){ toast('⚡ Trying next model…','warn',2500); break; }
+        } else if(e.is429&&mi<allModels.length-1){ toast('⚡ Retrying…','warn',2500); break; }
         else if(!e.is429&&!e.isTransient){ break; }
       }
     }
   }
-  throw lastErr||new Error(provider==='openrouter'?'All free models are busy. Please try again shortly.':'API unavailable.');
+  throw lastErr||new Error('The AI service is busy. Please wait a moment and try again.');
 }
 function updateApiStatus(state,msg){
   var dot=$('apiDot'),lbl=$('apiLbl'),qc=$('queueChip'),ql=$('queueLbl');
@@ -1918,13 +1923,17 @@ function unwrapQuestionArray(result){
 }
 async function repairJsonWithProvider(raw,opts){
   opts=opts||{};
-  toast('The AI returned an invalid format. Repairing automatically...','warn',2500);
+  toast('Structuring response — please wait…','warn',2500);
   var messages=[
     {role:'system',content:'Convert malformed exam-question output into valid JSON only. Do not add new questions. Do not remove readable questions. No markdown.'},
     {role:'user',content:'Convert this into valid JSON only. Do not add new questions.\n\n'+String(raw||'').slice(0,18000)}
   ];
-  var fixed=await _callWithRetry(messages,true,Object.assign({},opts,{noResponseFormat:true,skipJsonProbe:true,temperature:0.1}));
-  return parseJsonText(fixed);
+  try{
+    var fixed=await _callWithRetry(messages,true,Object.assign({},opts,{noResponseFormat:true,skipJsonProbe:true,temperature:0.1,model:MODELS.manual}));
+    return parseJsonText(fixed);
+  }catch(e){
+    throw new Error('We could not structure the questions at the moment. Please try again.');
+  }
 }
 async function callGemini(prompt,opts){
   opts=opts||{};
@@ -1944,10 +1953,17 @@ async function callGemini(prompt,opts){
 }
 async function callGeminiVision(base64Image,mimeType,prompt){
   ensureApiKey();
-  if(!hasVisionProvider()) throw new Error('Image transcription requires a Gemini API key or vision-capable model.');
+  if(!hasVisionProvider()){
+    throw new Error('Image transcription is temporarily unavailable. Please paste the questions as text or upload a Word/PDF document.');
+  }
   mimeType=mimeType||'image/jpeg';
   var messages=[{role:'user',content:[{type:'image_url',image_url:{url:'data:'+mimeType+';base64,'+base64Image}},{type:'text',text:prompt}]}];
-  var text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false); }));
+  var text;
+  try{
+    text=await(_apiQueue=_apiQueue.then(function(){ return _callWithRetry(messages,false,{model:MODELS.manual}); }));
+  }catch(e){
+    throw new Error('Image transcription is temporarily unavailable. Please paste the questions as text or upload a Word/PDF document.');
+  }
   try{ return parseJsonText(text); }
   catch(parseErr){ return repairJsonWithProvider(text,{temperature:0.1}); }
 }
@@ -2004,7 +2020,7 @@ async function callLabNL(command){
     {role:'user',content:prompt}
   ];
   var result=await(_apiQueue=_apiQueue.then(function(){
-    return _fetchOR(messages,MODELS.fallback,true);
+    return _fetchOR(messages,MODELS.manual,true);
   }));
   return parseJsonText(result);
 }
@@ -3508,26 +3524,33 @@ async function doScannerOcr(base64,mimeType,pageLabel){
 }
 
 async function extractQuestionsFromText(text,label){
-  // For DOCX text-based question extraction
-  var prompt='You are a Nigerian exam expert. Extract every exam question from the text below.\n'
+  // For DOCX/PDF text-based question extraction — Document-to-Questions path
+  var prompt='You are converting a teacher document into structured exam questions.\n\n'
+    +'Do not create new questions.\n'
+    +'Do not add outside knowledge.\n'
+    +'Only clean and structure the content provided.\n\n'
     +'Subject: '+(S.cfg.subj||'General')+' | Class: '+(S.cfg.cls||'Secondary School')+'\n\n'
     +'RULES:\n'
     +'0. IGNORE any school names, headers, exam titles, or general instructions at the top.\n'
-    +'1. Extract questions EXACTLY as written — no paraphrasing.\n'
-    +'2. Preserve numbering.\n'
+    +'1. Extract questions EXACTLY as written — no paraphrasing, no new content.\n'
+    +'2. Preserve numbering, options, and answers if provided. If answers are missing, leave answer blank.\n'
     +'3. Math: convert to LaTeX notation where appropriate.\n'
     +'4. Tonal marks (Yoruba/Igbo/Hausa): preserve exactly.\n'
     +'5. A B C D options → type="obj". Blanks → type="fitb". Others → type="theory".\n'
-    +'6. TABLES: If the text contains tabular data, format it IN THE QUESTION TEXT using the [TABLE: ...] syntax. Example: "[TABLE: Header1; Header2 | Row1Col1; Row1Col2]". Use semicolon ";" between columns, and pipe "|" between rows.\n'
-    +'7. Extract marks if shown.\n\n'
+    +'6. TABLES: If the text contains tabular data, use [TABLE: Header1; Header2 | Row1Col1; Row1Col2] syntax.\n'
+    +'7. Extract marks only when already shown — do not invent marks.\n\n'
+    +'Return JSON only. No markdown. No explanation outside JSON.\n\n'
     +'TEXT:\n'+text.substring(0,8000)+'\n\n'
     +'Return ONLY a valid JSON array:\n'
-    +'[{"q":"question text with math/tables intact","type":"theory","options":null,"marks":null,"svgDescription":""}]\n'
-    +'JSON array ONLY.';
-  var result=await callGemini(prompt,{temperature:0.1});
-  if(Array.isArray(result)) return result;
-  if(result&&typeof result==='object'){ var keys=['questions','items','data']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
-  return [];
+    +'[{"q":"question text with math/tables intact","type":"theory","options":null,"marks":null,"answer":"","svgDescription":""}]';
+  try{
+    var result=await callGemini(prompt,{temperature:0.1});
+    if(Array.isArray(result)) return result;
+    if(result&&typeof result==='object'){ var keys=['questions','items','data']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
+    return [];
+  }catch(e){
+    throw new Error('We could not structure the questions at the moment. Please try again.');
+  }
 }
 function renderScanSlots(){
   var area=$('scanSlotArea'),sl=$('scanSlots'); if(!area||!sl) return;
@@ -3691,34 +3714,44 @@ window.convertWordTextQuestions=async function(){
       setStatus('<div class="banner b-warn">⚠ No questions found in the pasted text.</div>');
     }
   } catch(e){
-    setStatus('<div class="banner b-warn">⚠ Structuring failed: '+esc(e.message)+'<br/><button class="btn bq bsm" style="margin-top:9px;" onclick="convertWordTextQuestions()">↻ Retry</button></div>');
+    var friendlyMsg=e.message.includes('structure')?
+      e.message:
+      'We could not structure the questions at the moment. Please try again.';
+    setStatus('<div class="banner b-warn">⚠ '+esc(friendlyMsg)+'<br/><button class="btn bq bsm" style="margin-top:9px;" onclick="convertWordTextQuestions()">↻ Retry</button></div>');
   }
   if(btn){ btn.disabled=false; btn.innerHTML='🧾 Structure Questions'; }
 };
 async function structureQuestionsFromWordText(text,customInstr){
   var subj=S.cfg.subj||'General'; var cls=S.cfg.cls||'Secondary School';
-  var prompt='You are a Nigerian exam formatting expert. Convert copied Word text into perfectly structured exam questions.\n\n'
+  var prompt='You are converting pasted teacher text into structured exam questions.\n\n'
+    +'Do not create new questions.\n'
+    +'Do not add outside knowledge.\n'
+    +'Only clean and structure the text provided.\n\n'
+    +'Return JSON only.\nNo markdown.\nNo explanation outside JSON.\n\n'
     +'Subject: '+subj+' | Class: '+cls+'\n\n'
-    +'CRITICAL RULES:\n'
+    +'RULES:\n'
     +'0. IGNORE any school names, headers, exam titles, or general instructions at the top.\n'
-    +'1. Do NOT generate new questions or facts.\n'
-    +'2. Use ONLY the pasted text.\n'
-    +'3. Reconstruct broken line wraps, pasted numbering, sub-questions, and A-D options into clean question text.\n'
-    +'4. Preserve the meaning, wording, names, numbers, formulas, punctuation, tonal marks, and sub-parts.\n'
-    +'5. Classify A-D option questions as k="obj"; questions with blanks as k="fitb"; all others as k="theory".\n'
+    +'1. Do NOT generate new questions or facts. Use ONLY the pasted text.\n'
+    +'2. Reconstruct broken line wraps, pasted numbering, sub-questions, and A-D options into clean question text.\n'
+    +'3. Preserve question meaning, wording, options, and answers if provided. If answers are missing, leave answer as empty string.\n'
+    +'4. Classify A-D option questions as k="obj"; questions with blanks as k="fitb"; all others as k="theory".\n'
+    +'5. Detect true/false questions as k="obj" with options ["True","False"].\n'
     +'6. Convert math/science notation to readable LaTeX where appropriate, e.g. $x^2$, $\\frac{1}{2}$, $H_2SO_4$.\n'
     +'7. Extract marks only when already present. Do not invent marks.\n'
     +'8. If the pasted text references a diagram, figure, graph, shape, table, map or apparatus, add svgDescription with a precise redraw description. Do not invent a visual where none is implied.\n'
-    +(customInstr?'9. MANDATORY INSTRUCTION: '+customInstr+'\n':'')
-    +'\nPASTED WORD TEXT:\n'+text.substring(0,18000)+'\n\n'
-    +'Return ONLY a valid JSON array:\n'
+    +(customInstr?'9. MANDATORY EXTRA INSTRUCTION: '+customInstr+'\n':'')
+    +'\nPASTED TEXT:\n'+text.substring(0,18000)+'\n\n'
+    +'Return ONLY a valid JSON array — no markdown, no explanation:\n'
     +'[{"q":"complete question text","k":"obj","options":["A","B","C","D"],"answer":"","marks":1,"svgDescription":""},'
-    +'{"q":"complete theory question with sub-parts preserved","k":"theory","options":null,"answer":"","marks":10,"svgDescription":"diagram redraw description if present"}]\n'
-    +'JSON array ONLY. No explanation.';
-  var result=await callGemini(prompt,{temperature:0.1});
-  if(Array.isArray(result)) return result;
-  if(result&&typeof result==='object'){ var keys=['questions','items','data','results']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
-  return [];
+    +'{"q":"complete theory question with sub-parts preserved","k":"theory","options":null,"answer":"","marks":10,"svgDescription":""}]';
+  try{
+    var result=await callGemini(prompt,{temperature:0.1});
+    if(Array.isArray(result)) return result;
+    if(result&&typeof result==='object'){ var keys=['questions','items','data','results']; for(var k=0;k<keys.length;k++){ if(Array.isArray(result[keys[k]])) return result[keys[k]]; } }
+    return [];
+  }catch(e){
+    throw new Error('We could not structure the questions at the moment. Please try again.');
+  }
 }
 window.generateFromNotes=async function(){
   var items=S._ntxQueue.filter(Boolean);
@@ -4851,8 +4884,8 @@ window._doAdminAutoGen=async function(cls,subj,term,typeLabel){
     toast('⚡ Paper auto-generated: '+ref,'ok',5000);
     setTimeout(function(){ renderAdminDash(); },2500);
   } catch(e){
-    if(area) area.innerHTML='<div class="banner b-warn">⚠ Auto-generation failed: '+esc(e.message)+'</div>';
-    toast('Auto-gen failed: '+e.message,'err');
+    if(area) area.innerHTML='<div class="banner b-warn">⚠ Auto-generation is temporarily unavailable. Please use the Manual Path to submit questions.</div>';
+    toast('Automated generation is temporarily unavailable. Please use the Manual Path.','warn',6000);
   }
 };
 
